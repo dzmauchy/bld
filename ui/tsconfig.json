@@ -5,11 +5,25 @@
     "noEmit": true,
     "declaration": false,
     "declarationMap": false,
-    "lib": ["ESNext", "DOM"],
-    "types": ["@rsbuild/core/types"],
+    "lib": [
+      "ESNext",
+      "DOM",
+      "DOM.AsyncIterable",
+      "DOM.Iterable"
+    ],
+    "types": [
+      "@rsbuild/core/types"
+    ],
     "rootDir": ".",
     "outDir": "./dist"
   },
-  "include": ["./src", "./e2e"],
-  "references": [{ "path": "../core" }]
+  "include": [
+    "./src",
+    "./e2e"
+  ],
+  "references": [
+    {
+      "path": "../core"
+    }
+  ]
 }

@@ -1,0 +1,18 @@
+root = true
+
+[*.{xml,js,ts,tsx,json,yaml,yml,css,html}]
+charset = utf-8
+end_of_line = lf
+indent_size = 2
+indent_style = space
+insert_final_newline = false
+max_line_length = 160
+tab_width = 2
+
+[*.{ts,tsx}]
+ij_typescript_keep_simple_blocks_in_one_line = true
+ij_typescript_keep_simple_methods_in_one_line = true
+ij_typescript_blank_lines_around_method = 0
+ij_typescript_blank_lines_around_method_in_interface = 0
+ij_typescript_blank_lines_around_field = 0
+ij_typescript_blank_lines_around_field_in_interface = 0
