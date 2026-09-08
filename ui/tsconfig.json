@@ -7,9 +7,9 @@
     "declarationMap": false,
     "lib": ["ESNext", "DOM"],
     "types": ["@rsbuild/core/types"],
-    "rootDir": "./src",
+    "rootDir": ".",
     "outDir": "./dist"
   },
-  "include": ["./src"],
+  "include": ["./src", "./e2e"],
   "references": [{ "path": "../core" }]
 }

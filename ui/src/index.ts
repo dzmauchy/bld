@@ -1,8 +1,4 @@
-import { add } from "core";
-
-export function App(): string {
-  return String(add(2, 2));
-}
+import { App } from "./App.js";
 
 const root = document.querySelector("#root");
 if (root) {
