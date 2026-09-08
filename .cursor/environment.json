@@ -1,0 +1,4 @@
+{
+  "name": "bld",
+  "install": "npm ci && npm run build"
+}
