@@ -1,0 +1,18 @@
+{
+  "name": "bld",
+  "private": true,
+  "workspaces": [
+    "core",
+    "ui"
+  ],
+  "scripts": {
+    "dev": "npm run dev -w ui",
+    "build": "tsc -b && npm run build -w ui",
+    "preview": "npm run preview -w ui",
+    "test": "npm run test -w ui",
+    "clean": "tsc -b --clean"
+  },
+  "devDependencies": {
+    "typescript": "7.0.2"
+  }
+}
