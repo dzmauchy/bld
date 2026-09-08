@@ -20,10 +20,10 @@ jobs:
           targets: wasm32-unknown-unknown
 
       - name: Build WASM
-        run: cargo build --target wasm32-unknown-unknown --release
+        run: cargo build -p ui --target wasm32-unknown-unknown --release
 
       - name: Upload WASM artifact
         uses: actions/upload-artifact@v4
         with:
-          name: bld-wasm
-          path: target/wasm32-unknown-unknown/release/bld.wasm
+          name: ui-wasm
+          path: target/wasm32-unknown-unknown/release/ui.wasm
