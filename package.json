@@ -6,7 +6,9 @@
     "ui"
   ],
   "scripts": {
-    "build": "tsc -b",
+    "dev": "npm run dev -w ui",
+    "build": "tsc -b && npm run build -w ui",
+    "preview": "npm run preview -w ui",
     "clean": "tsc -b --clean"
   },
   "devDependencies": {

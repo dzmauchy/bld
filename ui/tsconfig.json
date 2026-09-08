@@ -1,6 +1,12 @@
 {
   "extends": "../tsconfig.base.json",
   "compilerOptions": {
+    "composite": false,
+    "noEmit": true,
+    "declaration": false,
+    "declarationMap": false,
+    "lib": ["ESNext", "DOM"],
+    "types": ["@rsbuild/core/types"],
     "rootDir": "./src",
     "outDir": "./dist"
   },
