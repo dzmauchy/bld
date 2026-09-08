@@ -4,16 +4,15 @@
   "private": true,
   "type": "module",
   "license": "AGPL-3.0-only",
-  "exports": {
-    ".": {
-      "types": "./dist/index.d.ts",
-      "default": "./dist/index.js"
-    }
-  },
   "scripts": {
-    "build": "tsc -b"
+    "dev": "rsbuild",
+    "build": "tsc --noEmit && rsbuild build",
+    "preview": "rsbuild preview"
   },
   "dependencies": {
     "core": "*"
+  },
+  "devDependencies": {
+    "@rsbuild/core": "2.2.4"
   }
 }
