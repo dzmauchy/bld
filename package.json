@@ -1,0 +1,15 @@
+{
+  "name": "bld",
+  "private": true,
+  "workspaces": [
+    "core",
+    "ui"
+  ],
+  "scripts": {
+    "build": "tsc -b",
+    "clean": "tsc -b --clean"
+  },
+  "devDependencies": {
+    "typescript": "7.0.2"
+  }
+}
