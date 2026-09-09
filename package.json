@@ -14,5 +14,9 @@
   },
   "devDependencies": {
     "typescript": "7.0.2"
+  },
+  "allowScripts": {
+    "tree-sitter-c": true,
+    "tree-sitter-cpp": true
   }
 }
