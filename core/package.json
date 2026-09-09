@@ -8,7 +8,8 @@
     ".": {
       "types": "./dist/index.d.ts",
       "default": "./dist/index.js"
-    }
+    },
+    "./model/*": "./src/model/*"
   },
   "dependencies": {
     "@yowasp/clang": "^22.0.0-git20542-10",
