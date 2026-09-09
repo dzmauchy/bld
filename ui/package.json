@@ -11,7 +11,9 @@
     "test": "vitest run && playwright test"
   },
   "dependencies": {
-    "core": "*"
+    "core": "*",
+    "solid-js": "^1.9.15",
+    "@awesome.me/webawesome": "^3.12.0"
   },
   "devDependencies": {
     "@playwright/test": "1.63.0",
