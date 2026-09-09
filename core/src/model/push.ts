@@ -38,6 +38,7 @@ export namespace push {
    * This class is designed to operate within an execution context, providing a mechanism
    * to output streams of 64-bit floating-point numbers based on a specified time window
    * and precision.
+   *
    */
   export class ScopeF64 extends Block {
 
@@ -51,7 +52,7 @@ export namespace push {
      * @step 10
      * @default 60
      */
-    readonly #window: u32;
+    readonly window: u32;
 
     /**
      * @icon precision.svg
@@ -63,7 +64,7 @@ export namespace push {
      * @step 10
      * @default 10
      */
-    readonly #precision: u32;
+    readonly precision: u32;
 
     /**
      * @param blockId Block ID
@@ -74,8 +75,8 @@ export namespace push {
      */
     constructor(blockId: u32, widths: Widths, ec: ExecutionContext, window: u32, precision: u32) {
       super(blockId, widths, ec);
-      this.#window = window;
-      this.#precision = precision;
+      this.window = window;
+      this.precision = precision;
     }
 
     public apply(): [streams: Vector<f64_push_stream>] {
@@ -87,6 +88,41 @@ export namespace push {
         };
       }
       return [streams];
+    }
+  }
+
+  /**
+   * Class representing a ramp signal generator with adjustable precision. The ramp
+   * signal produces a continuous stream of timestamps at regular intervals, based
+   * on the configured precision.
+   */
+  export class RampF64 extends Block {
+
+    /**
+     * @icon precision.svg
+     * @title Precision (ms)
+     * @category parameter
+     * @inputType slider
+     * @min 1
+     * @max 1000
+     * @step 1
+     * @default 10
+     */
+    readonly precision: u32;
+
+    constructor(blockId: u32, widths: Widths, ec: ExecutionContext, precision: u32) {
+      super(blockId, widths, ec);
+      this.precision = precision;
+    }
+
+    public apply(streams: Vector<f64_push_stream>): void {
+      const timerId = this.ec.setInterval(this.precision, () => {
+        const time = Number(this.ec.now()) * 1e-3;
+        for (const s of streams) {
+          s(time);
+        }
+      });
+      this.ec.onClose(() => this.ec.clearInterval(timerId));
     }
   }
 }

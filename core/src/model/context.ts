@@ -3,6 +3,7 @@ import u32 = basic.u32;
 import u8 = basic.u8;
 import bool = basic.bool;
 import f64 = basic.f64;
+import u64 = basic.u64;
 
 /**
  * The ExecutionContext interface provides various methods for managing intervals,
@@ -34,7 +35,7 @@ export interface ExecutionContext {
    * @param {Function} callback - The function to be executed on close. This should be a parameterless function.
    * @return {void} No value is returned.
    */
-  registerOnCloseCallback(callback: () => void): void;
+  onClose(callback: () => void): void;
 
   /**
    * Sends a pin signal to the specified output block with given parameters.
@@ -77,4 +78,11 @@ export interface ExecutionContext {
    * @return {f64} A random number between 0.0 (inclusive) and 1.0 (exclusive).
    */
   random(): f64;
+
+  /**
+   * Returns the current time in milliseconds.
+   *
+   * @return {u64} The current time in milliseconds
+   */
+  now(): u64;
 }
