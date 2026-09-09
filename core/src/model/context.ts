@@ -42,11 +42,10 @@ export interface ExecutionContext {
    *
    * @param {u32} blockId - The identifier for the output block to which the pin signal is sent.
    * @param {u8} pin - The output pin being activated or controlled.
-   * @param {bool} reverse - Indicates whether the signal is reversed (true for reverse, false otherwise).
    * @param {f64} v - The value associated with the pin signal, typically representing intensity or magnitude.
    * @return {void} This method does not return a value.
    */
-  sendPin64(blockId: u32, pin: u8, reverse: bool, v: f64): void;
+  sendPinF64(blockId: u32, pin: u8, v: f64): void;
 
   /**
    * Calculates the cosine of the given angle in radians.

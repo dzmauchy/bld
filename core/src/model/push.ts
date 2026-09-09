@@ -1,4 +1,4 @@
-import {basic, Block, Widths, Vector} from "./basic";
+import {basic, Block, Vector, Widths} from "./basic";
 import {ExecutionContext} from "./context";
 import u32 = basic.u32;
 import f32 = basic.f32;
@@ -45,7 +45,6 @@ export namespace push {
     /**
      * @icon time_window.svg
      * @title Window (s)
-     * @category parameter
      * @inputType slider
      * @min 10
      * @max 600
@@ -57,7 +56,6 @@ export namespace push {
     /**
      * @icon precision.svg
      * @title Precision (ms)
-     * @category parameter
      * @inputType slider
      * @min 10
      * @max 1000
@@ -84,7 +82,7 @@ export namespace push {
       const streams: f64_push_stream[] = new Array<f64_push_stream>(outputCount);
       for (let i = 0; i < outputCount; i++) {
         streams[i] = v => {
-          this.ec.sendPin64(this.blockId, i, true, v);
+          this.ec.sendPinF64(this.blockId, i, v);
         };
       }
       return [streams];
@@ -99,9 +97,9 @@ export namespace push {
   export class RampF64 extends Block {
 
     /**
+     * Represents the generator precision
      * @icon precision.svg
      * @title Precision (ms)
-     * @category parameter
      * @inputType slider
      * @min 1
      * @max 1000
@@ -123,6 +121,74 @@ export namespace push {
         }
       });
       this.ec.onClose(() => this.ec.clearInterval(timerId));
+    }
+  }
+
+  /**
+   * A class representing a cosine transformation block operating on 64-bit floating-point streams.
+   * Used to apply the cosine function to a stream of floating-point numbers.
+   */
+  export class CosF64 extends Block {
+
+    constructor(blockId: u32, widths: Widths, ec: ExecutionContext) {
+      super(blockId, widths, ec);
+    }
+
+    /**
+     * Applies a cosine transformation to the input stream.
+     * @param stream The input stream to be transformed.
+     * @returns A new stream with the cosine transformation applied
+     */
+    public apply(stream: f64_push_stream): [out: f64_push_stream] {
+      return [v => {
+        this.ec.sendPinF64(this.blockId, 0, v);
+        stream(this.ec.cos(v));
+      }];
+    }
+  }
+
+  /**
+   * The Product class extends the Block class and is responsible for implementing
+   * functionality to handle a product operation on a stream of floating-point numbers.
+   * It provides a mechanism to apply the product operation across multiple values
+   * in a streaming fashion.
+   */
+  export class Product extends Block {
+
+    /**
+     * Represents an array of default values for the product block.
+     * It should be guaranteed to have the same length as the number of output pins.
+     * @icon default_values.svg
+     * @title Default Values
+     * @inputType array_of_f64
+     * @default 1
+     */
+    readonly defaultValues: Float64Array;
+
+    constructor(blockId: u32, widths: Widths, ec: ExecutionContext, defaultValues: Float64Array) {
+      super(blockId, widths, ec);
+      this.defaultValues = new Float64Array(defaultValues);
+    }
+
+    /**
+     * Applies the product operation to a given stream of floating-point numbers.
+     * @param stream The input stream of floating-point numbers.
+     * @returns An array of streams with the product operation applied.
+     */
+    public apply(stream: f64_push_stream): [streams: Vector<f64_push_stream>] {
+      const outputCount = this.outputWidths[0];
+      const values = new Float64Array(this.defaultValues);
+      const streams = new Array<f64_push_stream>(outputCount);
+      for (let i = 0; i < outputCount; i++) {
+        streams[i] = v => {
+          values[i] = v;
+          this.ec.sendPinF64(this.blockId, i, v);
+          let product = 1;
+          for (let j = 0; j < outputCount; j++) product *= values[j];
+          stream(product);
+        };
+      }
+      return [streams];
     }
   }
 }
