@@ -165,24 +165,20 @@ export namespace push {
 
 
   /**
-   * A class representing a cosine transformation block operating on 64-bit floating-point streams.
-   * Used to apply the cosine function to a stream of floating-point numbers.
+   * Represents a cosine function block that applies a cosine transformation to the input stream.
+   * @title Cos
+   * @icon cos.svg
    */
   export class CosF64 extends Block {
-
     constructor(blockId: u32, widths: Widths, ec: ExecutionContext) {
       super(blockId, widths, ec);
     }
 
-    /**
-     * Applies a cosine transformation to the input stream.
-     * @param stream The input stream to be transformed.
-     * @returns A new stream with the cosine transformation applied
-     */
-    public apply(stream: f64_push_stream): [out: f64_push_stream] {
+    public apply(downstream: Vector<f64_push_stream>): [out: f64_push_stream] {
       return [v => {
-        this.ec.sendPinF64(this.blockId, 0, v);
-        stream(this.ec.cos(v));
+        const cos = this.ec.cos(v);
+        this.ec.sendPinF64(this.blockId, 0, cos);
+        for (const s of downstream) s(cos);
       }];
     }
   }
