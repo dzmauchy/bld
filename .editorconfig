@@ -16,3 +16,6 @@ ij_typescript_blank_lines_around_method = 0
 ij_typescript_blank_lines_around_method_in_interface = 0
 ij_typescript_blank_lines_around_field = 0
 ij_typescript_blank_lines_around_field_in_interface = 0
+ij_typescript_blank_lines_around_class = 0
+ij_typescript_blank_lines_around_function = 0
+ij_typescript_blank_lines_after_imports = 1
