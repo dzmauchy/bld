@@ -1,4 +1,17 @@
 {
   "name": "bld",
-  "install": "npm ci && npm run build"
+  "install": "npm ci && (cd ui && npx playwright install --with-deps chromium) && npm run build",
+  "terminals": [
+    {
+      "name": "dev",
+      "command": "npm run dev",
+      "description": "Rsbuild dev server for the ui package, served on http://localhost:3000"
+    }
+  ],
+  "ports": [
+    {
+      "name": "ui dev server",
+      "port": 3000
+    }
+  ]
 }
