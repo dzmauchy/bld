@@ -161,7 +161,7 @@ export namespace push {
      * @icon default_values.svg
      * @title Default Values
      * @inputType array_of_f64
-     * @default 1
+     * @default [1, ...]
      */
     readonly defaultValues: Float64Array;
 
