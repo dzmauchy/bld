@@ -49,7 +49,6 @@ export namespace push {
      * @min 10
      * @max 600
      * @step 10
-     * @default 60
      */
     readonly window: u32;
 
@@ -60,7 +59,6 @@ export namespace push {
      * @min 10
      * @max 1000
      * @step 10
-     * @default 10
      */
     readonly precision: u32;
 
@@ -71,7 +69,7 @@ export namespace push {
      * @param window Time window (s)
      * @param precision Precision (ms)
      */
-    constructor(blockId: u32, widths: Widths, ec: ExecutionContext, window: u32, precision: u32) {
+    constructor(blockId: u32, widths: Widths, ec: ExecutionContext, window: u32 = 60, precision: u32 = 10) {
       super(blockId, widths, ec);
       this.window = window;
       this.precision = precision;
@@ -104,11 +102,10 @@ export namespace push {
      * @min 1
      * @max 1000
      * @step 1
-     * @default 10
      */
     readonly precision: u32;
 
-    constructor(blockId: u32, widths: Widths, ec: ExecutionContext, precision: u32) {
+    constructor(blockId: u32, widths: Widths, ec: ExecutionContext, precision: u32 = 10) {
       super(blockId, widths, ec);
       this.precision = precision;
     }
@@ -123,6 +120,49 @@ export namespace push {
       this.ec.onClose(() => this.ec.clearInterval(timerId));
     }
   }
+
+  export class ConstantF64 extends Block {
+
+    /**
+     * Represents the generator precision
+     * @icon precision.svg
+     * @title Precision (ms)
+     * @inputType slider
+     * @min 1
+     * @max 1000
+     * @step 1
+     */
+    readonly precision: u32;
+
+    /**
+     * Represents the constant value
+     * @icon value.svg
+     * @title Value
+     * @inputType number
+     */
+    readonly value: f64;
+
+    constructor(blockId: u32, widths: Widths, ec: ExecutionContext, precision: u32 = 10, value: f64 = 1) {
+      super(blockId, widths, ec);
+      this.precision = precision;
+      this.value = value;
+    }
+
+    /**
+     * Applies a constant value to the input stream
+     * @param streams Downstream streams to apply the constant value to
+     */
+    public apply(streams: Vector<f64_push_stream>): void {
+      const v = Number(this.value);
+      const timerId = this.ec.setInterval(this.precision, () => {
+        for (const s of streams) {
+          s(v);
+        }
+      });
+      this.ec.onClose(() => this.ec.clearInterval(timerId));
+    }
+  }
+
 
   /**
    * A class representing a cosine transformation block operating on 64-bit floating-point streams.
@@ -153,7 +193,7 @@ export namespace push {
    * It provides a mechanism to apply the product operation across multiple values
    * in a streaming fashion.
    */
-  export class Product extends Block {
+  export class ProductF64 extends Block {
 
     /**
      * Represents an array of default values for the product block.
@@ -161,34 +201,33 @@ export namespace push {
      * @icon default_values.svg
      * @title Default Values
      * @inputType array_of_f64
-     * @default [1, ...]
      */
     readonly defaultValues: Float64Array;
 
-    constructor(blockId: u32, widths: Widths, ec: ExecutionContext, defaultValues: Float64Array) {
+    constructor(blockId: u32, widths: Widths, ec: ExecutionContext, defaultValues: Float64Array = new Float64Array([1])) {
       super(blockId, widths, ec);
       this.defaultValues = new Float64Array(defaultValues);
     }
 
     /**
      * Applies the product operation to a given stream of floating-point numbers.
-     * @param stream The input stream of floating-point numbers.
+     * @param streams The input vectorized stream of floating-point numbers.
      * @returns An array of streams with the product operation applied.
      */
-    public apply(stream: f64_push_stream): [streams: Vector<f64_push_stream>] {
+    public apply(streams: Vector<f64_push_stream>): [streams: Vector<f64_push_stream>] {
       const outputCount = this.outputWidths[0];
       const values = new Float64Array(this.defaultValues);
-      const streams = new Array<f64_push_stream>(outputCount);
+      const result = new Array<f64_push_stream>(outputCount);
       for (let i = 0; i < outputCount; i++) {
         streams[i] = v => {
           values[i] = v;
           this.ec.sendPinF64(this.blockId, i, v);
           let product = 1;
           for (let j = 0; j < outputCount; j++) product *= values[j];
-          stream(product);
+          for (const s of streams) s(product);
         };
       }
-      return [streams];
+      return [result];
     }
   }
 }

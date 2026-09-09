@@ -39,7 +39,7 @@ export namespace gpio {
        */
       readonly pinNumbers: Uint8Array;
 
-      constructor(blockId: u32, widths: Widths, ec: ExecutionContext, pinNumbers: Uint8Array) {
+      constructor(blockId: u32, widths: Widths, ec: ExecutionContext, pinNumbers: Uint8Array = new Uint8Array([0])) {
         super(blockId, widths, ec);
         this.pinNumbers = pinNumbers;
       }
@@ -48,17 +48,19 @@ export namespace gpio {
        * Applies the given push streams to handle GPIO input messages.
        * Listens for incoming "message" events and dispatches the GPIO input values to the corresponding streams.
        *
-       * @param streams A vector of push streams corresponding to {@link pinNumbers}.
+       * @param streams A vector of vectorized push streams corresponding to {@link pinNumbers}.
        * Each stream corresponds to a specific pin and accepts a floating-point value (0 or 1).
        * @return void This is a push generator. Push generators don't return values
        */
-      public apply(streams: Vector<f64_push_stream>): void {
+      public apply(streams: Vector<Vector<f64_push_stream>>): void {
         const listener = (event: MessageEvent<Message>) => {
           const data = event.data;
           if (data && data.kind === "gpio_in" && data.blockId === this.blockId) {
             const pin: u8 = data.pinIndex;
             const value: f64 = data.value ? 1 : 0;
-            streams[pin](value);
+            for (const s of streams[pin]) {
+              s(value);
+            }
           }
         };
         self.addEventListener("message", listener);
