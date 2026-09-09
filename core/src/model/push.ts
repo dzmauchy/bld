@@ -219,7 +219,7 @@ export namespace push {
       const values = new Float64Array(this.defaultValues);
       const result = new Array<f64_push_stream>(outputCount);
       for (let i = 0; i < outputCount; i++) {
-        streams[i] = v => {
+        result[i] = v => {
           values[i] = v;
           this.ec.sendPinF64(this.blockId, i, v);
           let product = 1;
