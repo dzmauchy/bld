@@ -1,4 +1,4 @@
-import {basic, Block, Vector, Widths} from "./basic";
+import {basic, Block, Vector} from "./basic";
 import {ExecutionContext} from "./context";
 import u32 = basic.u32;
 import f32 = basic.f32;
@@ -69,7 +69,7 @@ export namespace push {
      * @param window Time window (s)
      * @param precision Precision (ms)
      */
-    constructor(blockId: u32, widths: Widths, ec: ExecutionContext, window: u32 = 60, precision: u32 = 10) {
+    constructor(blockId: u32, widths: Uint8Array, ec: ExecutionContext, window: u32 = 60, precision: u32 = 10) {
       super(blockId, widths, ec);
       this.window = window;
       this.precision = precision;
@@ -111,7 +111,7 @@ export namespace push {
      */
     readonly precision: u32;
 
-    constructor(blockId: u32, widths: Widths, ec: ExecutionContext, precision: u32 = 10) {
+    constructor(blockId: u32, widths: Uint8Array, ec: ExecutionContext, precision: u32 = 10) {
       super(blockId, widths, ec);
       this.precision = precision;
     }
@@ -148,7 +148,7 @@ export namespace push {
      */
     readonly value: f64;
 
-    constructor(blockId: u32, widths: Widths, ec: ExecutionContext, precision: u32 = 10, value: f64 = 1) {
+    constructor(blockId: u32, widths: Uint8Array, ec: ExecutionContext, precision: u32 = 10, value: f64 = 1) {
       super(blockId, widths, ec);
       this.precision = precision;
       this.value = value;
@@ -176,7 +176,7 @@ export namespace push {
    * @icon cos.svg
    */
   export class CosF64 extends Block {
-    constructor(blockId: u32, widths: Widths, ec: ExecutionContext) {
+    constructor(blockId: u32, widths: Uint8Array, ec: ExecutionContext) {
       super(blockId, widths, ec);
     }
 
@@ -206,7 +206,7 @@ export namespace push {
      */
     readonly defaultValues: Float64Array;
 
-    constructor(blockId: u32, widths: Widths, ec: ExecutionContext, defaultValues: Float64Array = new Float64Array([1])) {
+    constructor(blockId: u32, widths: Uint8Array, ec: ExecutionContext, defaultValues: Float64Array = new Float64Array([1])) {
       super(blockId, widths, ec);
       this.defaultValues = new Float64Array(defaultValues);
     }

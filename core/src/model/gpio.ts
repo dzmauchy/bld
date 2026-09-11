@@ -1,4 +1,4 @@
-import {basic, Block, Vector, Widths} from "./basic";
+import {basic, Block, Vector} from "./basic";
 import {ExecutionContext} from "./context";
 import {Message} from "./messages";
 import {push} from "./push";
@@ -39,7 +39,7 @@ export namespace gpio {
        */
       readonly pinNumbers: Uint8Array;
 
-      constructor(blockId: u32, widths: Widths, ec: ExecutionContext, pinNumbers: Uint8Array = new Uint8Array([0])) {
+      constructor(blockId: u32, widths: Uint8Array, ec: ExecutionContext, pinNumbers: Uint8Array = new Uint8Array([0])) {
         super(blockId, widths, ec);
         this.pinNumbers = pinNumbers;
       }

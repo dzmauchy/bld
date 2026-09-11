@@ -1,22 +1,22 @@
-export { Block, Widths } from "./basic";
+export { Block } from "./basic";
 export {
   CloseHandler,
   ExecutionContext,
   GpioInHandler,
   IntervalHandler,
 } from "./context";
-export { GpioIn } from "./gpio";
+export { gpio_in } from "./gpio";
 export {
-  ConstF32,
-  CosF32,
-  CosGenF32,
-  ProductF32,
-  ProductF32Factor,
-  PulseGenF32,
-  RandGenF32,
-  ScopeF32,
-  ScopeF32Channel,
-  SinF32,
-  SinGenF32,
+  const_f32,
+  cos_f32,
+  cos_gen_f32,
+  product_f32,
+  product_f32_factor,
+  pulse_gen_f32,
+  rand_gen_f32,
+  scope_f32,
+  scope_f32_channel,
+  sin_f32,
+  sin_gen_f32,
 } from "./push";
 export { Pss } from "./types";

@@ -1,4 +1,4 @@
-import { Block, Widths } from "./basic";
+import { Block } from "./basic";
 import { CloseHandler, ExecutionContext, GpioInHandler } from "./context";
 import { Pss } from "./types";
 
@@ -6,13 +6,13 @@ import { Pss } from "./types";
  * `gpio_in` — source that fans each configured pin out to arrays of
  * `pss<f32>` streams. Incoming true/false becomes 1.0 / 0.0.
  */
-export class GpioIn extends Block implements GpioInHandler, CloseHandler {
+export class gpio_in extends Block implements GpioInHandler, CloseHandler {
   pinNumbers: Uint8Array;
   streams: Array<Array<Pss<f32>>> = new Array<Array<Pss<f32>>>();
 
   constructor(
     blockId: u32,
-    widths: Widths,
+    widths: Uint8Array,
     ec: ExecutionContext,
     pinNumbers: Uint8Array
   ) {
