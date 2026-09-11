@@ -9,3 +9,4 @@ export * from "./model/gpio";
 export * from "./model/messages";
 export * from "./model/push";
 export { modelAssetFiles } from "./modelAssets";
+export { assemblyAssetFiles } from "./assemblyAssets";

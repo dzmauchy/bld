@@ -2,7 +2,9 @@ import { readFileSync, readdirSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { afterAll, beforeAll, describe, expect, test } from "vitest";
-import { AsRuntime, type AsSession } from "./as/runtime.js";
+import { createNodeAsRuntime } from "./as/runtime.node.ts";
+import { wrapGenerated } from "./as/testProgram.ts";
+import type { AsSession } from "./as/runtime.ts";
 
 const coreRoot = join(dirname(fileURLToPath(import.meta.url)), "..");
 const assemblyDir = join(coreRoot, "assets/assembly");
@@ -75,11 +77,11 @@ describe("assemblyscript assets match catalog", () => {
   });
 });
 
-const runtime = new AsRuntime(assemblyDir);
+const runtime = createNodeAsRuntime(assemblyDir);
 
 beforeAll(async () => {
   // Warm the workers with an empty program so the first test is not special.
-  await runtime.createSession("");
+  await runtime.createSession(wrapGenerated(""));
 });
 
 afterAll(async () => {
@@ -87,7 +89,7 @@ afterAll(async () => {
 });
 
 async function session(body: string): Promise<AsSession> {
-  return runtime.createSession(body);
+  return runtime.createSession(wrapGenerated(body));
 }
 
 describe("generated assemblyscript pin programs", () => {
