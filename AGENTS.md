@@ -1,0 +1,33 @@
+# Summary
+
+This is a project of an IDE to be used as a visual programming environment for creating and editing diagrams
+which then could be deployed as a wasm binary to MCUs or be started
+in the browser
+
+Features:
+- Visual programming environment
+- Diagram creation and editing
+- Deployment to MCUs as a wasm binary
+- Browser-based execution
+- Import/export from/to JSON format
+- Client-side execution only
+
+Technology stack:
+- TypeScript
+- rsbuild
+- solid.js
+- webawesome
+- dark theme
+- WebAssembly
+- AssemblyScript
+
+# Some behavioral aspects
+
+- If a block configuration property was set to its default value, 
+  it should be omitted from the JSON output
+- The browser diagram runtime should be executed in a worker thread
+- The browser simulation is made by generating a js file from the diagram
+  blocks and connections using predefined js functions from src/model
+- The scope implementation in the browser should be made by 
+  using a sliding buffer (Float32Array or Float64Array) with one 
+  pointer

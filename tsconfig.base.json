@@ -1,0 +1,22 @@
+{
+  "compilerOptions": {
+    "composite": true,
+    "module": "esnext",
+    "target": "esnext",
+    "moduleResolution": "bundler",
+    "types": [],
+    "rootDir": "./src",
+    "outDir": "./dist",
+    "sourceMap": true,
+    "declaration": true,
+    "declarationMap": true,
+    "noUncheckedIndexedAccess": false,
+    "exactOptionalPropertyTypes": true,
+    "strict": true,
+    "verbatimModuleSyntax": false,
+    "isolatedModules": true,
+    "noUncheckedSideEffectImports": true,
+    "moduleDetection": "force",
+    "skipLibCheck": true
+  }
+}

@@ -1,0 +1,29 @@
+{
+  "name": "bld",
+  "private": true,
+  "workspaces": [
+    "core",
+    "ui"
+  ],
+  "scripts": {
+    "dev": "npm run dev -w ui",
+    "build": "tsc -b && npm run build -w ui",
+    "preview": "npm run preview -w ui",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "clean": "tsc -b --clean",
+    "deploy": "npm run deploy -w ui"
+  },
+  "devDependencies": {
+    "typescript": "7.0.2",
+    "vitest": "^5.0.0",
+    "wrangler": "^4.130.0"
+  },
+  "overrides": {
+    "sharp": "^0.35.4"
+  },
+  "allowScripts": {
+    "esbuild": true,
+    "workerd": true
+  }
+}
