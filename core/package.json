@@ -12,7 +12,8 @@
     "./model/*": "./src/model/*",
     "./as": "./src/as/index.ts",
     "./as/*": "./src/as/*",
-    "./assembly/*": "./assets/assembly/*"
+    "./assembly/*": "./assets/assembly/*",
+    "./schemas/*": "./assets/schemas/*"
   },
   "dependencies": {
     "assemblyscript": "^0.28.20"
