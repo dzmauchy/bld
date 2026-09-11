@@ -9,6 +9,7 @@ node_modules/
 # Build output
 dist/
 *.tsbuildinfo
+core/assets/assembly/build/
 
 # Optional npm cache
 .npm

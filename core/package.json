@@ -9,7 +9,10 @@
       "types": "./dist/index.d.ts",
       "default": "./dist/index.js"
     },
-    "./model/*": "./src/model/*"
+    "./model/*": "./src/model/*",
+    "./as": "./src/as/index.ts",
+    "./as/*": "./src/as/*",
+    "./assembly/*": "./assets/assembly/*"
   },
   "dependencies": {
     "assemblyscript": "^0.28.20"
