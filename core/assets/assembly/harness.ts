@@ -1,5 +1,5 @@
-import { CloseHandler, ExecutionContext, GpioInHandler, IntervalHandler } from "../context";
-import { F32PushStream } from "../types";
+import { CloseHandler, ExecutionContext, GpioInHandler, IntervalHandler } from "./context";
+import { F32PushStream } from "./types";
 
 class IntervalEntry {
   id: u32;
@@ -44,7 +44,7 @@ export class DiscardF32 implements F32PushStream {
   push(_value: f32): void {}
 }
 
-/** In-wasm execution context used by AssemblyScript pin tests. */
+/** In-wasm execution context used by generated AssemblyScript test programs. */
 export class TestExecutionContext extends ExecutionContext {
   private nextIntervalId: u32 = 1;
   private nowMs: u64 = 0;
@@ -188,6 +188,13 @@ export class TestExecutionContext extends ExecutionContext {
     }
     return count;
   }
+
+  /** Tick sources once, then observe sink pins on the following tick. */
+  tickThenObserve(): void {
+    this.tick();
+    this.clearPins();
+    this.tick();
+  }
 }
 
 export function widths(n: u8): Uint8Array {
@@ -244,32 +251,4 @@ export function gpioSinks3(
   pinStreams[1] = p1;
   pinStreams[2] = p2;
   return pinStreams;
-}
-
-export function expectPin(
-  ec: TestExecutionContext,
-  blockId: u32,
-  pin: u8,
-  expected: f32,
-  eps: f32 = 1e-5
-): void {
-  const actual = ec.lastPin(blockId, pin);
-  if (isNaN(expected)) {
-    assert(isNaN(actual), "expected NaN at pin");
-    return;
-  }
-  assert(!isNaN(actual), "actual pin value is NaN");
-  const delta = Mathf.abs(actual - expected);
-  assert(delta <= eps, "pin value mismatch");
-}
-
-export function expectNoPin(ec: TestExecutionContext, blockId: u32, pin: u8): void {
-  assert(!ec.hasPin(blockId, pin), "unexpected pin write");
-}
-
-/** Tick sources once, then observe sink pins on the following tick. */
-export function tickThenObserve(ec: TestExecutionContext): void {
-  ec.tick();
-  ec.clearPins();
-  ec.tick();
 }

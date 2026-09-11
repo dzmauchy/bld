@@ -16,7 +16,6 @@
   },
   "scripts": {
     "build": "tsc -b",
-    "asbuild": "asc tests/index.ts --baseDir assets/assembly --config assets/assembly/asconfig.json --target debug",
     "test": "vitest run"
   }
 }
