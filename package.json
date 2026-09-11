@@ -10,7 +10,6 @@
     "build": "tsc -b && npm run build -w ui",
     "preview": "npm run preview -w ui",
     "test": "vitest run",
-    "test:watch": "vitest",
     "clean": "tsc -b --clean",
     "deploy": "npm run deploy -w ui"
   },
