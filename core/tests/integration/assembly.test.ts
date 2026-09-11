@@ -79,6 +79,26 @@ async function session(body: string): Promise<AsSession> {
 }
 
 describe("generated assemblyscript pin programs", () => {
+  test("Block.outputCountOf reads the first width", async () => {
+    const rt = await session(`
+      export function empty(): i32 { return Block.outputCountOf(new Uint8Array(0)); }
+      export function counted(): i32 { return Block.outputCountOf(widths(4)); }
+    `);
+    expect(await rt.call("empty")).toBe(0);
+    expect(await rt.call("counted")).toBe(4);
+  });
+
+  test("Block.pushAll writes to every stream", async () => {
+    const rt = await session(`
+      const scope = new scope_f32(0, widths(2), ec);
+      const sinks = scope.apply();
+      Block.pushAll(sinks, 2.5);
+    `);
+    await rt.tickThenObserve();
+    expect(await rt.lastPin(0, 0)).toBe(2.5);
+    expect(await rt.lastPin(0, 1)).toBe(2.5);
+  });
+
   test("const_f32 pushes value to scope", async () => {
     const rt = await session(`
       const scope = new scope_f32(0, widths(1), ec, 60, 10);

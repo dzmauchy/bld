@@ -1,15 +1,5 @@
 import { Block, CloseHandler, ExecutionContext, GpioInHandler, IntervalHandler, Pss } from "./context";
 
-function pushAll(streams: Array<Pss<f32>>, value: f32): void {
-  for (let i = 0; i < streams.length; i++) {
-    streams[i].push(value);
-  }
-}
-
-function outputCountOf(widths: Uint8Array): i32 {
-  return widths.length > 0 ? i32(widths[0]) : 0;
-}
-
 /**
  * `gpio_in` — source that fans each configured pin out to arrays of
  * `pss<f32>` streams. Incoming true/false becomes 1.0 / 0.0.
@@ -37,10 +27,7 @@ export class gpio_in extends Block implements GpioInHandler, CloseHandler {
   onGpioIn(pinIndex: u8, value: bool): void {
     if (i32(pinIndex) >= this.streams.length) return;
     const v: f32 = value ? 1.0 : 0.0;
-    const pinStreams = this.streams[i32(pinIndex)];
-    for (let i = 0; i < pinStreams.length; i++) {
-      pinStreams[i].push(v);
-    }
+    Block.pushAll(this.streams[i32(pinIndex)], v);
   }
 
   onClose(): void {
@@ -101,7 +88,7 @@ export class scope_f32 extends Block implements IntervalHandler, CloseHandler {
   }
 
   apply(): Array<Pss<f32>> {
-    const outputCount = outputCountOf(this.outputWidths);
+    const outputCount = Block.outputCountOf(this.outputWidths);
     this.values = new Array<f32>(outputCount);
     const streams = new Array<Pss<f32>>(outputCount);
     for (let i = 0; i < outputCount; i++) {
@@ -139,7 +126,7 @@ export class product_f32 extends Block {
 
   apply(downstream: Array<Pss<f32>>): Array<Pss<f32>> {
     this.downstream = downstream;
-    const factorCount = outputCountOf(this.outputWidths);
+    const factorCount = Block.outputCountOf(this.outputWidths);
     this.values = new Array<f32>(factorCount);
     const factors = new Array<Pss<f32>>(factorCount);
     for (let i = 0; i < factorCount; i++) {
@@ -156,7 +143,7 @@ export class product_f32 extends Block {
     for (let j = 0; j < this.values.length; j++) {
       product *= this.values[j];
     }
-    pushAll(this.downstream, product);
+    Block.pushAll(this.downstream, product);
   }
 }
 
@@ -179,7 +166,7 @@ export class cos_f32 extends Block implements Pss<f32> {
   push(value: f32): void {
     const c = this.ec.cos(value);
     this.ec.sendPinF32(this.blockId, 0, c);
-    pushAll(this.downstream, c);
+    Block.pushAll(this.downstream, c);
   }
 }
 
@@ -201,7 +188,7 @@ export class sin_f32 extends Block implements Pss<f32> {
   push(value: f32): void {
     const s = this.ec.sin(value);
     this.ec.sendPinF32(this.blockId, 0, s);
-    pushAll(this.downstream, s);
+    Block.pushAll(this.downstream, s);
   }
 }
 
@@ -234,7 +221,7 @@ export class const_f32 extends Block implements IntervalHandler, CloseHandler {
   }
 
   onInterval(): void {
-    pushAll(this.streams, this.v);
+    Block.pushAll(this.streams, this.v);
   }
 
   onClose(): void {
@@ -268,7 +255,7 @@ export class cos_gen_f32 extends Block implements IntervalHandler, CloseHandler 
 
   onInterval(): void {
     const t = f32(this.ec.now()) * 0.001;
-    pushAll(this.streams, this.ec.cos(t));
+    Block.pushAll(this.streams, this.ec.cos(t));
   }
 
   onClose(): void {
@@ -302,7 +289,7 @@ export class sin_gen_f32 extends Block implements IntervalHandler, CloseHandler 
 
   onInterval(): void {
     const t = f32(this.ec.now()) * 0.001;
-    pushAll(this.streams, this.ec.sin(t));
+    Block.pushAll(this.streams, this.ec.sin(t));
   }
 
   onClose(): void {
@@ -335,7 +322,7 @@ export class rand_gen_f32 extends Block implements IntervalHandler, CloseHandler
   }
 
   onInterval(): void {
-    pushAll(this.streams, this.ec.random());
+    Block.pushAll(this.streams, this.ec.random());
   }
 
   onClose(): void {
@@ -378,7 +365,7 @@ export class pulse_gen_f32 extends Block implements IntervalHandler, CloseHandle
       const highFor = u64(f32(period) * this.dutyCycle);
       if (elapsed < highFor) value = 1.0;
     }
-    pushAll(this.streams, value);
+    Block.pushAll(this.streams, value);
   }
 
   onClose(): void {
