@@ -60,4 +60,14 @@ export class Block {
     this.outputWidths = outputWidths;
     this.ec = ec;
   }
+
+  static pushAll(streams: Array<Pss<f32>>, value: f32): void {
+    for (let i = 0; i < streams.length; i++) {
+      streams[i].push(value);
+    }
+  }
+
+  static outputCountOf(widths: Uint8Array): i32 {
+    return widths.length > 0 ? i32(widths[0]) : 0;
+  }
 }
