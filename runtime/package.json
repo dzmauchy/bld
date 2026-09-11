@@ -1,0 +1,29 @@
+{
+  "name": "runtime",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "license": "AGPL-3.0-only",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./src/index.ts"
+    },
+    "./run.ts": "./src/run.ts",
+    "./runtime.ts": "./src/runtime.ts",
+    "./tests/runtime.node.ts": "./tests/runtime.node.ts",
+    "./*": "./src/*"
+  },
+  "dependencies": {
+    "cpp": "*"
+  },
+  "scripts": {
+    "build": "tsc -b && tsc -b tsconfig.test.json",
+    "test": "tsc -b && tsc -b tsconfig.test.json && rstest",
+    "test:unit": "tsc -b && tsc -b tsconfig.test.json && rstest tests/unit",
+    "clean": "tsc -b --clean"
+  },
+  "devDependencies": {
+    "@rstest/adapter-rsbuild": "^0.12.2"
+  }
+}

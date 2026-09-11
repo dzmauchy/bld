@@ -1,0 +1,22 @@
+{
+  "extends": "../tsconfig.base.json",
+  "compilerOptions": {
+    "composite": false,
+    "noEmit": true,
+    "declaration": false,
+    "declarationMap": false,
+    "allowImportingTsExtensions": true,
+    "lib": [
+      "ES2025",
+      "DOM",
+      "DOM.Iterable",
+      "WebWorker"
+    ],
+    "rootDir": "./src",
+    "outDir": "./dist",
+    "types": []
+  },
+  "include": [
+    "./src"
+  ]
+}

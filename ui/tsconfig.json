@@ -1,0 +1,34 @@
+{
+  "extends": "../tsconfig.base.json",
+  "compilerOptions": {
+    "jsx": "preserve",
+    "jsxImportSource": "@solidjs/web",
+    "composite": false,
+    "noEmit": true,
+    "declaration": false,
+    "declarationMap": false,
+    "lib": [
+      "ES2025",
+      "DOM",
+      "DOM.AsyncIterable",
+      "DOM.Iterable"
+    ],
+    "allowImportingTsExtensions": true,
+    "types": [
+      "@rsbuild/core/types"
+    ],
+    "rootDir": ".",
+    "outDir": "./dist"
+  },
+  "include": [
+    "./src"
+  ],
+  "references": [
+    {
+      "path": "../runtime"
+    },
+    {
+      "path": "../core"
+    }
+  ]
+}

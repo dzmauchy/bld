@@ -1,0 +1,28 @@
+name: Deploy UI
+
+on:
+  workflow_dispatch:
+
+concurrency:
+  group: deploy-ui-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    runs-on: ubuntu-26.04-arm
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build UI workspace
+        run: npm run build --workspace=ui
+
+      - name: Push bld worker
+        run: npm run deploy --workspace=ui
+        env:
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}

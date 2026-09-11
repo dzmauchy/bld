@@ -1,0 +1,29 @@
+{
+  "name": "core",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "license": "AGPL-3.0-only",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./src/index.ts"
+    },
+    "./wasm": "./src/wasm/index.ts",
+    "./assets/*": "./assets/*",
+    "./*": "./src/*"
+  },
+  "dependencies": {
+    "modern-tar": "^0.8.5",
+    "runtime": "*"
+  },
+  "scripts": {
+    "build": "tsc -b && tsc -b tsconfig.test.json",
+    "test": "tsc -b && tsc -b tsconfig.test.json && rstest",
+    "test:unit": "tsc -b && tsc -b tsconfig.test.json && rstest tests/unit",
+    "clean": "tsc -b --clean"
+  },
+  "devDependencies": {
+    "@rstest/adapter-rsbuild": "^0.12.2"
+  }
+}

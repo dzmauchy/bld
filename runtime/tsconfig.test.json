@@ -1,0 +1,11 @@
+{
+  "extends": ["./tsconfig.json", "../tsconfig.test.base.json"],
+  "compilerOptions": {
+    "lib": ["ES2025", "DOM"]
+  },
+  "references": [
+    {
+      "path": "./tsconfig.json"
+    }
+  ]
+}
