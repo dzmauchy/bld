@@ -1,4 +1,4 @@
-export { Block, Vector, Widths } from "./basic";
+export { Block, Widths } from "./basic";
 export {
   CloseHandler,
   ExecutionContext,
