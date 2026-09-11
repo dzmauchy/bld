@@ -19,4 +19,4 @@ export {
   SinF32,
   SinGenF32,
 } from "./push";
-export { Arr, F32PushStream, Pss } from "./types";
+export { Pss } from "./types";

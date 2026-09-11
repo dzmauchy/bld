@@ -72,8 +72,6 @@ describe("assemblyscript assets match catalog", () => {
     );
     const typesSource = readFileSync(join(assemblyDir, "types.ts"), "utf8");
     expect(typesSource).toContain("export interface Pss<T>");
-    expect(typesSource).toContain("export type Arr<T>");
-    expect(typesSource).toContain("export interface F32PushStream");
   });
 });
 

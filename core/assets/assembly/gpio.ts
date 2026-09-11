@@ -1,6 +1,6 @@
 import { Block, Widths } from "./basic";
 import { CloseHandler, ExecutionContext, GpioInHandler } from "./context";
-import { F32PushStream } from "./types";
+import { Pss } from "./types";
 
 /**
  * `gpio_in` — source that fans each configured pin out to arrays of
@@ -8,7 +8,7 @@ import { F32PushStream } from "./types";
  */
 export class GpioIn extends Block implements GpioInHandler, CloseHandler {
   pinNumbers: Uint8Array;
-  streams: Array<Array<F32PushStream>> = new Array<Array<F32PushStream>>();
+  streams: Array<Array<Pss<f32>>> = new Array<Array<Pss<f32>>>();
 
   constructor(
     blockId: u32,
@@ -20,7 +20,7 @@ export class GpioIn extends Block implements GpioInHandler, CloseHandler {
     this.pinNumbers = pinNumbers;
   }
 
-  apply(streams: Array<Array<F32PushStream>>): void {
+  apply(streams: Array<Array<Pss<f32>>>): void {
     this.streams = streams;
     this.ec.listenGpioIn(this.blockId, this);
     this.ec.onClose(this);

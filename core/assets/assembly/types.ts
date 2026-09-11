@@ -13,9 +13,3 @@
 export interface Pss<T> {
   push(value: T): void;
 }
-
-/** Array (`array` in types.json). */
-export type Arr<T> = Array<T>;
-
-/** `pss<f32>` used by every f32 push block in blocks.json. */
-export interface F32PushStream extends Pss<f32> {}

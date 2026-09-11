@@ -1,8 +1,8 @@
 import { CloseHandler, ExecutionContext, IntervalHandler } from "./context";
 import { Block, Widths } from "./basic";
-import { F32PushStream } from "./types";
+import { Pss } from "./types";
 
-function pushAll(streams: Array<F32PushStream>, value: f32): void {
+function pushAll(streams: Array<Pss<f32>>, value: f32): void {
   for (let i = 0; i < streams.length; i++) {
     streams[i].push(value);
   }
@@ -13,7 +13,7 @@ function outputCountOf(widths: Widths): i32 {
 }
 
 /** Channel of `scope_f32` (JSON output `sink`). */
-export class ScopeF32Channel implements F32PushStream {
+export class ScopeF32Channel implements Pss<f32> {
   scope: ScopeF32;
   index: i32;
 
@@ -28,7 +28,7 @@ export class ScopeF32Channel implements F32PushStream {
 }
 
 /** Factor pin of `product_f32` (JSON output `p`). */
-export class ProductF32Factor implements F32PushStream {
+export class ProductF32Factor implements Pss<f32> {
   product: ProductF32;
   index: i32;
 
@@ -64,10 +64,10 @@ export class ScopeF32 extends Block implements IntervalHandler, CloseHandler {
     this.precision = precision;
   }
 
-  apply(): Array<F32PushStream> {
+  apply(): Array<Pss<f32>> {
     const outputCount = outputCountOf(this.outputWidths);
     this.values = new Array<f32>(outputCount);
-    const streams = new Array<F32PushStream>(outputCount);
+    const streams = new Array<Pss<f32>>(outputCount);
     for (let i = 0; i < outputCount; i++) {
       this.values[i] = f32.NaN;
       streams[i] = new ScopeF32Channel(this, i);
@@ -95,17 +95,17 @@ export class ScopeF32 extends Block implements IntervalHandler, CloseHandler {
  */
 export class ProductF32 extends Block {
   values: Array<f32> = new Array<f32>();
-  downstream: Array<F32PushStream> = new Array<F32PushStream>();
+  downstream: Array<Pss<f32>> = new Array<Pss<f32>>();
 
   constructor(blockId: u32, widths: Widths, ec: ExecutionContext) {
     super(blockId, widths, ec);
   }
 
-  apply(downstream: Array<F32PushStream>): Array<F32PushStream> {
+  apply(downstream: Array<Pss<f32>>): Array<Pss<f32>> {
     this.downstream = downstream;
     const factorCount = outputCountOf(this.outputWidths);
     this.values = new Array<f32>(factorCount);
-    const factors = new Array<F32PushStream>(factorCount);
+    const factors = new Array<Pss<f32>>(factorCount);
     for (let i = 0; i < factorCount; i++) {
       this.values[i] = 1.0;
       factors[i] = new ProductF32Factor(this, i);
@@ -128,14 +128,14 @@ export class ProductF32 extends Block {
  * `cos_f32` — cosine transformer. JSON input `v` is the downstream fan-out;
  * JSON output `cos` is the block itself as a push stream.
  */
-export class CosF32 extends Block implements F32PushStream {
-  downstream: Array<F32PushStream> = new Array<F32PushStream>();
+export class CosF32 extends Block implements Pss<f32> {
+  downstream: Array<Pss<f32>> = new Array<Pss<f32>>();
 
   constructor(blockId: u32, widths: Widths, ec: ExecutionContext) {
     super(blockId, widths, ec);
   }
 
-  apply(downstream: Array<F32PushStream>): CosF32 {
+  apply(downstream: Array<Pss<f32>>): CosF32 {
     this.downstream = downstream;
     return this;
   }
@@ -150,14 +150,14 @@ export class CosF32 extends Block implements F32PushStream {
 /**
  * `sin_f32` — sine transformer.
  */
-export class SinF32 extends Block implements F32PushStream {
-  downstream: Array<F32PushStream> = new Array<F32PushStream>();
+export class SinF32 extends Block implements Pss<f32> {
+  downstream: Array<Pss<f32>> = new Array<Pss<f32>>();
 
   constructor(blockId: u32, widths: Widths, ec: ExecutionContext) {
     super(blockId, widths, ec);
   }
 
-  apply(downstream: Array<F32PushStream>): SinF32 {
+  apply(downstream: Array<Pss<f32>>): SinF32 {
     this.downstream = downstream;
     return this;
   }
@@ -176,7 +176,7 @@ export class SinF32 extends Block implements F32PushStream {
 export class ConstF32 extends Block implements IntervalHandler, CloseHandler {
   precision: u32;
   v: f32;
-  streams: Array<F32PushStream> = new Array<F32PushStream>();
+  streams: Array<Pss<f32>> = new Array<Pss<f32>>();
   timerId: u32 = 0;
 
   constructor(
@@ -191,7 +191,7 @@ export class ConstF32 extends Block implements IntervalHandler, CloseHandler {
     this.v = v;
   }
 
-  apply(streams: Array<F32PushStream>): void {
+  apply(streams: Array<Pss<f32>>): void {
     this.streams = streams;
     this.timerId = this.ec.setInterval(this.precision, this);
     this.ec.onClose(this);
@@ -211,7 +211,7 @@ export class ConstF32 extends Block implements IntervalHandler, CloseHandler {
  */
 export class CosGenF32 extends Block implements IntervalHandler, CloseHandler {
   precision: u32;
-  streams: Array<F32PushStream> = new Array<F32PushStream>();
+  streams: Array<Pss<f32>> = new Array<Pss<f32>>();
   timerId: u32 = 0;
 
   constructor(
@@ -224,7 +224,7 @@ export class CosGenF32 extends Block implements IntervalHandler, CloseHandler {
     this.precision = precision;
   }
 
-  apply(streams: Array<F32PushStream>): void {
+  apply(streams: Array<Pss<f32>>): void {
     this.streams = streams;
     this.timerId = this.ec.setInterval(this.precision, this);
     this.ec.onClose(this);
@@ -245,7 +245,7 @@ export class CosGenF32 extends Block implements IntervalHandler, CloseHandler {
  */
 export class SinGenF32 extends Block implements IntervalHandler, CloseHandler {
   precision: u32;
-  streams: Array<F32PushStream> = new Array<F32PushStream>();
+  streams: Array<Pss<f32>> = new Array<Pss<f32>>();
   timerId: u32 = 0;
 
   constructor(
@@ -258,7 +258,7 @@ export class SinGenF32 extends Block implements IntervalHandler, CloseHandler {
     this.precision = precision;
   }
 
-  apply(streams: Array<F32PushStream>): void {
+  apply(streams: Array<Pss<f32>>): void {
     this.streams = streams;
     this.timerId = this.ec.setInterval(this.precision, this);
     this.ec.onClose(this);
@@ -279,7 +279,7 @@ export class SinGenF32 extends Block implements IntervalHandler, CloseHandler {
  */
 export class RandGenF32 extends Block implements IntervalHandler, CloseHandler {
   precision: u32;
-  streams: Array<F32PushStream> = new Array<F32PushStream>();
+  streams: Array<Pss<f32>> = new Array<Pss<f32>>();
   timerId: u32 = 0;
 
   constructor(
@@ -292,7 +292,7 @@ export class RandGenF32 extends Block implements IntervalHandler, CloseHandler {
     this.precision = precision;
   }
 
-  apply(streams: Array<F32PushStream>): void {
+  apply(streams: Array<Pss<f32>>): void {
     this.streams = streams;
     this.timerId = this.ec.setInterval(this.precision, this);
     this.ec.onClose(this);
@@ -313,7 +313,7 @@ export class RandGenF32 extends Block implements IntervalHandler, CloseHandler {
 export class PulseGenF32 extends Block implements IntervalHandler, CloseHandler {
   period: u32;
   dutyCycle: f32;
-  streams: Array<F32PushStream> = new Array<F32PushStream>();
+  streams: Array<Pss<f32>> = new Array<Pss<f32>>();
   timerId: u32 = 0;
 
   constructor(
@@ -328,7 +328,7 @@ export class PulseGenF32 extends Block implements IntervalHandler, CloseHandler 
     this.dutyCycle = dutyCycle;
   }
 
-  apply(streams: Array<F32PushStream>): void {
+  apply(streams: Array<Pss<f32>>): void {
     this.streams = streams;
     this.timerId = this.ec.setInterval(1, this);
     this.ec.onClose(this);

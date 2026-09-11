@@ -1,5 +1,5 @@
 import { CloseHandler, ExecutionContext, GpioInHandler, IntervalHandler } from "./context";
-import { F32PushStream } from "./types";
+import { Pss } from "./types";
 
 class IntervalEntry {
   id: u32;
@@ -40,7 +40,7 @@ class GpioListener {
 }
 
 /** Discarding stream used when a test only needs a timer to be registered. */
-export class DiscardF32 implements F32PushStream {
+export class DiscardF32 implements Pss<f32> {
   push(_value: f32): void {}
 }
 
@@ -214,39 +214,39 @@ export function pins(a: u8, b: i32 = -1, c: i32 = -1): Uint8Array {
   return p;
 }
 
-export function dest1(a: F32PushStream): Array<F32PushStream> {
-  const streams = new Array<F32PushStream>(1);
+export function dest1(a: Pss<f32>): Array<Pss<f32>> {
+  const streams = new Array<Pss<f32>>(1);
   streams[0] = a;
   return streams;
 }
 
-export function dest2(a: F32PushStream, b: F32PushStream): Array<F32PushStream> {
-  const streams = new Array<F32PushStream>(2);
+export function dest2(a: Pss<f32>, b: Pss<f32>): Array<Pss<f32>> {
+  const streams = new Array<Pss<f32>>(2);
   streams[0] = a;
   streams[1] = b;
   return streams;
 }
 
-export function dest3(a: F32PushStream, b: F32PushStream, c: F32PushStream): Array<F32PushStream> {
-  const streams = new Array<F32PushStream>(3);
+export function dest3(a: Pss<f32>, b: Pss<f32>, c: Pss<f32>): Array<Pss<f32>> {
+  const streams = new Array<Pss<f32>>(3);
   streams[0] = a;
   streams[1] = b;
   streams[2] = c;
   return streams;
 }
 
-export function gpioSinks(p0: Array<F32PushStream>): Array<Array<F32PushStream>> {
-  const pinStreams = new Array<Array<F32PushStream>>(1);
+export function gpioSinks(p0: Array<Pss<f32>>): Array<Array<Pss<f32>>> {
+  const pinStreams = new Array<Array<Pss<f32>>>(1);
   pinStreams[0] = p0;
   return pinStreams;
 }
 
 export function gpioSinks3(
-  p0: Array<F32PushStream>,
-  p1: Array<F32PushStream>,
-  p2: Array<F32PushStream>
-): Array<Array<F32PushStream>> {
-  const pinStreams = new Array<Array<F32PushStream>>(3);
+  p0: Array<Pss<f32>>,
+  p1: Array<Pss<f32>>,
+  p2: Array<Pss<f32>>
+): Array<Array<Pss<f32>>> {
+  const pinStreams = new Array<Array<Pss<f32>>>(3);
   pinStreams[0] = p0;
   pinStreams[1] = p1;
   pinStreams[2] = p2;
