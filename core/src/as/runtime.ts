@@ -5,6 +5,7 @@ import type {
   CompileOptions,
   RunInstantiateRequest,
   RunInvokeRequest,
+  WorkerOk,
   WorkerResponse,
 } from "./messages.ts";
 
@@ -45,7 +46,7 @@ export function wrapNodeWorker(worker: NodeWorkerLike): Thread {
       worker.on("error", handler);
     },
     terminate() {
-      return worker.terminate();
+      void worker.terminate();
     },
   };
 }
@@ -109,8 +110,12 @@ class WorkerClient {
   }
 
   async request(
-    payload: Omit<CompileInitRequest | CompileCompileRequest | RunInstantiateRequest | RunInvokeRequest, "id">,
-  ): Promise<WorkerResponse> {
+    payload:
+      | Omit<CompileInitRequest, "id">
+      | Omit<CompileCompileRequest, "id">
+      | Omit<RunInstantiateRequest, "id">
+      | Omit<RunInvokeRequest, "id">,
+  ): Promise<WorkerOk> {
     const id = this.nextId++;
     const response = await new Promise<WorkerResponse>((resolve, reject) => {
       this.pending.set(id, { resolve, reject });
@@ -220,10 +225,11 @@ export class AsRuntime {
         source,
         options: this.compileOptions,
       });
-      if (!(compiled.wasm instanceof Uint8Array)) {
+      const compiledWasm = compiled.wasm;
+      if (!(compiledWasm instanceof Uint8Array)) {
         throw new Error("compile worker did not return wasm");
       }
-      wasm = compiled.wasm;
+      wasm = compiledWasm;
       this.wasmCache.set(source, wasm);
     }
     return wasm;

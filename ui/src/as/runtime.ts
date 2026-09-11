@@ -13,6 +13,6 @@ export function createBrowserAsRuntime(options: BrowserAsRuntimeOptions = {}): A
     compileThread: wrapEventTargetWorker(compileWorker),
     runThread: wrapEventTargetWorker(runWorker),
     files: assemblyAssets,
-    onHostMessage: options.onHostMessage,
+    ...(options.onHostMessage ? { onHostMessage: options.onHostMessage } : {}),
   });
 }

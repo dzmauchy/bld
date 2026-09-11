@@ -27,11 +27,18 @@ export function createWasmImports(env: EnvBindings): WebAssembly.Imports {
   return { env: filtered };
 }
 
+function toBufferSource(wasm: Uint8Array | ArrayBuffer): ArrayBuffer {
+  if (wasm instanceof ArrayBuffer) return wasm;
+  const copy = new Uint8Array(wasm.byteLength);
+  copy.set(wasm);
+  return copy.buffer;
+}
+
 export async function instantiateWasm(
-  wasm: BufferSource,
+  wasm: Uint8Array | ArrayBuffer,
   imports: WebAssembly.Imports = createWasmImports(defaultEnvBindings()),
 ): Promise<WebAssembly.Instance> {
-  const result = await WebAssembly.instantiate(wasm, imports);
+  const result = await WebAssembly.instantiate(toBufferSource(wasm), imports);
   return result.instance;
 }
 
