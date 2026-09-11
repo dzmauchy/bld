@@ -1,9 +1,5 @@
 import { Block, CloseHandler, ExecutionContext, GpioInHandler, IntervalHandler, Pss } from "./context";
 
-/**
- * `gpio_in` — source that fans each configured pin out to arrays of
- * `pss<f32>` streams. Incoming true/false becomes 1.0 / 0.0.
- */
 export class gpio_in extends Block implements GpioInHandler, CloseHandler {
   pinNumbers: Uint8Array;
   streams: Array<Array<Pss<f32>>> = new Array<Array<Pss<f32>>>();
@@ -35,7 +31,6 @@ export class gpio_in extends Block implements GpioInHandler, CloseHandler {
   }
 }
 
-/** Channel of `scope_f32` (JSON output `sink`). */
 export class scope_f32_channel implements Pss<f32> {
   scope: scope_f32;
   index: i32;
@@ -50,7 +45,6 @@ export class scope_f32_channel implements Pss<f32> {
   }
 }
 
-/** Factor pin of `product_f32` (JSON output `p`). */
 export class product_f32_factor implements Pss<f32> {
   product: product_f32;
   index: i32;
@@ -65,10 +59,6 @@ export class product_f32_factor implements Pss<f32> {
   }
 }
 
-/**
- * `scope_f32` — sink that samples connected streams on `precision` and
- * reports the latest value of each channel via `sendPinF32`.
- */
 export class scope_f32 extends Block implements IntervalHandler, CloseHandler {
   period: u32;
   precision: u32;
@@ -111,11 +101,6 @@ export class scope_f32 extends Block implements IntervalHandler, CloseHandler {
   }
 }
 
-/**
- * `product_f32` — multiplies the latest value of each factor pin (JSON
- * output `p`) and pushes the product to every downstream stream (JSON
- * input `v`). Unset factors start at 1 (multiplicative identity).
- */
 export class product_f32 extends Block {
   values: Array<f32> = new Array<f32>();
   downstream: Array<Pss<f32>> = new Array<Pss<f32>>();
@@ -147,10 +132,6 @@ export class product_f32 extends Block {
   }
 }
 
-/**
- * `cos_f32` — cosine transformer. JSON input `v` is the downstream fan-out;
- * JSON output `cos` is the block itself as a push stream.
- */
 export class cos_f32 extends Block implements Pss<f32> {
   downstream: Array<Pss<f32>> = new Array<Pss<f32>>();
 
@@ -170,9 +151,6 @@ export class cos_f32 extends Block implements Pss<f32> {
   }
 }
 
-/**
- * `sin_f32` — sine transformer.
- */
 export class sin_f32 extends Block implements Pss<f32> {
   downstream: Array<Pss<f32>> = new Array<Pss<f32>>();
 
@@ -192,10 +170,6 @@ export class sin_f32 extends Block implements Pss<f32> {
   }
 }
 
-/**
- * `const_f32` — periodically pushes configuration value `v` to every
- * connected stream.
- */
 export class const_f32 extends Block implements IntervalHandler, CloseHandler {
   precision: u32;
   v: f32;
@@ -229,9 +203,6 @@ export class const_f32 extends Block implements IntervalHandler, CloseHandler {
   }
 }
 
-/**
- * `cos_gen_f32` — cosine generator. Pushes `cos(now_ms / 1000)` on `precision`.
- */
 export class cos_gen_f32 extends Block implements IntervalHandler, CloseHandler {
   precision: u32;
   streams: Array<Pss<f32>> = new Array<Pss<f32>>();
@@ -263,9 +234,6 @@ export class cos_gen_f32 extends Block implements IntervalHandler, CloseHandler 
   }
 }
 
-/**
- * `sin_gen_f32` — sine generator. Pushes `sin(now_ms / 1000)` on `precision`.
- */
 export class sin_gen_f32 extends Block implements IntervalHandler, CloseHandler {
   precision: u32;
   streams: Array<Pss<f32>> = new Array<Pss<f32>>();
@@ -297,9 +265,6 @@ export class sin_gen_f32 extends Block implements IntervalHandler, CloseHandler 
   }
 }
 
-/**
- * `rand_gen_f32` — random generator. Pushes `random()` in `[0, 1)` on `precision`.
- */
 export class rand_gen_f32 extends Block implements IntervalHandler, CloseHandler {
   precision: u32;
   streams: Array<Pss<f32>> = new Array<Pss<f32>>();
@@ -330,9 +295,6 @@ export class rand_gen_f32 extends Block implements IntervalHandler, CloseHandler
   }
 }
 
-/**
- * `pulse_gen_f32` — PWM-style pulse. High when `now % period < period * dutyCycle`.
- */
 export class pulse_gen_f32 extends Block implements IntervalHandler, CloseHandler {
   period: u32;
   dutyCycle: f32;

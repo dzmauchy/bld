@@ -41,4 +41,10 @@ describe("core public API", () => {
       /function pushAll\(/,
     );
   });
+  test("AssemblyScript sources have no doc comments", () => {
+    const names = readdirSync(assemblyDir).filter((name) => name.endsWith(".ts"));
+    for (const name of names) {
+      expect(readFileSync(join(assemblyDir, name), "utf8"), name).not.toMatch(/\/\*\*/);
+    }
+  });
 });

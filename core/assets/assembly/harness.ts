@@ -38,12 +38,10 @@ class GpioListener {
   }
 }
 
-/** Discarding stream used when a test only needs a timer to be registered. */
 export class DiscardF32 implements Pss<f32> {
   push(_value: f32): void {}
 }
 
-/** In-wasm execution context used by generated AssemblyScript test programs. */
 export class TestExecutionContext extends ExecutionContext {
   private nextIntervalId: u32 = 1;
   private nowMs: u64 = 0;
@@ -188,7 +186,6 @@ export class TestExecutionContext extends ExecutionContext {
     return count;
   }
 
-  /** Tick sources once, then observe sink pins on the following tick. */
   tickThenObserve(): void {
     this.tick();
     this.clearPins();
