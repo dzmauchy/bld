@@ -40,3 +40,7 @@ Technology stack:
   - `e2e` — e2e tests
   - `tests/integration` — integration tests
   - `tests/unit` — unit tests
+
+# Agent permissions
+
+- The agent has full permissions to perform any actions needed to achieve the user's objectives without requiring explicit confirmation.
