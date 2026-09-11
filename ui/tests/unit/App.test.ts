@@ -1,7 +1,7 @@
 import { expect, test } from "vitest";
 import { modelAssetFiles } from "core";
-import { App } from "./App.js";
-import { modelAssets } from "./modelAssets.js";
+import { App } from "../../src/App.js";
+import { modelAssets } from "../../src/modelAssets.js";
 
 test("App renders add(2, 2) and model asset titles", () => {
   expect(App()).toBe([

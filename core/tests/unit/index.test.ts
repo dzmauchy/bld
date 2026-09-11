@@ -2,10 +2,11 @@ import { readdirSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { describe, expect, test } from "vitest";
-import { add, assemblyAssetFiles, Block, diagram, gpio, modelAssetFiles, push } from "./index.js";
+import { add, assemblyAssetFiles, Block, diagram, gpio, modelAssetFiles, push } from "../../src/index.js";
 
-const modelDir = join(dirname(fileURLToPath(import.meta.url)), "model");
-const assemblyDir = join(dirname(fileURLToPath(import.meta.url)), "../assets/assembly");
+const coreRoot = join(dirname(fileURLToPath(import.meta.url)), "../..");
+const modelDir = join(coreRoot, "src/model");
+const assemblyDir = join(coreRoot, "assets/assembly");
 
 function modelSourceFiles(): string[] {
   return readdirSync(modelDir)

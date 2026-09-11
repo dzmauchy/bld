@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, test, vi } from "vitest";
-import type { ExecutionContext } from "./context.js";
-import { diagram } from "./diagram.js";
+import type { ExecutionContext } from "../../../src/model/context.js";
+import { diagram } from "../../../src/model/diagram.js";
 
 type PinWrite = { blockId: number; pin: number; v: number };
 
