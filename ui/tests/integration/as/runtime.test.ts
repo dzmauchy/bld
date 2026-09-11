@@ -6,7 +6,7 @@ import { assemblyAssets } from "../../../src/assemblyAssets.ts";
 test("UI assembly assets compile and instantiate through core as runtime", async () => {
   const wasm = await compileAssembly(
     `
-import { Block } from "./basic";
+import { Block } from "./context";
 
 export function ping(): i32 {
   return 1;

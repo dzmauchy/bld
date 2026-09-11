@@ -1,5 +1,4 @@
-import { CloseHandler, ExecutionContext, GpioInHandler, IntervalHandler } from "./context";
-import { Pss } from "./types";
+import { CloseHandler, ExecutionContext, GpioInHandler, IntervalHandler, Pss } from "./context";
 
 class IntervalEntry {
   id: u32;

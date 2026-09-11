@@ -1,6 +1,5 @@
 const GENERATED_PRELUDE = `import { DiscardF32, TestExecutionContext, dest1, dest2, dest3, gpioSinks, gpioSinks3, pins, widths } from "./harness";
-import { gpio_in } from "./gpio";
-import { const_f32, cos_f32, cos_gen_f32, product_f32, pulse_gen_f32, rand_gen_f32, scope_f32, sin_f32, sin_gen_f32 } from "./push";
+import { const_f32, cos_f32, cos_gen_f32, gpio_in, product_f32, pulse_gen_f32, rand_gen_f32, scope_f32, sin_f32, sin_gen_f32 } from "./blocks";
 
 const ec = new TestExecutionContext();
 `;

@@ -1,6 +1,4 @@
-import { CloseHandler, ExecutionContext, IntervalHandler } from "./context";
-import { Block } from "./basic";
-import { Pss } from "./types";
+import { Block, CloseHandler, ExecutionContext, GpioInHandler, IntervalHandler, Pss } from "./context";
 
 function pushAll(streams: Array<Pss<f32>>, value: f32): void {
   for (let i = 0; i < streams.length; i++) {
@@ -10,6 +8,44 @@ function pushAll(streams: Array<Pss<f32>>, value: f32): void {
 
 function outputCountOf(widths: Uint8Array): i32 {
   return widths.length > 0 ? i32(widths[0]) : 0;
+}
+
+/**
+ * `gpio_in` — source that fans each configured pin out to arrays of
+ * `pss<f32>` streams. Incoming true/false becomes 1.0 / 0.0.
+ */
+export class gpio_in extends Block implements GpioInHandler, CloseHandler {
+  pinNumbers: Uint8Array;
+  streams: Array<Array<Pss<f32>>> = new Array<Array<Pss<f32>>>();
+
+  constructor(
+    blockId: u32,
+    widths: Uint8Array,
+    ec: ExecutionContext,
+    pinNumbers: Uint8Array
+  ) {
+    super(blockId, widths, ec);
+    this.pinNumbers = pinNumbers;
+  }
+
+  apply(streams: Array<Array<Pss<f32>>>): void {
+    this.streams = streams;
+    this.ec.listenGpioIn(this.blockId, this);
+    this.ec.onClose(this);
+  }
+
+  onGpioIn(pinIndex: u8, value: bool): void {
+    if (i32(pinIndex) >= this.streams.length) return;
+    const v: f32 = value ? 1.0 : 0.0;
+    const pinStreams = this.streams[i32(pinIndex)];
+    for (let i = 0; i < pinStreams.length; i++) {
+      pinStreams[i].push(v);
+    }
+  }
+
+  onClose(): void {
+    this.ec.unlistenGpioIn(this.blockId);
+  }
 }
 
 /** Channel of `scope_f32` (JSON output `sink`). */
