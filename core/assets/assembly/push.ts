@@ -1,5 +1,5 @@
 import { CloseHandler, ExecutionContext, IntervalHandler } from "./context";
-import { Block, Widths } from "./basic";
+import { Block } from "./basic";
 import { Pss } from "./types";
 
 function pushAll(streams: Array<Pss<f32>>, value: f32): void {
@@ -8,16 +8,16 @@ function pushAll(streams: Array<Pss<f32>>, value: f32): void {
   }
 }
 
-function outputCountOf(widths: Widths): i32 {
+function outputCountOf(widths: Uint8Array): i32 {
   return widths.length > 0 ? i32(widths[0]) : 0;
 }
 
 /** Channel of `scope_f32` (JSON output `sink`). */
-export class ScopeF32Channel implements Pss<f32> {
-  scope: ScopeF32;
+export class scope_f32_channel implements Pss<f32> {
+  scope: scope_f32;
   index: i32;
 
-  constructor(scope: ScopeF32, index: i32) {
+  constructor(scope: scope_f32, index: i32) {
     this.scope = scope;
     this.index = index;
   }
@@ -28,11 +28,11 @@ export class ScopeF32Channel implements Pss<f32> {
 }
 
 /** Factor pin of `product_f32` (JSON output `p`). */
-export class ProductF32Factor implements Pss<f32> {
-  product: ProductF32;
+export class product_f32_factor implements Pss<f32> {
+  product: product_f32;
   index: i32;
 
-  constructor(product: ProductF32, index: i32) {
+  constructor(product: product_f32, index: i32) {
     this.product = product;
     this.index = index;
   }
@@ -46,7 +46,7 @@ export class ProductF32Factor implements Pss<f32> {
  * `scope_f32` — sink that samples connected streams on `precision` and
  * reports the latest value of each channel via `sendPinF32`.
  */
-export class ScopeF32 extends Block implements IntervalHandler, CloseHandler {
+export class scope_f32 extends Block implements IntervalHandler, CloseHandler {
   period: u32;
   precision: u32;
   values: Array<f32> = new Array<f32>();
@@ -54,7 +54,7 @@ export class ScopeF32 extends Block implements IntervalHandler, CloseHandler {
 
   constructor(
     blockId: u32,
-    widths: Widths,
+    widths: Uint8Array,
     ec: ExecutionContext,
     period: u32 = 60,
     precision: u32 = 10
@@ -70,7 +70,7 @@ export class ScopeF32 extends Block implements IntervalHandler, CloseHandler {
     const streams = new Array<Pss<f32>>(outputCount);
     for (let i = 0; i < outputCount; i++) {
       this.values[i] = f32.NaN;
-      streams[i] = new ScopeF32Channel(this, i);
+      streams[i] = new scope_f32_channel(this, i);
     }
     this.timerId = this.ec.setInterval(this.precision, this);
     this.ec.onClose(this);
@@ -93,11 +93,11 @@ export class ScopeF32 extends Block implements IntervalHandler, CloseHandler {
  * output `p`) and pushes the product to every downstream stream (JSON
  * input `v`). Unset factors start at 1 (multiplicative identity).
  */
-export class ProductF32 extends Block {
+export class product_f32 extends Block {
   values: Array<f32> = new Array<f32>();
   downstream: Array<Pss<f32>> = new Array<Pss<f32>>();
 
-  constructor(blockId: u32, widths: Widths, ec: ExecutionContext) {
+  constructor(blockId: u32, widths: Uint8Array, ec: ExecutionContext) {
     super(blockId, widths, ec);
   }
 
@@ -108,7 +108,7 @@ export class ProductF32 extends Block {
     const factors = new Array<Pss<f32>>(factorCount);
     for (let i = 0; i < factorCount; i++) {
       this.values[i] = 1.0;
-      factors[i] = new ProductF32Factor(this, i);
+      factors[i] = new product_f32_factor(this, i);
     }
     return factors;
   }
@@ -128,14 +128,14 @@ export class ProductF32 extends Block {
  * `cos_f32` — cosine transformer. JSON input `v` is the downstream fan-out;
  * JSON output `cos` is the block itself as a push stream.
  */
-export class CosF32 extends Block implements Pss<f32> {
+export class cos_f32 extends Block implements Pss<f32> {
   downstream: Array<Pss<f32>> = new Array<Pss<f32>>();
 
-  constructor(blockId: u32, widths: Widths, ec: ExecutionContext) {
+  constructor(blockId: u32, widths: Uint8Array, ec: ExecutionContext) {
     super(blockId, widths, ec);
   }
 
-  apply(downstream: Array<Pss<f32>>): CosF32 {
+  apply(downstream: Array<Pss<f32>>): cos_f32 {
     this.downstream = downstream;
     return this;
   }
@@ -150,14 +150,14 @@ export class CosF32 extends Block implements Pss<f32> {
 /**
  * `sin_f32` — sine transformer.
  */
-export class SinF32 extends Block implements Pss<f32> {
+export class sin_f32 extends Block implements Pss<f32> {
   downstream: Array<Pss<f32>> = new Array<Pss<f32>>();
 
-  constructor(blockId: u32, widths: Widths, ec: ExecutionContext) {
+  constructor(blockId: u32, widths: Uint8Array, ec: ExecutionContext) {
     super(blockId, widths, ec);
   }
 
-  apply(downstream: Array<Pss<f32>>): SinF32 {
+  apply(downstream: Array<Pss<f32>>): sin_f32 {
     this.downstream = downstream;
     return this;
   }
@@ -173,7 +173,7 @@ export class SinF32 extends Block implements Pss<f32> {
  * `const_f32` — periodically pushes configuration value `v` to every
  * connected stream.
  */
-export class ConstF32 extends Block implements IntervalHandler, CloseHandler {
+export class const_f32 extends Block implements IntervalHandler, CloseHandler {
   precision: u32;
   v: f32;
   streams: Array<Pss<f32>> = new Array<Pss<f32>>();
@@ -181,7 +181,7 @@ export class ConstF32 extends Block implements IntervalHandler, CloseHandler {
 
   constructor(
     blockId: u32,
-    widths: Widths,
+    widths: Uint8Array,
     ec: ExecutionContext,
     precision: u32 = 10,
     v: f32 = 0.0
@@ -209,14 +209,14 @@ export class ConstF32 extends Block implements IntervalHandler, CloseHandler {
 /**
  * `cos_gen_f32` — cosine generator. Pushes `cos(now_ms / 1000)` on `precision`.
  */
-export class CosGenF32 extends Block implements IntervalHandler, CloseHandler {
+export class cos_gen_f32 extends Block implements IntervalHandler, CloseHandler {
   precision: u32;
   streams: Array<Pss<f32>> = new Array<Pss<f32>>();
   timerId: u32 = 0;
 
   constructor(
     blockId: u32,
-    widths: Widths,
+    widths: Uint8Array,
     ec: ExecutionContext,
     precision: u32 = 10
   ) {
@@ -243,14 +243,14 @@ export class CosGenF32 extends Block implements IntervalHandler, CloseHandler {
 /**
  * `sin_gen_f32` — sine generator. Pushes `sin(now_ms / 1000)` on `precision`.
  */
-export class SinGenF32 extends Block implements IntervalHandler, CloseHandler {
+export class sin_gen_f32 extends Block implements IntervalHandler, CloseHandler {
   precision: u32;
   streams: Array<Pss<f32>> = new Array<Pss<f32>>();
   timerId: u32 = 0;
 
   constructor(
     blockId: u32,
-    widths: Widths,
+    widths: Uint8Array,
     ec: ExecutionContext,
     precision: u32 = 10
   ) {
@@ -277,14 +277,14 @@ export class SinGenF32 extends Block implements IntervalHandler, CloseHandler {
 /**
  * `rand_gen_f32` — random generator. Pushes `random()` in `[0, 1)` on `precision`.
  */
-export class RandGenF32 extends Block implements IntervalHandler, CloseHandler {
+export class rand_gen_f32 extends Block implements IntervalHandler, CloseHandler {
   precision: u32;
   streams: Array<Pss<f32>> = new Array<Pss<f32>>();
   timerId: u32 = 0;
 
   constructor(
     blockId: u32,
-    widths: Widths,
+    widths: Uint8Array,
     ec: ExecutionContext,
     precision: u32 = 10
   ) {
@@ -310,7 +310,7 @@ export class RandGenF32 extends Block implements IntervalHandler, CloseHandler {
 /**
  * `pulse_gen_f32` — PWM-style pulse. High when `now % period < period * dutyCycle`.
  */
-export class PulseGenF32 extends Block implements IntervalHandler, CloseHandler {
+export class pulse_gen_f32 extends Block implements IntervalHandler, CloseHandler {
   period: u32;
   dutyCycle: f32;
   streams: Array<Pss<f32>> = new Array<Pss<f32>>();
@@ -318,7 +318,7 @@ export class PulseGenF32 extends Block implements IntervalHandler, CloseHandler 
 
   constructor(
     blockId: u32,
-    widths: Widths,
+    widths: Uint8Array,
     ec: ExecutionContext,
     period: u32 = 10,
     dutyCycle: f32 = 0.5
