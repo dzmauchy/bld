@@ -71,15 +71,20 @@ describe("diagram", () => {
   test("wires constant and ramp through product, cos, and scope", () => {
     const harness = createDiagram();
 
-    expect([...harness.intervals.values()].map((interval) => interval.period)).toEqual([10, 10]);
+    expect([...harness.intervals.values()].map((interval) => interval.period)).toEqual([
+      10, 10, 10,
+    ]);
 
+    harness.tick();
+    harness.pinWrites.length = 0;
     harness.tick();
 
     expect(harness.pinWrites).toEqual([
-      { blockId: 1, pin: 0, v: 1 },
       { blockId: 0, pin: 0, v: 1 },
-      { blockId: 4, pin: 0, v: 1 },
+      { blockId: 0, pin: 1, v: Number.NaN },
       { blockId: 0, pin: 2, v: 1 },
+      { blockId: 1, pin: 0, v: 1 },
+      { blockId: 4, pin: 0, v: 1 },
     ]);
   });
 
@@ -90,10 +95,15 @@ describe("diagram", () => {
 
     harness.sendGpioIn(0, false);
 
-    expect(harness.pinWrites).toEqual([
-      { blockId: 1, pin: 1, v: 0 },
+    expect(harness.pinWrites).toEqual([{ blockId: 1, pin: 1, v: 0 }]);
+
+    harness.pinWrites.length = 0;
+    harness.tick();
+
+    expect(harness.pinWrites.filter((write) => write.blockId === 0)).toEqual([
       { blockId: 0, pin: 0, v: 0 },
       { blockId: 0, pin: 1, v: 0 },
+      { blockId: 0, pin: 2, v: 1 },
     ]);
   });
 
