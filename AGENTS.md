@@ -31,3 +31,12 @@ Technology stack:
 - The scope implementation in the browser should be made by 
   using a sliding buffer (Float32Array or Float64Array) with one 
   pointer
+
+# Testing
+
+- Do not launch a video test unless the prompt clearly mentions doing that
+- Prefer writing e2e tests and integration tests
+- Test layout:
+  - `e2e` — e2e tests
+  - `tests/integration` — integration tests
+  - `tests/unit` — unit tests
