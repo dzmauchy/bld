@@ -2,11 +2,11 @@ import { readFileSync, readdirSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { afterAll, beforeAll, describe, expect, test } from "vitest";
-import { createNodeAsRuntime } from "./as/runtime.node.ts";
-import { wrapGenerated } from "./as/testProgram.ts";
-import type { AsSession } from "./as/runtime.ts";
+import { createNodeAsRuntime } from "../../src/as/runtime.node.ts";
+import { wrapGenerated } from "./testProgram.ts";
+import type { AsSession } from "../../src/as/runtime.ts";
 
-const coreRoot = join(dirname(fileURLToPath(import.meta.url)), "..");
+const coreRoot = join(dirname(fileURLToPath(import.meta.url)), "../..");
 const assemblyDir = join(coreRoot, "assets/assembly");
 const blocksPath = join(coreRoot, "assets/blocks.json");
 const typesPath = join(coreRoot, "assets/types.json");

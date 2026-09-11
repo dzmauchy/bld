@@ -1,7 +1,7 @@
 import { expect, test } from "vitest";
 import { assemblyAssetFiles } from "core";
-import { assemblyAssets } from "./assemblyAssets.ts";
-import { createBrowserAsRuntime } from "./as/runtime.ts";
+import { assemblyAssets } from "../../src/assemblyAssets.ts";
+import { createBrowserAsRuntime } from "../../src/as/runtime.ts";
 
 test("loads every core AssemblyScript library file as a source asset", () => {
   expect(Object.keys(assemblyAssets).sort()).toEqual([...assemblyAssetFiles].sort());

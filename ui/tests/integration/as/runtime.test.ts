@@ -1,7 +1,7 @@
 import { expect, test } from "vitest";
 import { compileAssembly } from "core/as/compile.ts";
 import { instantiateWasm } from "core/as/run.ts";
-import { assemblyAssets } from "../assemblyAssets.ts";
+import { assemblyAssets } from "../../../src/assemblyAssets.ts";
 
 test("UI assembly assets compile and instantiate through core as runtime", async () => {
   const wasm = await compileAssembly(

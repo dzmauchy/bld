@@ -1,6 +1,6 @@
 import { describe, expect, test } from "vitest";
-import { compileAssembly } from "./compile.ts";
-import { createWasmImports, defaultEnvBindings, instantiateWasm } from "./run.ts";
+import { compileAssembly } from "../../../src/as/compile.ts";
+import { createWasmImports, defaultEnvBindings, instantiateWasm } from "../../../src/as/run.ts";
 
 describe("assemblyscript compile and host bindings", () => {
   test("compiles a program that calls a UI-provided env import", async () => {
