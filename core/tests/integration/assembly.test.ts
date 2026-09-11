@@ -58,8 +58,8 @@ describe("assemblyscript assets match catalog", () => {
         "array",
       ]),
     );
-    const typesSource = readFileSync(join(assemblyDir, "types.ts"), "utf8");
-    expect(typesSource).toContain("export interface Pss<T>");
+    const contextSource = readFileSync(join(assemblyDir, "context.ts"), "utf8");
+    expect(contextSource).toContain("export interface Pss<T>");
   });
 });
 

@@ -1,4 +1,20 @@
 /**
+ * Types corresponding to `core/assets/types.json`.
+ *
+ * Primitive keys in that catalog (`bool`, `i8`, `u8`, `i16`, `u16`, `i32`,
+ * `u32`, `i64`, `u64`, `f32`, `f64`) are AssemblyScript builtins and are used
+ * directly throughout this package.
+ *
+ * `pss` is a push stream: an object with a `push` method.
+ * `array` is a managed `Array<T>`.
+ */
+
+/** Push stream (`pss` in types.json). */
+export interface Pss<T> {
+  push(value: T): void;
+}
+
+/**
  * Host / runtime services used by blocks. Tests provide a fake implementation;
  * MCU and browser hosts provide the production one.
  *
@@ -30,4 +46,18 @@ export abstract class ExecutionContext {
   abstract now(): u64;
   abstract listenGpioIn(blockId: u32, handler: GpioInHandler): void;
   abstract unlistenGpioIn(blockId: u32): void;
+}
+
+/** Base class for every block in `blocks.json`. */
+export class Block {
+  blockId: u32;
+  /** Port width, one entry per apply() port. */
+  outputWidths: Uint8Array;
+  ec: ExecutionContext;
+
+  constructor(blockId: u32, outputWidths: Uint8Array, ec: ExecutionContext) {
+    this.blockId = blockId;
+    this.outputWidths = outputWidths;
+    this.ec = ec;
+  }
 }
