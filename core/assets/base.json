@@ -1,0 +1,11 @@
+{
+  "$schema": "schemas/library.schema.json",
+  "id": "base",
+  "name": "Base",
+  "icon": "library-base.svg",
+  "headers": [
+    "base/native/include/bld.hpp",
+    "base/native/src/base.hpp",
+    "base/native/src/wasm_host.hpp"
+  ]
+}

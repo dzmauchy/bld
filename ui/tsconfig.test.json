@@ -1,0 +1,20 @@
+{
+  "extends": ["./tsconfig.json", "../tsconfig.test.base.json"],
+  "compilerOptions": {
+    "types": [
+      "@rsbuild/core/types",
+      "node"
+    ]
+  },
+  "references": [
+    {
+      "path": "../runtime"
+    },
+    {
+      "path": "../base"
+    },
+    {
+      "path": "../core"
+    }
+  ]
+}

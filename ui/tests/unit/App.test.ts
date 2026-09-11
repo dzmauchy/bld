@@ -1,0 +1,38 @@
+import { expect, test } from "vitest";
+import { modelAssetFiles } from "core";
+import { App } from "../../src/App.js";
+import { modelAssets } from "../../src/modelAssets.js";
+
+test("App renders add(2, 2) and model asset titles", () => {
+  expect(App()).toBe(
+    [
+      "4",
+      "appAssets.ts App Assets",
+      "blockDefinition.ts Block Definition",
+      "clangAst.ts Clang AST Types",
+      "clangAstDumper.ts Clang AST Dumper",
+      "compiler.ts Diagram Compiler",
+      "compilerContext.ts Compiler Context",
+      "connection.ts Connection",
+      "cppBlockCatalog.ts C++ Block Catalog",
+      "cppBuilder.ts C++ Diagram Builder",
+      "diagram.ts Diagram",
+      "diagramBlock.ts Diagram Block",
+      "endpoint.ts Port Endpoint",
+      "headerCatalog.ts Header Catalog",
+      "hostClangAstDumper.ts Host Clang AST Dumper",
+      "index.ts Model Index",
+      "library.ts Library",
+      "palette.ts Palette",
+    ].join("\n"),
+  );
+});
+
+test("loads every core model file as a source asset", () => {
+  expect(Object.keys(modelAssets).sort()).toEqual([...modelAssetFiles].sort());
+  expect(modelAssets["diagram.ts"]).toContain("export class Diagram");
+  expect(modelAssets["palette.ts"]).toContain("export class Palette");
+  expect(modelAssets["compiler.ts"]).toContain("export class DiagramCompiler");
+  expect(modelAssets["connection.ts"]).toContain("export class Connection");
+  expect(modelAssets["endpoint.ts"]).toContain("export class PortEndpoint");
+});

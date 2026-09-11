@@ -1,0 +1,20 @@
+{
+  "name": "base",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "license": "AGPL-3.0-only",
+  "exports": {
+    ".": {
+      "types": "./dist/types/index.d.ts",
+      "default": "./src/index.ts"
+    },
+    "./native/*": "./native/*"
+  },
+  "scripts": {
+    "build": "tsc -b && tsc -b tsconfig.test.json",
+    "test": "tsc -b && tsc -b tsconfig.test.json && vitest run",
+    "test:unit": "tsc -b && tsc -b tsconfig.test.json && vitest run tests/unit",
+    "clean": "tsc -b --clean"
+  }
+}

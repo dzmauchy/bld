@@ -1,0 +1,21 @@
+{
+  "extends": [
+    "./tsconfig.json",
+    "../tsconfig.test.base.json"
+  ],
+  "compilerOptions": {
+    "allowJs": true,
+    "lib": [
+      "ESNext",
+      "DOM",
+      "DOM.Iterable",
+      "WebWorker"
+    ],
+    "types": [
+      "node"
+    ]
+  },
+  "exclude": [
+    "./e2e"
+  ]
+}

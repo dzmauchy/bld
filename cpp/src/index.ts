@@ -1,0 +1,16 @@
+export type { SysrootInstallKind, FilePayload, WorkerOk, WorkerErr, WorkerResponse } from "./messages.ts";
+export { filePayload, messageId } from "./messages.ts";
+export { ClangArgumentBuilder, LldArgumentBuilder } from "./args.ts";
+export { WasmExecutor, ExecutedWasm } from "./executor.ts";
+export { MemoryFileSystem, EmscriptenFileSystem, VirtualFileSystem } from "./filesystem.ts";
+export { isCppSource, isHeader, objectPathFor, workPath, normalizeRelativePath } from "./paths.ts";
+export { CppWasmCompiler, WorkerCppWasmCompiler } from "./compiler.ts";
+export { ClangFrontend } from "./clang.ts";
+export { WasmLinker } from "./linker.ts";
+export { EmscriptenTool } from "./emscripten.ts";
+export { ObjectFile } from "./object-file.ts";
+export { RpcClient } from "./rpc.ts";
+export { SysrootInstaller, shouldInstallSysrootEntry, tarPathToMemfs } from "./sysroot.ts";
+export { Thread, EventTargetWorkerThread, wrapEventTargetWorker } from "./thread.ts";
+export { DefaultWasmBindings } from "./bindings.ts";
+export type { HostEnvCallbacks } from "./bindings.ts";

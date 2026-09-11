@@ -1,0 +1,18 @@
+{
+  "extends": "./tsconfig.base.json",
+  "compilerOptions": {
+    "composite": false,
+    "noEmit": true,
+    "declaration": false,
+    "declarationMap": false,
+    "allowImportingTsExtensions": true,
+    "rootDir": "${configDir}",
+    "types": ["node"]
+  },
+  "include": [
+    "${configDir}/src",
+    "${configDir}/tests",
+    "${configDir}/e2e"
+  ],
+  "exclude": []
+}

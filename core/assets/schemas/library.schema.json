@@ -1,0 +1,42 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://bld.d-ovchinnikow.workers.dev/schemas/library.schema.json",
+  "title": "Library",
+  "description": "A library is the list of header URLs that define its types and blocks. Relative URLs are internal resources.",
+  "type": "object",
+  "properties": {
+    "$schema": {
+      "type": "string",
+      "description": "URI pointing to this JSON schema."
+    },
+    "id": {
+      "type": "string",
+      "pattern": "^[a-z0-9-_]+$",
+      "description": "Unique identifier for the library."
+    },
+    "name": {
+      "type": "string",
+      "minLength": 1,
+      "description": "Human-readable display name."
+    },
+    "icon": {
+      "type": "string",
+      "description": "Path or filename of the icon asset."
+    },
+    "headers": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "minLength": 1
+      },
+      "uniqueItems": true,
+      "description": "URLs of every hpp file in this library. Relative URLs load from internal resources."
+    }
+  },
+  "required": [
+    "id",
+    "name",
+    "headers"
+  ],
+  "additionalProperties": false
+}

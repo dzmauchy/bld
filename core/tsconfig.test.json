@@ -1,0 +1,14 @@
+{
+  "extends": ["./tsconfig.json", "../tsconfig.test.base.json"],
+  "references": [
+    {
+      "path": "./tsconfig.json"
+    },
+    {
+      "path": "../runtime"
+    },
+    {
+      "path": "../base"
+    }
+  ]
+}
