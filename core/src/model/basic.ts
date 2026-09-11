@@ -72,11 +72,6 @@ export namespace basic {
 }
 
 /**
- * @description Array of output widths
- */
-export type Widths = Uint8Array;
-
-/**
  * Represents a vectorized output type
  */
 export type Vector<T> = T[];
@@ -88,7 +83,7 @@ export abstract class Block {
 
   protected constructor(
     readonly blockId: basic.u32,
-    readonly outputWidths: Widths,
+    readonly outputWidths: Uint8Array,
     readonly ec: ExecutionContext
   ) {
   }
