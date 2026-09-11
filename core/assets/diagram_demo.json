@@ -1,0 +1,54 @@
+{
+  "$schema": "schemas/diagram.schema.json",
+  "id": "2026_09_09T10_11_07_089_7865FB06",
+  "title": "Diagram Demo",
+  "blocks": {
+    "scope_f32_0": {
+      "ref": "scope_f32",
+      "x": 10,
+      "y": 30,
+      "conf": {
+        "period": 30,
+        "precision": 11
+      }
+    },
+    "cos_gen_f32_0": {
+      "ref": "cos_gen_f32",
+      "x": 200,
+      "y": 20,
+      "conf": {
+        "precision": 11
+      }
+    },
+    "sin_gen_f32_0": {
+      "ref": "sin_gen_f32",
+      "x": 200,
+      "y": 120
+    },
+    "product_f32_0": {
+      "ref": "product_f32",
+      "x": 90,
+      "y": 20
+    },
+    "gpio_in_0": {
+      "ref": "gpio_in",
+      "x": 90,
+      "y": 300,
+      "conf": {
+        "pins": [0, 1, 4]
+      }
+    }
+  },
+  "connections": {
+    "cos_gen_f32_0__scope_f32_0": {
+      "from": {
+        "block": "cos_gen_f32_0",
+        "port": {"type": "input", "id": "v", "vector_index": 0}
+      },
+      "to": {
+        "block": "scope_f32_0",
+        "port": {"type": "output", "id": "sink", "vector_index": 0}
+      }
+    }
+  }
+}

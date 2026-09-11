@@ -1,0 +1,18 @@
+{
+  "extends": "../tsconfig.base.json",
+  "compilerOptions": {
+    "composite": false,
+    "noEmit": true,
+    "declaration": false,
+    "declarationMap": false,
+    "allowImportingTsExtensions": true,
+    "rootDir": ".",
+    "types": ["node"]
+  },
+  "include": ["./src", "./tests", "./e2e"],
+  "references": [
+    {
+      "path": "./tsconfig.json"
+    }
+  ]
+}

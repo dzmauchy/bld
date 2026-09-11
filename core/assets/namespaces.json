@@ -1,0 +1,44 @@
+{
+  "$schema": "schemas/namespaces.schema.json",
+  "base": {
+    "name": "Base",
+    "icon": "base-ns.svg",
+    "description": "Base namespace",
+    "children": {
+      "runtime": {
+        "name": "Runtime",
+        "icon": "base.runtime-ns.svg",
+        "description": "Runtime namespace"
+      }
+    }
+  },
+  "push": {
+    "name": "Push Dataflows",
+    "icon": "push-ns.svg",
+    "description": "Push Dataflows",
+    "children": {
+      "f32": {
+        "name": "Single precision",
+        "icon": "push.f32-ns.svg",
+        "description": "Single precision push dataflows",
+        "children": {
+          "transformers": {
+            "name": "Transformers",
+            "icon": "push.transformers-ns.svg",
+            "description": "Transformers"
+          },
+          "sources": {
+            "name": "Sources",
+            "icon": "push.sources-ns.svg",
+            "description": "Sources"
+          },
+          "sinks": {
+            "name": "Sinks",
+            "icon": "push.sinks-ns.svg",
+            "description": "Sinks"
+          }
+        }
+      }
+    }
+  }
+}

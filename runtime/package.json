@@ -1,0 +1,27 @@
+{
+  "name": "runtime",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "license": "AGPL-3.0-only",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./src/index.ts"
+    },
+    "./compile": "./src/compile.ts",
+    "./compile.ts": "./src/compile.ts",
+    "./*": "./src/*"
+  },
+  "dependencies": {
+    "binaryen": "^132.0.0"
+  },
+  "scripts": {
+    "build": "tsc -b && tsc -b tsconfig.test.json",
+    "test": "tsc -b && tsc -b tsconfig.test.json && vitest run tests",
+    "clean": "tsc -b --clean"
+  },
+  "devDependencies": {
+    "base": "*"
+  }
+}

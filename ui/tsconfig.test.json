@@ -1,0 +1,31 @@
+{
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "composite": false,
+    "noEmit": true,
+    "declaration": false,
+    "declarationMap": false,
+    "allowImportingTsExtensions": true,
+    "rootDir": ".",
+    "types": [
+      "@rsbuild/core/types",
+      "node"
+    ]
+  },
+  "include": [
+    "./src",
+    "./tests",
+    "./e2e"
+  ],
+  "references": [
+    {
+      "path": "../runtime"
+    },
+    {
+      "path": "../base"
+    },
+    {
+      "path": "../core"
+    }
+  ]
+}

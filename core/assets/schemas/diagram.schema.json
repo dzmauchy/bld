@@ -1,0 +1,124 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://bld.d-ovchinnikow.workers.dev/schemas/diagram.schema.json",
+  "title": "Diagram",
+  "description": "Schema representing blocks, block configurations, and port-to-port connections in a diagram.",
+  "type": "object",
+  "required": [
+    "id",
+    "title",
+    "blocks",
+    "connections"
+  ],
+  "properties": {
+    "$schema": {
+      "type": "string"
+    },
+    "id": {
+      "type": "string"
+    },
+    "title": {
+      "type": "string"
+    },
+    "blocks": {
+      "type": "object",
+      "additionalProperties": {
+        "$ref": "#/$defs/block"
+      }
+    },
+    "connections": {
+      "type": "object",
+      "additionalProperties": {
+        "$ref": "#/$defs/connection"
+      }
+    }
+  },
+  "additionalProperties": false,
+  "$defs": {
+    "block": {
+      "type": "object",
+      "required": [
+        "ref",
+        "x",
+        "y"
+      ],
+      "properties": {
+        "ref": {
+          "type": "string",
+          "description": "Identifier of the block type definition."
+        },
+        "x": {
+          "type": "number",
+          "description": "X-axis position coordinate."
+        },
+        "y": {
+          "type": "number",
+          "description": "Y-axis position coordinate."
+        },
+        "conf": {
+          "type": "object",
+          "description": "Block-specific configuration parameters.",
+          "additionalProperties": true
+        }
+      },
+      "additionalProperties": false
+    },
+    "connection": {
+      "type": "object",
+      "required": [
+        "from",
+        "to"
+      ],
+      "properties": {
+        "from": {
+          "$ref": "#/$defs/endpoint"
+        },
+        "to": {
+          "$ref": "#/$defs/endpoint"
+        }
+      },
+      "additionalProperties": false
+    },
+    "endpoint": {
+      "type": "object",
+      "required": [
+        "block",
+        "port"
+      ],
+      "properties": {
+        "block": {
+          "type": "string",
+          "description": "ID of the referenced block."
+        },
+        "port": {
+          "$ref": "#/$defs/port"
+        }
+      },
+      "additionalProperties": false
+    },
+    "port": {
+      "type": "object",
+      "required": [
+        "type",
+        "id"
+      ],
+      "properties": {
+        "type": {
+          "type": "string",
+          "enum": [
+            "input",
+            "output"
+          ]
+        },
+        "id": {
+          "type": "string"
+        },
+        "vector_index": {
+          "type": "integer",
+          "minimum": 0
+        }
+      },
+      "additionalProperties": false
+    }
+  }
+}
