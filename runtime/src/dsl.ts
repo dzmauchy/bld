@@ -88,9 +88,8 @@ abstract class FnEmitter {
     this.do(this.wasm.ifClosedReturn());
   }
 
-  recordPin(pin: Expr | number, value: Expr): void {
-    const pinExpr = typeof pin === "number" ? this.i32(pin) : pin;
-    this.do(this.wasm.recordPin(this.i32(this.block.id), pinExpr, value));
+  recordPin(pin: Expr, value: Expr): void {
+    this.do(this.wasm.recordPin(this.i32(this.block.id), pin, value));
   }
 
   cos(value: Expr): Expr {
@@ -174,10 +173,10 @@ abstract class FnEmitter {
     );
   }
 
-  letF32(value: Expr): Expr {
+  letF32(value: Expr): () => Expr {
     const local = this.alloc(binaryen.f32);
     this.set(local, value);
-    return this.loc(local, binaryen.f32);
+    return () => this.loc(local, binaryen.f32);
   }
 
   forward(value: Expr, consumers: DownstreamRef[] = this.block.consumers): void {
@@ -198,12 +197,12 @@ abstract class FnEmitter {
     this.do(this.m.if(cond, this.m.block(null, thenStmts)));
   }
 
-  forRange(limit: Expr, body: (index: Expr) => void): void {
+  forRange(limit: Expr, body: (index: () => Expr) => void): void {
     const index = this.alloc(binaryen.i32);
     const done = this.wasm.nextLabel("done");
     const loop = this.wasm.nextLabel("loop");
     this.set(index, this.i32(0));
-    const bodyStmts = this.capture(() => body(this.loc(index, binaryen.i32)));
+    const bodyStmts = this.capture(() => body(() => this.loc(index, binaryen.i32)));
     this.do(
       this.m.block(done, [
         this.m.loop(
@@ -223,7 +222,7 @@ abstract class FnEmitter {
     const acc = this.alloc(binaryen.f32);
     this.set(acc, this.f32(1));
     this.forRange(this.arrayLen(), (index) => {
-      this.set(acc, this.mul(this.loc(acc, binaryen.f32), this.arrayGet(index)));
+      this.set(acc, this.mul(this.loc(acc, binaryen.f32), this.arrayGet(index())));
     });
     return this.loc(acc, binaryen.f32);
   }

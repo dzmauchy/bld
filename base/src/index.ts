@@ -14,11 +14,11 @@ export function install(api: LibraryApi): void {
       block.onPush((push) => {
         push.store(push.channel, push.value);
       });
-      block.onTick(block.confNum("precision", 10), (tick) => {
-        tick.forRange(tick.arrayLen(), (index) => {
-          tick.recordPin(index, tick.arrayGet(index));
-        });
-      });
+            block.onTick(block.confNum("precision", 10), (tick) => {
+              tick.forRange(tick.arrayLen(), (index) => {
+                tick.recordPin(index(), tick.arrayGet(index()));
+              });
+            });
     },
   });
 
@@ -42,8 +42,8 @@ export function install(api: LibraryApi): void {
     emit(block) {
       block.onPush((push) => {
         const out = push.letF32(push.cos(push.value));
-        push.recordPin(0, out);
-        push.forward(out);
+        push.recordPin(push.i32(0), out());
+        push.forward(out());
       });
     },
   });
@@ -54,8 +54,8 @@ export function install(api: LibraryApi): void {
     emit(block) {
       block.onPush((push) => {
         const out = push.letF32(push.sin(push.value));
-        push.recordPin(0, out);
-        push.forward(out);
+        push.recordPin(push.i32(0), out());
+        push.forward(out());
       });
     },
   });

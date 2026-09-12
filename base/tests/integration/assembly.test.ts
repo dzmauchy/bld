@@ -7,7 +7,8 @@ import { install } from "base";
 import { instantiateWasm } from "runtime/run.ts";
 
 const here = dirname(fileURLToPath(import.meta.url));
-const catalog = JSON.parse(readFileSync(join(here, "../../core/assets/blocks.json"), "utf8")) as Record<
+const assemblyPath = join(here, "../../dist/assembly.js");
+const catalog = JSON.parse(readFileSync(join(here, "../../../core/assets/blocks.json"), "utf8")) as Record<
   string,
   unknown
 >;
@@ -22,7 +23,6 @@ describe("base library assembly", () => {
   });
 
   test("bundled assembly is a single optimized ESM file without Binaryen", () => {
-    const assemblyPath = join(dirname(fileURLToPath(import.meta.url)), "../dist/assembly.js");
     const source = readFileSync(assemblyPath, "utf8");
     expect(source).toContain("export");
     expect(source).toMatch(/install/);
@@ -31,7 +31,6 @@ describe("base library assembly", () => {
   });
 
   test("bundled assembly can be loaded by the runtime", async () => {
-    const assemblyPath = join(dirname(fileURLToPath(import.meta.url)), "../dist/assembly.js");
     const source = readFileSync(assemblyPath, "utf8");
     const registry = new BlockRegistry();
     await installAssemblySource(source, registry);

@@ -90,7 +90,7 @@ describe("runtime library assembly loading", () => {
             block.onPush((push) => { push.store(push.channel, push.value); });
             block.onTick(10, (tick) => {
               tick.forRange(tick.arrayLen(), (index) => {
-                tick.recordPin(index, tick.arrayGet(index));
+                tick.recordPin(index(), tick.arrayGet(index()));
               });
             });
           },
