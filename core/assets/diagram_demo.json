@@ -1,5 +1,5 @@
 {
-  "$schema": "schemas/diagrams.schema.json",
+  "$schema": "schemas/diagram.schema.json",
   "id": "2026_09_09T10_11_07_089_7865FB06",
   "title": "Diagram Demo",
   "blocks": {
