@@ -18,7 +18,7 @@
   },
   "scripts": {
     "build": "tsc -b && tsc -b tsconfig.test.json",
-    "test": "tsc -b && tsc -b tsconfig.test.json && vitest run"
+    "test": "tsc -b && tsc -b tsconfig.test.json && vitest run tests"
   },
   "devDependencies": {
     "base": "*"

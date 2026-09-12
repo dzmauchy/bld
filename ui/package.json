@@ -8,7 +8,7 @@
     "dev": "rsbuild",
     "build": "tsc -b && tsc -b tsconfig.test.json && rsbuild build",
     "preview": "rsbuild preview",
-    "test": "tsc -b && tsc -b tsconfig.test.json && vitest run && playwright test",
+    "test": "tsc -b && tsc -b tsconfig.test.json && vitest run tests && playwright test",
     "test:e2e": "tsc -b tsconfig.test.json && playwright test"
   },
   "dependencies": {
