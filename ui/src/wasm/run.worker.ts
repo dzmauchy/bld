@@ -1,4 +1,4 @@
-import { defaultEnvBindings, startRunWorker } from "core/wasm/run.ts";
+import { defaultEnvBindings, startRunWorker } from "runtime/run.ts";
 
 const host = globalThis as unknown as { postMessage: (message: unknown) => void };
 

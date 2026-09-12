@@ -1,4 +1,4 @@
-import { WasmRuntime, wrapEventTargetWorker, type WasmRuntimeOptions } from "core/wasm/runtime.ts";
+import { WasmRuntime, wrapEventTargetWorker, type WasmRuntimeOptions } from "runtime/runtime.ts";
 
 export type BrowserWasmRuntimeOptions = {
   onHostMessage?: WasmRuntimeOptions["onHostMessage"];

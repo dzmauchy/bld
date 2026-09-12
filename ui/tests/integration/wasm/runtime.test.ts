@@ -1,6 +1,6 @@
 import { expect, test } from "vitest";
-import { compileBrowserProgram } from "core/wasm";
-import { instantiateWasm } from "core/wasm/run.ts";
+import { compileBrowserProgram } from "runtime/compile.ts";
+import { instantiateWasm } from "runtime/run.ts";
 
 test("UI compiles a wasm program and instantiates it", async () => {
   const wasm = compileBrowserProgram({

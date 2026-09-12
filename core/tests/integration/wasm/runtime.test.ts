@@ -1,7 +1,7 @@
 import { expect, test } from "vitest";
 import { BrowserCompiler, Diagram, Library, PortEndpoint } from "../../../src";
-import { WasmRuntime } from "../../../src/wasm/runtime.ts";
-import { nodeThread } from "../../../src/wasm/runtime.node.ts";
+import { WasmRuntime } from "runtime/runtime.ts";
+import { nodeThread } from "runtime/runtime.node.ts";
 
 test("run worker forwards UI env bindings to the host thread", async () => {
   await Library.load("base.json");

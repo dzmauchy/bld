@@ -23,6 +23,9 @@
   ],
   "references": [
     {
+      "path": "../runtime"
+    },
+    {
       "path": "../core"
     }
   ]

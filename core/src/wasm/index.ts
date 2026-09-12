@@ -6,7 +6,13 @@ export {
   McuWasmProfile,
   WasmProfile,
   type WasmProfileName,
-} from "./profile";
-export type { CompileOptions, DownstreamRef, PlannedBlock, WasmProgram } from "./program";
-export { compileBrowserProgram, emitBrowserText } from "./compile";
-
+} from "runtime";
+export type { CompileOptions, DownstreamRef, PlannedBlock, WasmProgram } from "runtime";
+export {
+  compileBrowserProgram,
+  compileDiagram,
+  emitBrowserText,
+  emitDiagramText,
+  type CompileProgramOptions,
+  type CompileRequest,
+} from "runtime/compile";

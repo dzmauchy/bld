@@ -14,7 +14,8 @@
     "./*": "./src/*"
   },
   "dependencies": {
-    "binaryen": "^132.0.0"
+    "runtime": "*",
+    "base": "*"
   },
   "scripts": {
     "build": "tsc -b && tsc -b tsconfig.test.json",

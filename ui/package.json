@@ -13,11 +13,13 @@
   },
   "dependencies": {
     "core": "*",
+    "runtime": "*",
     "solid-js": "^1.9.15",
     "@awesome.me/webawesome": "^3.12.0",
     "@joint/router-avoid": "^4.3.3"
   },
   "devDependencies": {
+    "base": "*",
     "@playwright/test": "^1.63.0",
     "@rsbuild/core": "^2.2.5"
   }

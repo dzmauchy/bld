@@ -1,0 +1,25 @@
+{
+  "name": "base",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "license": "AGPL-3.0-only",
+  "exports": {
+    ".": {
+      "types": "./dist/types/index.d.ts",
+      "default": "./src/index.ts"
+    },
+    "./assembly": "./dist/assembly.js"
+  },
+  "dependencies": {
+    "runtime": "*"
+  },
+  "devDependencies": {
+    "esbuild": "^0.25.12"
+  },
+  "scripts": {
+    "bundle": "esbuild src/index.ts --bundle --minify --format=esm --platform=neutral --target=esnext --outfile=dist/assembly.js --legal-comments=none",
+    "build": "tsc -b && npm run bundle",
+    "test": "tsc -b && tsc -b tsconfig.test.json && npm run bundle && vitest run"
+  }
+}

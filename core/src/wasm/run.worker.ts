@@ -1,3 +1,3 @@
-import { defaultEnvBindings, startRunWorker } from "./run.ts";
+import { defaultEnvBindings, startRunWorker } from "runtime/run.ts";
 
 startRunWorker(defaultEnvBindings());

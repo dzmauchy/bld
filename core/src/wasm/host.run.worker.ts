@@ -1,4 +1,4 @@
-import { defaultEnvBindings, startRunWorker } from "./run.ts";
+import { defaultEnvBindings, startRunWorker } from "runtime/run.ts";
 
 type ParentPort = { postMessage: (value: unknown) => void };
 

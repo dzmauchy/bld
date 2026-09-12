@@ -6,6 +6,7 @@ import { loadAsset, resolveUrl } from "./appAssets";
 import { BlockDefinition, type RawBlockCatalogEntry } from "./blockDefinition";
 import { CompilationModel } from "./compiler";
 import { Palette } from "./palette";
+import { defaultRegistry, importAssembly, installAssembly, resolveAssemblyUrl, type ImportModule } from "runtime";
 
 export {
   AppAssetStore,
@@ -28,7 +29,11 @@ export interface PackageManifest {
   types?: string[];
   namespaces?: string[];
   blocks?: string[];
-  assembly?: string[];
+  assembly?: string;
+}
+
+export interface LibraryLoadOptions {
+  importModule?: ImportModule;
 }
 
 export interface LibrarySources {
@@ -98,7 +103,10 @@ export class Library {
     return lib;
   }
 
-  static async load(manifestOrUrl: string | PackageManifest): Promise<Library> {
+  static async load(
+    manifestOrUrl: string | PackageManifest,
+    options: LibraryLoadOptions = {},
+  ): Promise<Library> {
     let manifest: PackageManifest;
     const baseUrl =
       typeof manifestOrUrl === "string" && URL.canParse(manifestOrUrl)
@@ -154,14 +162,13 @@ export class Library {
     }
 
     if (manifest.assembly) {
-      for (const assemblyUrl of manifest.assembly) {
-        const url = baseUrl ? resolveUrl(assemblyUrl, baseUrl) : assemblyUrl;
-        const content = await loadAsset(url);
-        allAssemblyFiles[assemblyUrl] = content;
-        const slash = assemblyUrl.lastIndexOf("/");
-        const baseName = slash === -1 ? assemblyUrl : assemblyUrl.slice(slash + 1);
-        allAssemblyFiles[baseName] = content;
-      }
+      const url = baseUrl ? resolveUrl(manifest.assembly, baseUrl) : manifest.assembly;
+      const specifier = resolveAssemblyUrl(url, baseUrl);
+      allAssemblyFiles[manifest.assembly] = specifier;
+      const slash = manifest.assembly.lastIndexOf("/");
+      const baseName = slash === -1 ? manifest.assembly : manifest.assembly.slice(slash + 1);
+      allAssemblyFiles[baseName] = specifier;
+      await installAssembly(specifier, defaultRegistry, options.importModule ?? importAssembly);
     }
 
     return Library.fromManifest(manifest, {

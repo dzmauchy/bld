@@ -13,7 +13,7 @@ import { Diagram } from "../../../src/model/diagram.ts";
 import { Library } from "../../../src/model/library.ts";
 import { Palette } from "../../../src/model/palette.ts";
 import { PortEndpoint } from "../../../src/model/endpoint.ts";
-import { mcuProfile } from "../../../src/wasm/profile.ts";
+import { mcuProfile } from "runtime";
 
 let palette: Palette;
 
