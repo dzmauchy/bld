@@ -8,14 +8,16 @@ import {
   browserProfile,
   getWasmProfile,
   mcuProfile,
-  PUSH_BLOCK_REFS,
   WasmProfile,
+  type WasmProfileName,
+} from "../wasm/profile";
+import {
+  PUSH_BLOCK_REFS,
   type CompileOptions,
   type DownstreamRef,
   type PlannedBlock,
   type WasmProgram,
-  type WasmProfileName,
-} from "../wasm/compile";
+} from "../wasm/program";
 
 export { browserProfile, mcuProfile, WasmProfile, getWasmProfile };
 export type { CompileOptions, PlannedBlock, WasmProgram, WasmProfileName, DownstreamRef };

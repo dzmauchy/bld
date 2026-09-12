@@ -1,16 +1,12 @@
 export {
-  compileBrowserProgram,
-  emitBrowserText,
   browserProfile,
-  mcuProfile,
   BrowserWasmProfile,
+  getWasmProfile,
+  mcuProfile,
   McuWasmProfile,
   WasmProfile,
-  getWasmProfile,
-  type CompileOptions,
-  type PlannedBlock,
-  type WasmProgram,
   type WasmProfileName,
-  type DownstreamRef,
-} from "./compile";
+} from "./profile";
+export type { CompileOptions, DownstreamRef, PlannedBlock, WasmProgram } from "./program";
+export { compileBrowserProgram, emitBrowserText } from "./compile";
 

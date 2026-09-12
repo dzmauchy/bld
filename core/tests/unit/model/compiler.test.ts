@@ -13,7 +13,7 @@ import { Diagram } from "../../../src/model/diagram.ts";
 import { Library } from "../../../src/model/library.ts";
 import { Palette } from "../../../src/model/palette.ts";
 import { PortEndpoint } from "../../../src/model/endpoint.ts";
-import { mcuProfile } from "../../../src/wasm/compile.ts";
+import { mcuProfile } from "../../../src/wasm/profile.ts";
 
 let palette: Palette;
 
@@ -54,6 +54,8 @@ describe("DiagramCompiler wasm profiles", () => {
     expect(wat).toContain("i32.atomic.rmw.add");
     expect(wat).toContain("return_call");
     expect(wat).toContain("wasm:js-string");
+    expect(wat).toContain("array.new");
+    expect(wat).toContain("(try");
     expect(wat).toContain("(memory $0 1 1 shared)");
     expect(wat).not.toContain("AssemblyScript");
   });

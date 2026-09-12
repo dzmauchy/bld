@@ -9,11 +9,19 @@ import {
   OFFSET_LAST_PIN,
   OFFSET_INTERVAL_PERIODS,
 } from "./memory";
-import { mcuProfile, WasmProfile, type WasmProfileName } from "./profile";
+import { registerBrowserWasmBackend } from "./profile";
 import type { CompileOptions, DownstreamRef, PlannedBlock, WasmProgram } from "./program";
 
 export type { CompileOptions, DownstreamRef, PlannedBlock, WasmProgram } from "./program";
-export { mcuProfile, McuWasmProfile, WasmProfile, type WasmProfileName } from "./profile";
+export {
+  browserProfile,
+  BrowserWasmProfile,
+  getWasmProfile,
+  mcuProfile,
+  McuWasmProfile,
+  WasmProfile,
+  type WasmProfileName,
+} from "./profile";
 export { PUSH_BLOCK_REFS, TICK_BLOCK_REFS } from "./program";
 
 type Expr = binaryen.ExpressionRef;
@@ -750,23 +758,7 @@ export function emitBrowserText(program: WasmProgram, options: CompileOptions = 
   }
 }
 
-export class BrowserWasmProfile extends WasmProfile {
-  readonly name = "browser" as const;
-
-  compile(program: WasmProgram, options?: CompileOptions): Uint8Array {
-    return compileBrowserProgram(program, options);
-  }
-
-  override emitText(program: WasmProgram, options?: CompileOptions): string {
-    return emitBrowserText(program, options);
-  }
-}
-
-export const browserProfile = new BrowserWasmProfile();
-
-export function getWasmProfile(name: WasmProfileName | WasmProfile): WasmProfile {
-  if (typeof name !== "string") return name;
-  if (name === "browser") return browserProfile;
-  if (name === "mcu") return mcuProfile;
-  throw new Error(`Unknown wasm profile "${name}"`);
-}
+registerBrowserWasmBackend({
+  compile: compileBrowserProgram,
+  emitText: emitBrowserText,
+});
