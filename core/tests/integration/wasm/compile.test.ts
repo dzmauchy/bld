@@ -1,14 +1,15 @@
 import { readFileSync } from "node:fs";
 import { dirname, join } from "node:path";
-import { fileURLToPath } from "node:url";
+import { fileURLToPath, pathToFileURL } from "node:url";
 import { describe, expect, test } from "vitest";
 import { BrowserCompiler, Diagram, Library, PortEndpoint } from "../../../src";
+import { importAssembly } from "runtime";
 import { compileDiagram } from "runtime/compile.ts";
 import { instantiateWasm, defaultEnvBindings } from "runtime/run.ts";
 
 const here = dirname(fileURLToPath(import.meta.url));
 const baseManifest = readFileSync(join(here, "../../../assets/base.json"), "utf8");
-const assemblySource = readFileSync(join(here, "../../../../base/dist/assembly.js"), "utf8");
+const assemblyUrl = pathToFileURL(join(here, "../../../../base/dist/assembly.js")).href;
 
 function constToScopeDiagram() {
   const diagram = new Diagram("pin", "pin");
@@ -43,8 +44,8 @@ describe("binaryen compile and host bindings", () => {
     await Library.load("base.json");
     const files: Record<string, string> = {
       "https://libs.example/base.json": baseManifest,
-      "https://libs.example/assembly.js": assemblySource,
     };
+    const imported: string[] = [];
     const wasm = await compileDiagram({
       diagram: constToScopeDiagram().toJSON(),
       libraries: ["https://libs.example/base.json"],
@@ -54,7 +55,13 @@ describe("binaryen compile and host bindings", () => {
         if (!content) throw new Error(`missing ${url}`);
         return content;
       },
+      importModule: async (url) => {
+        imported.push(url);
+        expect(url).toBe("https://libs.example/assembly.js");
+        return importAssembly(assemblyUrl);
+      },
     });
+    expect(imported).toEqual(["https://libs.example/assembly.js"]);
     const instance = await instantiateWasm(wasm);
     (instance.exports.tickThenObserve as () => void)();
     const lastPin = instance.exports.lastPin as (blockId: number, pin: number) => number;

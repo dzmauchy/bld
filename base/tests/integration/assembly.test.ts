@@ -2,10 +2,11 @@ import { describe, expect, test } from "vitest";
 import { readFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
-import { BlockRegistry, installAssemblySource, installLibrary } from "runtime";
+import { BlockRegistry, installAssembly, installLibrary } from "runtime";
 import { compileBrowserProgram } from "runtime/compile.ts";
 import { install } from "base";
 import { instantiateWasm } from "runtime/run.ts";
+import { pathToFileURL } from "node:url";
 
 const here = dirname(fileURLToPath(import.meta.url));
 const assemblyPath = join(here, "../../dist/assembly.js");
@@ -31,10 +32,9 @@ describe("base library assembly", () => {
     expect(source.trim().split("\n")).toHaveLength(1);
   });
 
-  test("bundled assembly can be loaded by the runtime", async () => {
-    const source = readFileSync(assemblyPath, "utf8");
+  test("bundled assembly can be loaded by the runtime as an ES module", async () => {
     const registry = new BlockRegistry();
-    await installAssemblySource(source, registry);
+    await installAssembly(pathToFileURL(assemblyPath).href, registry);
     expect(registry.has("const_f32")).toBe(true);
     expect(registry.has("scope_f32")).toBe(true);
 

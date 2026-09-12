@@ -66,6 +66,7 @@ describe("Library and Asset Loader", () => {
     // In-memory CompilationModel populated
     expect(lib.compilationModel).toBeInstanceOf(CompilationModel);
     expect(lib.compilationModel.getFile("assembly.js")).toBeDefined();
+    expect(URL.canParse(lib.compilationModel.getFile("assembly.js")!)).toBe(true);
 
     // Base library is cached
     expect(Library.getBaseSync()).toBe(lib);
@@ -122,30 +123,32 @@ describe("Library and Asset Loader", () => {
           { status: 200 },
         );
       }
-      if (u === "https://my-plugin.org/dsp/plugin.ts") {
-        return new Response("// custom assembly code\nexport class custom_block {}", {
-          status: 200,
-        });
-      }
       return new Response("Not found", { status: 404 });
     });
 
     globalThis.fetch = fetchMock as unknown as typeof fetch;
 
     try {
-      const lib = await Library.load("https://my-plugin.org/dsp/library.json");
+      const imported: string[] = [];
+      const lib = await Library.load("https://my-plugin.org/dsp/library.json", {
+        importModule: async (url) => {
+          imported.push(url);
+          return {};
+        },
+      });
       expect(lib.id).toBe("remote_plugin");
       expect(lib.name).toBe("Remote Plugin");
       expect(lib.typeSystem.getPrimitive("custom_t")).toBeDefined();
       expect(lib.palette.getBlock("custom_block")).toBeDefined();
-      expect(lib.compilationModel.getFile("plugin.ts")).toContain("export class custom_block");
+      expect(lib.compilationModel.getFile("plugin.ts")).toBe("https://my-plugin.org/dsp/plugin.ts");
+      expect(imported).toEqual(["https://my-plugin.org/dsp/plugin.ts"]);
 
-      // Verify fetch was invoked for the absolute URLs
+      // Verify fetch was invoked for JSON assets, not the assembly module.
       expect(fetchMock).toHaveBeenCalledWith("https://my-plugin.org/dsp/library.json");
       expect(fetchMock).toHaveBeenCalledWith("https://my-plugin.org/dsp/types.json");
       expect(fetchMock).toHaveBeenCalledWith("https://my-plugin.org/dsp/namespaces.json");
       expect(fetchMock).toHaveBeenCalledWith("https://my-plugin.org/dsp/blocks.json");
-      expect(fetchMock).toHaveBeenCalledWith("https://my-plugin.org/dsp/plugin.ts");
+      expect(fetchMock).not.toHaveBeenCalledWith("https://my-plugin.org/dsp/plugin.ts");
     } finally {
       globalThis.fetch = originalFetch;
     }

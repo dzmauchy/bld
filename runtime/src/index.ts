@@ -8,7 +8,7 @@ export type {
   WasmProfileName,
 } from "./json";
 export type { CompileOptions, DownstreamRef, PlannedBlock, WasmProgram } from "./program";
-export type { FetchText, LibraryAssemblyModule } from "./api";
+export type { FetchText, ImportModule, LibraryAssemblyModule } from "./api";
 export type { BlockSpec } from "./registry";
 export type { PlanBlock, PlanConnection, PlanEndpoint, PlanInput } from "./plan";
 
@@ -21,10 +21,14 @@ export {
 export {
   applyAssemblyModule,
   defaultFetchText,
+  importAssembly,
   importAssemblySource,
+  installAssembly,
   installAssemblySource,
   installLibraryFromUrl,
   loadLibraryManifest,
+  registerAssemblyUrl,
+  resolveAssemblyUrl,
   resolveUrl,
 } from "./api";
 export { planDiagramJson, planProgram } from "./plan";

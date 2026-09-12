@@ -2,6 +2,7 @@ import { describe, expect, test } from "vitest";
 import {
   BlockRegistry,
   getWasmProfile,
+  importAssemblySource,
   installLibrary,
   mcuProfile,
   planDiagramJson,
@@ -113,8 +114,8 @@ describe("runtime library assembly loading", () => {
         name: "Base",
         assembly: "assembly.js",
       }),
-      "https://libs.example/assembly.js": assembly,
     };
+    const imported: string[] = [];
     const wasm = await compileDiagram({
       diagram: constToScope(8),
       libraries: ["https://libs.example/base.json"],
@@ -123,7 +124,13 @@ describe("runtime library assembly loading", () => {
         if (!content) throw new Error(`missing ${url}`);
         return content;
       },
+      importModule: async (url: string) => {
+        imported.push(url);
+        expect(url).toBe("https://libs.example/assembly.js");
+        return importAssemblySource(assembly);
+      },
     });
+    expect(imported).toEqual(["https://libs.example/assembly.js"]);
     const instance = await instantiateWasm(wasm);
     (instance.exports.tickThenObserve as () => void)();
     const lastPin = instance.exports.lastPin as (blockId: number, pin: number) => number;

@@ -6,7 +6,7 @@ import { BlockEmitter } from "./dsl";
 import { BrowserWasmModule } from "./module";
 import { registerBrowserWasmBackend, getWasmProfile } from "./profile";
 import { planDiagramJson } from "./plan";
-import { installLibraryFromUrl, type FetchText } from "./api";
+import { installLibraryFromUrl, type FetchText, type ImportModule } from "./api";
 
 function copyBinary(bytes: Uint8Array): Uint8Array {
   const copy = new Uint8Array(bytes.byteLength);
@@ -79,6 +79,7 @@ export type CompileRequest = {
   optimizeLevel?: number;
   debug?: boolean;
   fetchText?: FetchText;
+  importModule?: ImportModule;
   registry?: BlockRegistry;
 };
 
@@ -86,11 +87,12 @@ async function registryForRequest(request: CompileRequest): Promise<BlockRegistr
   if (request.registry) return request.registry;
   const registry = new BlockRegistry();
   for (const url of request.libraries) {
-    if (request.fetchText) {
-      await installLibraryFromUrl(url, { fetchText: request.fetchText, registry });
-    } else {
-      await installLibraryFromUrl(url, { registry });
-    }
+    const options: { registry: BlockRegistry; fetchText?: FetchText; importModule?: ImportModule } = {
+      registry,
+    };
+    if (request.fetchText) options.fetchText = request.fetchText;
+    if (request.importModule) options.importModule = request.importModule;
+    await installLibraryFromUrl(url, options);
   }
   return registry;
 }
