@@ -29,7 +29,7 @@ export type LibraryAssemblyModule = {
 
 export async function importAssemblySource(source: string): Promise<LibraryAssemblyModule> {
   const url = `data:text/javascript;charset=utf-8,${encodeURIComponent(source)}`;
-  return import(/* @vite-ignore */ url) as Promise<LibraryAssemblyModule>;
+  return import(/* webpackIgnore: true */ /* @vite-ignore */ url) as Promise<LibraryAssemblyModule>;
 }
 
 export function applyAssemblyModule(mod: LibraryAssemblyModule, registry: BlockRegistry): void {
