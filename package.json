@@ -8,15 +8,6 @@
     "core",
     "ui"
   ],
-  "scripts": {
-    "dev": "npm run dev -w ui",
-    "build": "tsc -b && npm run bundle -w base && npm run build -w ui",
-    "preview": "npm run preview -w ui",
-    "test": "tsc -b && npm run bundle -w base && vitest run tests",
-    "test:e2e": "tsc -b && npm run bundle -w base && vitest run e2e && npm run test:e2e -w ui",
-    "clean": "tsc -b --clean",
-    "deploy": "npm run deploy -w ui"
-  },
   "devDependencies": {
     "@types/node": "^22.20.2",
     "typescript": "7.0.2",

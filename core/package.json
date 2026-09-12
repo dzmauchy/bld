@@ -20,6 +20,7 @@
   "scripts": {
     "build": "tsc -b && tsc -b tsconfig.test.json",
     "test": "tsc -b && tsc -b tsconfig.test.json && vitest run tests",
-    "test:e2e": "vitest run e2e"
+    "test:e2e": "tsc -b && tsc -b tsconfig.test.json && vitest run e2e",
+    "clean": "tsc -b --clean"
   }
 }
