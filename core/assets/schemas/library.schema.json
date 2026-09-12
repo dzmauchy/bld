@@ -48,12 +48,8 @@
       "description": "List of file paths containing block definitions."
     },
     "assembly": {
-      "type": "array",
-      "items": {
-        "type": "string"
-      },
-      "uniqueItems": true,
-      "description": "Optional extra source files shipped with the package."
+      "type": "string",
+      "description": "Path to a wasm file which implements blocks and namespaces."
     }
   },
   "required": [
