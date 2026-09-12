@@ -12,7 +12,6 @@ export {
   clearRegisteredAppAssets,
   fetchText,
   getRegisteredAppAsset,
-  isRelativeUrl,
   loadAsset,
   normalizeAssetPath,
   registerAppAsset,

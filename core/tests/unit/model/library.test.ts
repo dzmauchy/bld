@@ -1,6 +1,5 @@
 import { describe, expect, test, vi } from "vitest";
 import {
-  AppAssetStore,
   CompilationModel,
   Library,
   Palette,
@@ -8,7 +7,6 @@ import {
   clearRegisteredAppAssets,
   fetchText,
   getRegisteredAppAsset,
-  isRelativeUrl,
   loadAsset,
   normalizeAssetPath,
   registerAppAsset,
@@ -18,16 +16,6 @@ import {
 } from "../../../src/model/index.js";
 
 describe("Library and Asset Loader", () => {
-  test("distinguishes relative URLs from absolute URLs", () => {
-    expect(isRelativeUrl("types.json")).toBe(true);
-    expect(isRelativeUrl("./types.json")).toBe(true);
-    expect(isRelativeUrl("assembly/blocks.ts")).toBe(true);
-    expect(isRelativeUrl("/assets/blocks.json")).toBe(true);
-    expect(isRelativeUrl("https://example.com/lib.json")).toBe(false);
-    expect(isRelativeUrl("http://localhost:3000/lib.json")).toBe(false);
-    expect(isRelativeUrl("//cdn.example.com/lib.json")).toBe(false);
-  });
-
   test("resolves relative URLs against base URLs", () => {
     expect(resolveUrl("types.json", "https://example.com/libs/base.json")).toBe(
       "https://example.com/libs/types.json",
@@ -37,6 +25,11 @@ describe("Library and Asset Loader", () => {
     expect(resolveUrl("https://other.com/blocks.json", "https://example.com/base.json")).toBe(
       "https://other.com/blocks.json",
     );
+    expect(resolveUrl("https://other.com/blocks.json", "base.json")).toBe(
+      "https://other.com/blocks.json",
+    );
+    expect(resolveUrl("types.json")).toBe("types.json");
+    expect(resolveUrl("//cdn.example.com/lib.json")).toBe("cdn.example.com/lib.json");
   });
 
   test("loads base.json and builds model and compilation model in memory", async () => {
@@ -163,7 +156,6 @@ describe("Library and Asset Loader", () => {
 
   test("normalizes asset paths and loads via the shared AppAssetStore", async () => {
     expect(normalizeAssetPath("./assembly/blocks.ts")).toBe("assembly/blocks.ts");
-    expect(AppAssetStore.isRelativeUrl("types.json")).toBe(true);
 
     registerAppAssets({
       "bundle/a.json": "{\"a\":1}",

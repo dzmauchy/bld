@@ -17,26 +17,18 @@ export class AppAssetStore {
   private readonly assets = new Map<string, string>();
   private resolver: AssetResolver | null = null;
 
-  static isRelativeUrl(url: string): boolean {
-    return !/^[a-zA-Z][a-zA-Z0-9+.-]*:/.test(url) && !url.startsWith("//");
-  }
-
   static normalizePath(path: string): string {
-    return path.replace(/\\/g, "/").replace(/^\.\//, "").replace(/^\//, "");
+    return path.replace(/\\/g, "/").replace(/^\.?\/+/, "");
   }
 
   static resolveUrl(url: string, baseUrl?: string): string {
-    if (!baseUrl || !AppAssetStore.isRelativeUrl(url)) {
+    if (baseUrl && URL.canParse(baseUrl)) {
+      return new URL(url, baseUrl).href;
+    }
+    if (URL.canParse(url)) {
       return url;
     }
-    if (!AppAssetStore.isRelativeUrl(baseUrl)) {
-      try {
-        return new URL(url, baseUrl).href;
-      } catch {
-        return url;
-      }
-    }
-    const baseDir = baseUrl.includes("/") ? baseUrl.slice(0, baseUrl.lastIndexOf("/") + 1) : "";
+    const baseDir = baseUrl ? baseUrl.slice(0, baseUrl.lastIndexOf("/") + 1) : "";
     return AppAssetStore.normalizePath(`${baseDir}${url}`);
   }
 
@@ -90,29 +82,27 @@ export class AppAssetStore {
   async load(url: string, baseUrl?: string): Promise<string> {
     const resolved = AppAssetStore.resolveUrl(url, baseUrl);
 
-    if (!AppAssetStore.isRelativeUrl(resolved)) {
+    if (URL.canParse(resolved)) {
       return AppAssetStore.fetchText(resolved);
     }
 
-    const cleanPath = AppAssetStore.normalizePath(resolved);
-
     if (this.resolver) {
-      const result = await Promise.resolve(this.resolver(cleanPath));
+      const result = await Promise.resolve(this.resolver(resolved));
       if (result !== undefined) return result;
     }
 
-    const registered = this.get(cleanPath);
+    const registered = this.get(resolved);
     if (registered !== undefined) {
       return registered;
     }
 
-    const nodeContent = this.readNodeAsset(cleanPath);
+    const nodeContent = this.readNodeAsset(resolved);
     if (nodeContent !== undefined) {
       return nodeContent;
     }
 
     if (typeof fetch === "function") {
-      const candidates = [`/assets/${cleanPath}`, `/${cleanPath}`, cleanPath];
+      const candidates = [`/assets/${resolved}`, `/${resolved}`, resolved];
       for (const candidate of candidates) {
         try {
           const res = await fetch(candidate);
@@ -125,7 +115,7 @@ export class AppAssetStore {
       }
     }
 
-    throw new Error(`App asset not found: ${cleanPath}`);
+    throw new Error(`App asset not found: ${resolved}`);
   }
 
   private readNodeAsset(cleanPath: string): string | undefined {
@@ -166,10 +156,6 @@ export class AppAssetStore {
     }
     return undefined;
   }
-}
-
-export function isRelativeUrl(url: string): boolean {
-  return AppAssetStore.isRelativeUrl(url);
 }
 
 export function normalizeAssetPath(path: string): string {
