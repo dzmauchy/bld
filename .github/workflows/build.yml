@@ -19,6 +19,9 @@ jobs:
         with:
           node-version: "26"
           cache: npm
+        env:
+          # setup-node runs `npm config get cache`, which rejects workspaces=true
+          npm_config_workspaces: false
 
       - name: Install dependencies
         run: npm ci
