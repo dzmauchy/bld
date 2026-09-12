@@ -1,4 +1,6 @@
 import { describe, expect, test, vi } from "vitest";
+import { resolveUrl } from "../../../src/model/appAssets.js";
+import { readNodeAsset } from "../../readNodeAsset.ts";
 import {
   CompilationModel,
   Library,
@@ -11,7 +13,6 @@ import {
   normalizeAssetPath,
   registerAppAsset,
   registerAppAssets,
-  resolveUrl,
   setAppAssetResolver,
 } from "../../../src/model/index.js";
 
@@ -20,16 +21,19 @@ describe("Library and Asset Loader", () => {
     expect(resolveUrl("types.json", "https://example.com/libs/base.json")).toBe(
       "https://example.com/libs/types.json",
     );
-    expect(resolveUrl("blocks.json", "base.json")).toBe("blocks.json");
-    expect(resolveUrl("sub/blocks.json", "lib/manifest.json")).toBe("lib/sub/blocks.json");
+    expect(resolveUrl("sub/blocks.json", "https://example.com/lib/manifest.json")).toBe(
+      "https://example.com/lib/sub/blocks.json",
+    );
     expect(resolveUrl("https://other.com/blocks.json", "https://example.com/base.json")).toBe(
       "https://other.com/blocks.json",
     );
-    expect(resolveUrl("https://other.com/blocks.json", "base.json")).toBe(
+    expect(resolveUrl("https://other.com/blocks.json")).toBe(
       "https://other.com/blocks.json",
     );
     expect(resolveUrl("types.json")).toBe("types.json");
-    expect(resolveUrl("//cdn.example.com/lib.json")).toBe("cdn.example.com/lib.json");
+    expect(resolveUrl("//cdn.example.com/lib.json", "https://example.com/")).toBe(
+      "https://cdn.example.com/lib.json",
+    );
   });
 
   test("loads base.json and builds model and compilation model in memory", async () => {
@@ -179,8 +183,14 @@ describe("Library and Asset Loader", () => {
     try {
       expect(await loadAsset("resolver-only.json")).toBe("{\"from\":\"resolver\"}");
     } finally {
-      setAppAssetResolver(null);
+      setAppAssetResolver(readNodeAsset);
     }
+  });
+
+  test("readNodeAsset reads asset files from local filesystem", async () => {
+    const content = await readNodeAsset("base.json");
+    expect(content).toBeDefined();
+    expect(JSON.parse(content!).id).toBe("base");
   });
 
   test("fetchText loads absolute URLs", async () => {

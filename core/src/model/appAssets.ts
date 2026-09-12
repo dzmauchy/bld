@@ -3,14 +3,6 @@
  */
 export type AssetResolver = (path: string) => Promise<string | undefined>;
 
-declare const process:
-  | {
-      versions?: { node?: string };
-      cwd?: () => string;
-      getBuiltinModule?: (name: string) => unknown;
-    }
-  | undefined;
-
 export class AppAssetStore {
   static readonly shared = new AppAssetStore();
 
@@ -19,17 +11,6 @@ export class AppAssetStore {
 
   static normalizePath(path: string): string {
     return path.replace(/\\/g, "/").replace(/^\.?\/+/, "");
-  }
-
-  static resolveUrl(url: string, baseUrl?: string): string {
-    if (baseUrl && URL.canParse(baseUrl)) {
-      return new URL(url, baseUrl).href;
-    }
-    if (URL.canParse(url)) {
-      return url;
-    }
-    const baseDir = baseUrl ? baseUrl.slice(0, baseUrl.lastIndexOf("/") + 1) : "";
-    return AppAssetStore.normalizePath(`${baseDir}${url}`);
   }
 
   static async fetchText(url: string): Promise<string> {
@@ -79,82 +60,24 @@ export class AppAssetStore {
       : null;
   }
 
-  async load(url: string, baseUrl?: string): Promise<string> {
-    const resolved = AppAssetStore.resolveUrl(url, baseUrl);
-
-    if (URL.canParse(resolved)) {
-      return AppAssetStore.fetchText(resolved);
+  async load(url: string): Promise<string> {
+    if (URL.canParse(url)) {
+      return AppAssetStore.fetchText(url);
     }
 
+    const cleanPath = AppAssetStore.normalizePath(url);
+
     if (this.resolver) {
-      const result = await Promise.resolve(this.resolver(resolved));
+      const result = await Promise.resolve(this.resolver(cleanPath));
       if (result !== undefined) return result;
     }
 
-    const registered = this.get(resolved);
+    const registered = this.get(cleanPath);
     if (registered !== undefined) {
       return registered;
     }
 
-    const nodeContent = this.readNodeAsset(resolved);
-    if (nodeContent !== undefined) {
-      return nodeContent;
-    }
-
-    if (typeof fetch === "function") {
-      const candidates = [`/assets/${resolved}`, `/${resolved}`, resolved];
-      for (const candidate of candidates) {
-        try {
-          const res = await fetch(candidate);
-          if (res.ok) {
-            return await res.text();
-          }
-        } catch {
-          // Try next candidate
-        }
-      }
-    }
-
-    throw new Error(`App asset not found: ${resolved}`);
-  }
-
-  private readNodeAsset(cleanPath: string): string | undefined {
-    const proc = typeof process !== "undefined" ? process : undefined;
-    if (proc?.versions?.node && typeof proc.getBuiltinModule === "function") {
-      try {
-        const fs = proc.getBuiltinModule("node:fs") as
-          | { readFileSync: (p: string, enc: string) => string }
-          | undefined;
-        const path = proc.getBuiltinModule("node:path") as
-          | { join: (...args: string[]) => string; dirname: (p: string) => string }
-          | undefined;
-        const url = proc.getBuiltinModule("node:url") as
-          | { fileURLToPath: (url: string | URL) => string }
-          | undefined;
-
-        if (!fs || !path || !url) return undefined;
-
-        const currentDir = path.dirname(url.fileURLToPath(import.meta.url));
-        const cwd = proc.cwd?.() ?? "";
-        const candidates = [
-          path.join(currentDir, "../../assets", cleanPath),
-          path.join(currentDir, "../../../core/assets", cleanPath),
-          path.join(cwd, "assets", cleanPath),
-          path.join(cwd, "core/assets", cleanPath),
-        ];
-
-        for (const candidate of candidates) {
-          try {
-            return fs.readFileSync(candidate, "utf8");
-          } catch {
-            // Continue to next candidate
-          }
-        }
-      } catch {
-        return undefined;
-      }
-    }
-    return undefined;
+    throw new Error(`App asset not found: ${cleanPath}`);
   }
 }
 
@@ -163,7 +86,13 @@ export function normalizeAssetPath(path: string): string {
 }
 
 export function resolveUrl(url: string, baseUrl?: string): string {
-  return AppAssetStore.resolveUrl(url, baseUrl);
+  if (URL.canParse(url)) {
+    return url;
+  }
+  if (baseUrl) {
+    return new URL(url, baseUrl).href;
+  }
+  return url;
 }
 
 export function registerAppAsset(path: string, content: string): void {
@@ -190,6 +119,6 @@ export async function fetchText(url: string): Promise<string> {
   return AppAssetStore.fetchText(url);
 }
 
-export async function loadAsset(url: string, baseUrl?: string): Promise<string> {
-  return AppAssetStore.shared.load(url, baseUrl);
+export async function loadAsset(url: string): Promise<string> {
+  return AppAssetStore.shared.load(url);
 }

@@ -2,7 +2,7 @@
  * @title Library
  */
 import { TypeSystem, type TypeCatalogEntry } from "../types";
-import { loadAsset } from "./appAssets";
+import { loadAsset, resolveUrl } from "./appAssets";
 import { BlockDefinition, type RawBlockCatalogEntry } from "./blockDefinition";
 import { CompilationModel } from "./compiler";
 import { Palette } from "./palette";
@@ -16,7 +16,6 @@ export {
   normalizeAssetPath,
   registerAppAsset,
   registerAppAssets,
-  resolveUrl,
   setAppAssetResolver,
   type AssetResolver,
 } from "./appAssets";
@@ -99,14 +98,16 @@ export class Library {
     return lib;
   }
 
-  static async load(manifestOrUrl: string | PackageManifest, baseUrl?: string): Promise<Library> {
+  static async load(manifestOrUrl: string | PackageManifest): Promise<Library> {
     let manifest: PackageManifest;
-    let effectiveBaseUrl = baseUrl;
+    const baseUrl =
+      typeof manifestOrUrl === "string" && URL.canParse(manifestOrUrl)
+        ? manifestOrUrl
+        : undefined;
 
     if (typeof manifestOrUrl === "string") {
-      const manifestText = await loadAsset(manifestOrUrl, baseUrl);
+      const manifestText = await loadAsset(manifestOrUrl);
       manifest = JSON.parse(manifestText) as PackageManifest;
-      effectiveBaseUrl = manifestOrUrl;
     } else {
       manifest = manifestOrUrl;
     }
@@ -118,7 +119,8 @@ export class Library {
 
     if (manifest.types) {
       for (const typesUrl of manifest.types) {
-        const content = await loadAsset(typesUrl, effectiveBaseUrl);
+        const url = baseUrl ? resolveUrl(typesUrl, baseUrl) : typesUrl;
+        const content = await loadAsset(url);
         const parsed = JSON.parse(content) as Record<string, TypeCatalogEntry>;
         for (const [key, value] of Object.entries(parsed)) {
           if (key === "$schema") continue;
@@ -129,7 +131,8 @@ export class Library {
 
     if (manifest.namespaces) {
       for (const nsUrl of manifest.namespaces) {
-        const content = await loadAsset(nsUrl, effectiveBaseUrl);
+        const url = baseUrl ? resolveUrl(nsUrl, baseUrl) : nsUrl;
+        const content = await loadAsset(url);
         const parsed = JSON.parse(content) as Record<string, unknown>;
         for (const [key, value] of Object.entries(parsed)) {
           if (key === "$schema") continue;
@@ -140,7 +143,8 @@ export class Library {
 
     if (manifest.blocks) {
       for (const blocksUrl of manifest.blocks) {
-        const content = await loadAsset(blocksUrl, effectiveBaseUrl);
+        const url = baseUrl ? resolveUrl(blocksUrl, baseUrl) : blocksUrl;
+        const content = await loadAsset(url);
         const parsed = JSON.parse(content) as Record<string, RawBlockCatalogEntry>;
         for (const [key, value] of Object.entries(parsed)) {
           if (key === "$schema") continue;
@@ -151,7 +155,8 @@ export class Library {
 
     if (manifest.assembly) {
       for (const assemblyUrl of manifest.assembly) {
-        const content = await loadAsset(assemblyUrl, effectiveBaseUrl);
+        const url = baseUrl ? resolveUrl(assemblyUrl, baseUrl) : assemblyUrl;
+        const content = await loadAsset(url);
         allAssemblyFiles[assemblyUrl] = content;
         const slash = assemblyUrl.lastIndexOf("/");
         const baseName = slash === -1 ? assemblyUrl : assemblyUrl.slice(slash + 1);
@@ -178,9 +183,9 @@ export class Library {
     });
   }
 
-  static async loadBase(baseUrl?: string): Promise<Library> {
+  static async loadBase(): Promise<Library> {
     if (Library.base) return Library.base;
-    return Library.load("base.json", baseUrl);
+    return Library.load("base.json");
   }
 
   static getBaseSync(): Library | undefined {
