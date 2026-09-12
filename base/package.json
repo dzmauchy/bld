@@ -20,6 +20,6 @@
   "scripts": {
     "bundle": "esbuild src/index.ts --bundle --minify --format=esm --platform=neutral --target=esnext --outfile=dist/assembly.js --legal-comments=none",
     "build": "tsc -b && npm run bundle",
-    "test": "tsc -b && tsc -b tsconfig.test.json && npm run bundle && vitest run tests",
+    "test": "tsc -b && tsc -b tsconfig.test.json && npm run bundle && vitest run tests"
   }
 }
