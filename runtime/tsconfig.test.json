@@ -9,7 +9,7 @@
     "rootDir": ".",
     "types": ["node"]
   },
-  "include": ["./src", "./tests"],
+  "include": ["./src", "./tests", "./e2e"],
   "references": [
     {
       "path": "./tsconfig.json"
