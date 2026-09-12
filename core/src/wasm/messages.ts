@@ -1,25 +1,7 @@
-export type CompileFiles = Record<string, string>;
-
 export type CompileOptions = {
   debug?: boolean;
   optimizeLevel?: number;
 };
-
-export type CompileInitRequest = {
-  type: "init";
-  id: number;
-  files: CompileFiles;
-};
-
-export type CompileCompileRequest = {
-  type: "compile";
-  id: number;
-  source: string;
-  files?: CompileFiles;
-  options?: CompileOptions;
-};
-
-export type CompileRequest = CompileInitRequest | CompileCompileRequest;
 
 export type RunInstantiateRequest = {
   type: "instantiate";

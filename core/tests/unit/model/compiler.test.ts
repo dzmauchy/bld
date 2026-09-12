@@ -2,7 +2,6 @@ import { beforeAll, describe, expect, test } from "vitest";
 import {
   browserContext,
   BrowserCompiler,
-  CompilerContext,
   defaultBlockEmitters,
   DiagramCompiler,
   getCompilerContext,
@@ -14,7 +13,7 @@ import { Diagram } from "../../../src/model/diagram.ts";
 import { Library } from "../../../src/model/library.ts";
 import { Palette } from "../../../src/model/palette.ts";
 import { PortEndpoint } from "../../../src/model/endpoint.ts";
-import { TestCompiler, testContext } from "../../testCompiler.ts";
+import { mcuProfile } from "../../../src/wasm/compile.ts";
 
 let palette: Palette;
 
@@ -39,117 +38,63 @@ function createTestDiagram(): Diagram {
   return diagram;
 }
 
-describe("DiagramCompiler pluggable contexts", () => {
-  test("default compiler targets browser without any test code", () => {
+describe("DiagramCompiler wasm profiles", () => {
+  test("default compiler targets the browser profile", () => {
     const compiler = new DiagramCompiler();
+    expect(compiler.getProfile().name).toBe("browser");
     expect(compiler.getContext().name).toBe("browser");
 
     const diagram = createTestDiagram();
-    const source = compiler.generateAssemblyScript(diagram);
-
-    // Production browser code assertions
-    expect(source).toContain("import { BrowserExecutionContext } from \"./browser_context\"");
-    expect(source).toContain("const ec = new BrowserExecutionContext();");
-    expect(source).toContain("export function tick(): void { ec.tick(); }");
-    expect(source).toContain("export function close(): void { ec.close(); }");
-    expect(source).toContain("export function emitGpioIn(");
-
-    // MUST NOT contain any test code
-    expect(source).not.toContain("TestExecutionContext");
-    expect(source).not.toContain("./harness");
-    expect(source).not.toContain("tickThenObserve");
-    expect(source).not.toContain("clearPins");
-    expect(source).not.toContain("lastPin");
-    expect(source).not.toContain("hasPin");
-    expect(source).not.toContain("pinWriteCount");
-    expect(source).not.toContain("activeIntervalCount");
-
-    // Supplies browser_context.ts in getFiles()
-    const files = compiler.getFiles();
-    expect(files["browser_context.ts"]).toBeDefined();
-    expect(files["browser_context.ts"]).toContain("class BrowserExecutionContext");
+    const wat = compiler.emitText(diagram);
+    expect(wat).toContain("(func $tick");
+    expect(wat).toContain("(func $b0_push");
+    expect(wat).toContain("(func $b1_tick");
+    expect(wat).toContain("(export \"tick\"");
+    expect(wat).toContain("(export \"emitGpioIn\"");
+    expect(wat).toContain("i32.atomic.rmw.add");
+    expect(wat).toContain("return_call");
+    expect(wat).toContain("wasm:js-string");
+    expect(wat).toContain("(memory $0 1 1 shared)");
+    expect(wat).not.toContain("AssemblyScript");
   });
 
-  test("BrowserCompiler specializes browser context", () => {
+  test("BrowserCompiler specializes the browser profile", () => {
     const compiler = new BrowserCompiler();
-    expect(compiler.getContext()).toBe(browserContext);
-    const files = compiler.getFiles();
-    expect(files["browser_context.ts"]).toBeDefined();
+    expect(compiler.getProfile().name).toBe("browser");
   });
 
-  test("McuCompiler targets MCU execution context", () => {
+  test("McuCompiler leaves the MCU profile unimplemented", () => {
     const compiler = new McuCompiler();
-    expect(compiler.getContext().name).toBe("mcu");
-
+    expect(compiler.getProfile().name).toBe("mcu");
+    expect(compiler.getProfile()).toBe(mcuProfile);
     const diagram = createTestDiagram();
-    const source = compiler.generateAssemblyScript(diagram);
-
-    expect(source).toContain("import { McuExecutionContext } from \"./mcu_context\"");
-    expect(source).toContain("const ec = new McuExecutionContext();");
-    expect(source).toContain("export function tick(): void { ec.tick(); }");
-    expect(source).not.toContain("TestExecutionContext");
-
-    const files = compiler.getFiles();
-    expect(files["mcu_context.ts"]).toBeDefined();
-    expect(files["mcu_context.ts"]).toContain("class McuExecutionContext");
-  });
-
-  test("TestCompiler from test infrastructure targets test harness", () => {
-    const compiler = new TestCompiler();
-    expect(compiler.getContext().name).toBe("test");
-
-    const diagram = createTestDiagram();
-    const source = compiler.generateAssemblyScript(diagram);
-
-    expect(source).toContain("import { TestExecutionContext } from \"./harness\"");
-    expect(source).toContain("const ec = new TestExecutionContext();");
-    expect(source).toContain("export function tickThenObserve(): void");
-    expect(source).toContain("export function lastPin(");
-
-    const files = compiler.getFiles();
-    expect(files["harness.ts"]).toBeDefined();
-    expect(files["harness.ts"]).toContain("class TestExecutionContext");
+    expect(() => compiler.compile(diagram)).toThrow(/MCU wasm profile is not implemented/);
+    expect(() => compiler.emitText(diagram)).toThrow(/not implemented/);
   });
 
   test("supports custom context registration", () => {
-    const customContext = new CompilerContext(
-      "custom_sim",
-      () => ({ "custom.ts": "// custom runtime" }),
-      () => "// Custom Prelude\nconst ec = null;\n",
-      () => "export function customTick(): void {}\n",
-    );
-
-    registerCompilerContext(customContext);
-    expect(getCompilerContext("custom_sim")).toBe(customContext);
-
-    const compiler = new DiagramCompiler("custom_sim");
-    expect(compiler.getContext().name).toBe("custom_sim");
-    expect(compiler.getFiles()["custom.ts"]).toBe("// custom runtime");
-
-    const diagram = createTestDiagram();
-    const source = compiler.generateAssemblyScript(diagram);
-    expect(source).toContain("// Custom Prelude");
-    expect(source).toContain("export function customTick(): void {}");
+    registerCompilerContext({ name: "custom_sim" });
+    expect(getCompilerContext("custom_sim")?.name).toBe("custom_sim");
   });
 
-  test("Diagram.generateAssemblyScript uses default browser compiler", () => {
+  test("Diagram.emitText uses the default browser compiler", () => {
     const diagram = createTestDiagram();
-    const source = diagram.generateAssemblyScript();
-
-    expect(source).toContain("new BrowserExecutionContext()");
-    expect(source).not.toContain("TestExecutionContext");
+    const wat = diagram.emitText();
+    expect(wat).toContain("(func $tick");
+    expect(wat).toContain("return_call");
   });
 
   test("setContext switches a compiler onto a registered target", () => {
     const compiler = new DiagramCompiler();
-    expect(compiler.getContext()).toBe(browserContext);
+    expect(compiler.getProfile().name).toBe("browser");
 
     compiler.setContext("mcu");
-    expect(compiler.getContext()).toBe(mcuContext);
-    expect(compiler.getFiles()["mcu_context.ts"]).toContain("class McuExecutionContext");
+    expect(compiler.getProfile().name).toBe("mcu");
+    expect(compiler.getContext().name).toBe(mcuContext.name);
 
-    compiler.setContext(browserContext);
-    expect(compiler.getContext()).toBe(browserContext);
+    compiler.setProfile("browser");
+    expect(compiler.getProfile().name).toBe("browser");
+    expect(compiler.getContext().name).toBe(browserContext.name);
   });
 
   test("registers default block emitters used by diagram codegen", () => {
@@ -159,7 +104,10 @@ describe("DiagramCompiler pluggable contexts", () => {
     expect(defaultBlockEmitters.has("unknown_block")).toBe(false);
   });
 
-  test("test harness context is registered for wasm tests", () => {
-    expect(getCompilerContext("test")).toBe(testContext);
+  test("every blocks.json entry has a wasm emitter", async () => {
+    const lib = await Library.load("base.json");
+    for (const id of Object.keys(lib.blocks)) {
+      expect(defaultBlockEmitters.has(id), id).toBe(true);
+    }
   });
 });

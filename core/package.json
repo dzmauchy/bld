@@ -9,12 +9,11 @@
       "types": "./dist/index.d.ts",
       "default": "./dist/index.js"
     },
-    "./as": "./src/as/index.ts",
+    "./wasm": "./src/wasm/index.ts",
     "./assets/*": "./assets/*",
     "./*": "./src/*"
   },
   "dependencies": {
-    "assemblyscript": "^0.28.20",
     "binaryen": "^132.0.0"
   },
   "scripts": {

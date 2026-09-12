@@ -2,38 +2,33 @@
  * @title Diagram Compiler
  */
 import type { Diagram } from "./diagram";
+import type { Connection } from "./connection";
+import type { DiagramBlock } from "./diagramBlock";
 import {
-  BlockEmitterRegistry,
-  CodegenSession,
-  defaultBlockEmitters,
-} from "./blockEmitters";
-import {
-  browserContext,
-  CompilerContext,
-  CompilerContextRegistry,
-  mcuContext,
-} from "./compilerContext";
+  browserProfile,
+  getWasmProfile,
+  mcuProfile,
+  PUSH_BLOCK_REFS,
+  WasmProfile,
+  type CompileOptions,
+  type DownstreamRef,
+  type PlannedBlock,
+  type WasmProgram,
+  type WasmProfileName,
+} from "../wasm/compile";
 
+export { browserProfile, mcuProfile, WasmProfile, getWasmProfile };
+export type { CompileOptions, PlannedBlock, WasmProgram, WasmProfileName, DownstreamRef };
 export {
   browserContext,
-  BrowserCompilerContext,
-  COMMON_PRELUDE_IMPORTS,
-  CompilerContext,
+  mcuContext,
   CompilerContextRegistry,
   getCompilerContext,
-  HostCompilerContext,
-  mcuContext,
-  McuCompilerContext,
   registerCompilerContext,
 } from "./compilerContext";
-export {
-  BlockEmitter,
-  BlockEmitterRegistry,
-  CodegenSession,
-  defaultBlockEmitters,
-} from "./blockEmitters";
+export { defaultBlockEmitters } from "./blockEmitters";
 
-export interface ASSessionLike {
+export interface WasmSessionLike {
   tick(): Promise<number>;
   tickThenObserve(): Promise<number>;
   setNow(ms: number): Promise<number>;
@@ -55,74 +50,69 @@ export interface CompileOptionsLike {
   optimizeLevel?: number;
 }
 
-export interface ASRuntimeLike<TSession extends ASSessionLike = ASSessionLike> {
-  compileSource(
-    source: string,
-    files?: Record<string, string>,
-    options?: CompileOptionsLike,
-  ): Promise<Uint8Array>;
+export interface WasmRuntimeLike<TSession extends WasmSessionLike = WasmSessionLike> {
   instantiate(wasm: Uint8Array): Promise<TSession>;
-  createSession(
-    source: string,
-    files?: Record<string, string>,
-    options?: CompileOptionsLike,
-  ): Promise<TSession>;
 }
 
 export interface CompilerOptions {
-  context?: CompilerContext | string;
+  profile?: WasmProfile | WasmProfileName;
   files?: Record<string, string>;
 }
 
 export class CompilationModel {
-  protected context: CompilerContext;
+  protected profile: WasmProfile;
   private files = new Map<string, string>();
 
   constructor(
-    contextOrOptions?: CompilerContext | string | CompilerOptions | Record<string, string>,
+    profileOrOptions?: WasmProfile | string | CompilerOptions | Record<string, string>,
     initialFiles?: Record<string, string>,
   ) {
-    const parsed = CompilationModel.parseConstructorArgs(contextOrOptions);
-    this.context = parsed.context;
+    const parsed = CompilationModel.parseConstructorArgs(profileOrOptions);
+    this.profile = parsed.profile;
     if (parsed.files) this.addFiles(parsed.files);
     if (initialFiles) this.addFiles(initialFiles);
   }
 
   private static parseConstructorArgs(
-    contextOrOptions?: CompilerContext | string | CompilerOptions | Record<string, string>,
-  ): { context: CompilerContext; files?: Record<string, string> } {
-    if (typeof contextOrOptions === "string") {
-      return { context: CompilerContextRegistry.shared.resolve(contextOrOptions) };
+    profileOrOptions?: WasmProfile | string | CompilerOptions | Record<string, string>,
+  ): { profile: WasmProfile; files?: Record<string, string> } {
+    if (typeof profileOrOptions === "string") {
+      return { profile: getWasmProfile(profileOrOptions as WasmProfileName) };
     }
-    if (CompilerContext.isContextLike(contextOrOptions)) {
-      return { context: CompilerContext.from(contextOrOptions) };
+    if (profileOrOptions instanceof WasmProfile) {
+      return { profile: profileOrOptions };
     }
     if (
-      contextOrOptions &&
-      typeof contextOrOptions === "object" &&
-      ("context" in contextOrOptions || "files" in contextOrOptions)
+      profileOrOptions &&
+      typeof profileOrOptions === "object" &&
+      ("profile" in profileOrOptions || "files" in profileOrOptions)
     ) {
-      const opts = contextOrOptions as CompilerOptions;
-      const context = opts.context
-        ? CompilerContextRegistry.shared.resolve(opts.context)
-        : browserContext;
-      if (opts.files) {
-        return { context, files: opts.files };
-      }
-      return { context };
+      const opts = profileOrOptions as CompilerOptions;
+      const profile = opts.profile ? getWasmProfile(opts.profile) : browserProfile;
+      if (opts.files) return { profile, files: opts.files };
+      return { profile };
     }
-    if (contextOrOptions && typeof contextOrOptions === "object") {
-      return { context: browserContext, files: contextOrOptions as Record<string, string> };
+    if (profileOrOptions && typeof profileOrOptions === "object") {
+      return { profile: browserProfile, files: profileOrOptions as Record<string, string> };
     }
-    return { context: browserContext };
+    return { profile: browserProfile };
   }
 
-  getContext(): CompilerContext {
-    return this.context;
+  getProfile(): WasmProfile {
+    return this.profile;
   }
 
-  setContext(contextOrName: CompilerContext | string): void {
-    this.context = CompilerContextRegistry.shared.resolve(contextOrName);
+  /** @deprecated Use getProfile().name */
+  getContext(): { name: string } {
+    return this.profile;
+  }
+
+  setProfile(profileOrName: WasmProfile | WasmProfileName): void {
+    this.profile = getWasmProfile(profileOrName);
+  }
+
+  setContext(profileOrName: WasmProfile | string): void {
+    this.setProfile(profileOrName as WasmProfile | WasmProfileName);
   }
 
   addFile(name: string, content: string): void {
@@ -131,16 +121,12 @@ export class CompilationModel {
     const slash = clean.lastIndexOf("/");
     if (slash !== -1) {
       const base = clean.slice(slash + 1);
-      if (!this.files.has(base)) {
-        this.files.set(base, content);
-      }
+      if (!this.files.has(base)) this.files.set(base, content);
     }
   }
 
   addFiles(files: Record<string, string>): void {
-    for (const [name, content] of Object.entries(files)) {
-      this.addFile(name, content);
-    }
+    for (const [name, content] of Object.entries(files)) this.addFile(name, content);
   }
 
   getFile(name: string): string | undefined {
@@ -149,75 +135,129 @@ export class CompilationModel {
   }
 
   getFiles(): Record<string, string> {
-    const contextFiles = this.context.getFiles();
-    const result: Record<string, string> = { ...contextFiles };
-    for (const [key, value] of this.files.entries()) {
-      result[key] = value;
-    }
+    const result: Record<string, string> = {};
+    for (const [key, value] of this.files.entries()) result[key] = value;
     return result;
   }
 }
 
+function numericIds(blocks: readonly DiagramBlock[]): Map<string, number> {
+  const map = new Map<string, number>();
+  blocks.forEach((block, index) => map.set(block.id, index));
+  return map;
+}
+
+function maxVectorIndex(
+  connections: readonly Connection[],
+  blockId: string,
+  portId?: string,
+  fallback = 0,
+): number {
+  let maxVec = fallback;
+  for (const connection of connections) {
+    if (!connection.connectsBlock(blockId)) continue;
+    const endpoint = connection.from.blockId === blockId ? connection.from : connection.to;
+    if (portId !== undefined && endpoint.portId !== portId) continue;
+    if (endpoint.vectorIndex > maxVec) maxVec = endpoint.vectorIndex;
+  }
+  return maxVec;
+}
+
+function otherEndpoint(connection: Connection, blockId: string) {
+  if (connection.from.blockId === blockId) return connection.to;
+  if (connection.to.blockId === blockId) return connection.from;
+  return undefined;
+}
+
+export function planDiagram(diagram: Diagram): WasmProgram {
+  const blocks = diagram.getBlocks();
+  const connections = diagram.getConnections();
+  const ids = numericIds(blocks);
+  const planned: PlannedBlock[] = [];
+
+  for (const block of blocks) {
+    const id = ids.get(block.id) ?? 0;
+    const consumers: DownstreamRef[] = [];
+    const pinConsumers: DownstreamRef[][] = [];
+
+    for (const connection of connections) {
+      const other = otherEndpoint(connection, block.id);
+      if (!other) continue;
+      const otherBlock = diagram.getBlock(other.blockId);
+      if (!otherBlock || !PUSH_BLOCK_REFS.has(otherBlock.ref)) continue;
+      const otherId = ids.get(other.blockId);
+      if (otherId === undefined) continue;
+      const dest = { blockId: otherId, channel: other.vectorIndex };
+      consumers.push(dest);
+      if (block.ref === "gpio_in") {
+        const self = connection.from.blockId === block.id ? connection.from : connection.to;
+        const pinIndex = self.vectorIndex;
+        while (pinConsumers.length <= pinIndex) pinConsumers.push([]);
+        pinConsumers[pinIndex].push(dest);
+      }
+    }
+
+    let receiveChannels = 1;
+    if (block.ref === "scope_f32") {
+      receiveChannels = maxVectorIndex(connections, block.id, undefined, 0) + 1;
+    } else if (block.ref === "product_f32") {
+      receiveChannels = maxVectorIndex(connections, block.id, "v", 1) + 1;
+    }
+
+    const plannedBlock: PlannedBlock = {
+      id,
+      ref: block.ref,
+      conf: block.getAllConf(),
+      consumers,
+      receiveChannels,
+    };
+    if (block.ref === "gpio_in") {
+      plannedBlock.pinConsumers = pinConsumers.length > 0 ? pinConsumers : [consumers];
+    }
+    planned.push(plannedBlock);
+  }
+
+  return { blocks: planned };
+}
+
 export class DiagramCompiler extends CompilationModel {
-  readonly emitters: BlockEmitterRegistry;
-
   constructor(
-    contextOrOptions?: CompilerContext | string | CompilerOptions | Record<string, string>,
+    profileOrOptions?: WasmProfile | string | CompilerOptions | Record<string, string>,
     initialFiles?: Record<string, string>,
-    emitters: BlockEmitterRegistry = defaultBlockEmitters,
   ) {
-    super(contextOrOptions, initialFiles);
-    this.emitters = emitters;
+    super(profileOrOptions, initialFiles);
   }
 
-  generateAssemblyScript(diagram: Diagram): string {
-    const blocks = diagram.getBlocks();
-    const session = new CodegenSession(blocks, diagram.getConnections());
-
-    const sinks = blocks.filter((block) => block.definition.category === "sinks");
-    const transformers = blocks.filter((block) => block.definition.category === "transformers");
-    const sources = blocks.filter(
-      (block) =>
-        block.definition.category === "sources" || (!sinks.includes(block) && !transformers.includes(block)),
-    );
-
-    for (const block of sinks) this.emitters.emit(block, session);
-    for (const block of transformers) this.emitters.emit(block, session);
-    for (const block of sources) this.emitters.emit(block, session);
-
-    const prelude = this.context.getPrelude();
-    const exports = this.context.getExports();
-    const body = session.lines.join("\n");
-    return `${prelude}\n${body}\n${exports}\n`;
+  plan(diagram: Diagram): WasmProgram {
+    return planDiagram(diagram);
   }
 
-  async compile(
+  emitText(diagram: Diagram, options?: CompileOptionsLike): string {
+    return this.profile.emitText(this.plan(diagram), options);
+  }
+
+  compile(diagram: Diagram, options?: CompileOptionsLike): Uint8Array {
+    return this.profile.compile(this.plan(diagram), options);
+  }
+
+  async run<TSession extends WasmSessionLike = WasmSessionLike>(
     diagram: Diagram,
-    runtime: ASRuntimeLike,
-    options?: CompileOptionsLike,
-  ): Promise<Uint8Array> {
-    const source = this.generateAssemblyScript(diagram);
-    return runtime.compileSource(source, this.getFiles(), options);
-  }
-
-  async run<TSession extends ASSessionLike = ASSessionLike>(
-    diagram: Diagram,
-    runtime: ASRuntimeLike<TSession>,
+    runtime: WasmRuntimeLike<TSession>,
     options?: CompileOptionsLike,
   ): Promise<TSession> {
-    const source = this.generateAssemblyScript(diagram);
-    return runtime.createSession(source, this.getFiles(), options);
+    const wasm = this.compile(diagram, options);
+    return runtime.instantiate(wasm);
   }
 }
 
 export class BrowserCompiler extends DiagramCompiler {
   constructor(initialFiles?: Record<string, string>) {
-    super(browserContext, initialFiles);
+    super(browserProfile, initialFiles);
   }
 }
 
 export class McuCompiler extends DiagramCompiler {
   constructor(initialFiles?: Record<string, string>) {
-    super(mcuContext, initialFiles);
+    super(mcuProfile, initialFiles);
   }
 }

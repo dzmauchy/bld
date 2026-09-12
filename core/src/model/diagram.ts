@@ -2,7 +2,7 @@
  * @title Diagram
  */
 import { BlockDefinition } from "./blockDefinition";
-import { DiagramCompiler, type ASRuntimeLike, type ASSessionLike, type CompileOptionsLike } from "./compiler";
+import { DiagramCompiler, type WasmRuntimeLike, type WasmSessionLike, type CompileOptionsLike } from "./compiler";
 import { Connection, type RawConnectionJson } from "./connection";
 import { DiagramBlock, type RawBlockJson } from "./diagramBlock";
 import { PortEndpoint } from "./endpoint";
@@ -262,42 +262,34 @@ export class Diagram {
 
   // --- Compilation & Running ---
 
-  generateAssemblyScript(compiler = new DiagramCompiler()): string {
-    return compiler.generateAssemblyScript(this);
+  emitText(compiler = new DiagramCompiler()): string {
+    return compiler.emitText(this);
   }
 
+  compile(options?: CompileOptionsLike, compiler?: DiagramCompiler): Uint8Array;
+  compile(compiler?: DiagramCompiler): Uint8Array;
   compile(
-    runtime: ASRuntimeLike,
-    options?: CompileOptionsLike,
-    compiler?: DiagramCompiler,
-  ): Promise<Uint8Array>;
-  compile(
-    runtime: ASRuntimeLike,
-    compiler?: DiagramCompiler,
-  ): Promise<Uint8Array>;
-  compile(
-    runtime: ASRuntimeLike,
     optionsOrCompiler?: CompileOptionsLike | DiagramCompiler,
     compiler?: DiagramCompiler,
-  ): Promise<Uint8Array> {
+  ): Uint8Array {
     if (optionsOrCompiler instanceof DiagramCompiler) {
-      return optionsOrCompiler.compile(this, runtime);
+      return optionsOrCompiler.compile(this);
     }
     const effectiveCompiler = compiler ?? new DiagramCompiler();
-    return effectiveCompiler.compile(this, runtime, optionsOrCompiler);
+    return effectiveCompiler.compile(this, optionsOrCompiler);
   }
 
-  run<TSession extends ASSessionLike = ASSessionLike>(
-    runtime: ASRuntimeLike<TSession>,
+  run<TSession extends WasmSessionLike = WasmSessionLike>(
+    runtime: WasmRuntimeLike<TSession>,
     options?: CompileOptionsLike,
     compiler?: DiagramCompiler,
   ): Promise<TSession>;
-  run<TSession extends ASSessionLike = ASSessionLike>(
-    runtime: ASRuntimeLike<TSession>,
+  run<TSession extends WasmSessionLike = WasmSessionLike>(
+    runtime: WasmRuntimeLike<TSession>,
     compiler?: DiagramCompiler,
   ): Promise<TSession>;
-  run<TSession extends ASSessionLike = ASSessionLike>(
-    runtime: ASRuntimeLike<TSession>,
+  run<TSession extends WasmSessionLike = WasmSessionLike>(
+    runtime: WasmRuntimeLike<TSession>,
     optionsOrCompiler?: CompileOptionsLike | DiagramCompiler,
     compiler?: DiagramCompiler,
   ): Promise<TSession> {

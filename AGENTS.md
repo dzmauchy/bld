@@ -19,15 +19,16 @@ Technology stack:
 - webawesome
 - dark theme
 - WebAssembly
-- AssemblyScript
+- Binaryen
 
 # Some behavioral aspects
 
 - If a block configuration property was set to its default value, 
   it should be omitted from the JSON output
 - The browser diagram runtime should be executed in a worker thread
-- The browser simulation is made by generating a js file from the diagram
-  blocks and connections using predefined js functions from src/model
+- The browser simulation is made by generating a wasm module from the diagram
+  blocks and connections with Binaryen (browser profile); MCU profile is reserved
+  but unimplemented
 - The scope implementation in the browser should be made by 
   using a sliding buffer (Float32Array or Float64Array) with one 
   pointer

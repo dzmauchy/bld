@@ -164,17 +164,6 @@ export class Library {
       }
     }
 
-    for (const helper of ["assembly/context.ts", "assembly/index.ts"]) {
-      try {
-        const helperContent = await loadAsset(helper);
-        allAssemblyFiles[helper] = helperContent;
-        const baseName = helper.slice(helper.lastIndexOf("/") + 1);
-        allAssemblyFiles[baseName] = helperContent;
-      } catch {
-        // Optional helper
-      }
-    }
-
     return Library.fromManifest(manifest, {
       types: allTypes,
       namespaces: allNamespaces,

@@ -1,15 +1,4 @@
-import type {
-  CompileCompileRequest,
-  CompileFiles,
-  CompileInitRequest,
-  CompileOptions,
-  RunInstantiateRequest,
-  RunInvokeRequest,
-  WorkerOk,
-  WorkerResponse,
-} from "./messages.ts";
-
-export type { CompileFiles, CompileOptions } from "./messages.ts";
+import type { RunInstantiateRequest, RunInvokeRequest, WorkerOk, WorkerResponse } from "./messages.ts";
 
 export type HostMessageHandler = (message: unknown) => void;
 
@@ -110,11 +99,7 @@ class WorkerClient {
   }
 
   async request(
-    payload:
-      | Omit<CompileInitRequest, "id">
-      | Omit<CompileCompileRequest, "id">
-      | Omit<RunInstantiateRequest, "id">
-      | Omit<RunInvokeRequest, "id">,
+    payload: Omit<RunInstantiateRequest, "id"> | Omit<RunInvokeRequest, "id">,
   ): Promise<WorkerOk> {
     const id = this.nextId++;
     const response = await new Promise<WorkerResponse>((resolve, reject) => {
@@ -132,7 +117,7 @@ class WorkerClient {
   }
 }
 
-export class ASSession {
+export class WasmSession {
   constructor(private readonly client: WorkerClient) {}
 
   tick(): Promise<number> {
@@ -193,78 +178,24 @@ export class ASSession {
   }
 }
 
-export type ASRuntimeOptions = {
-  compileThread: Thread;
+export type WasmRuntimeOptions = {
   runThread: Thread;
-  files: CompileFiles;
-  compileOptions?: CompileOptions;
   onHostMessage?: HostMessageHandler;
 };
 
-export class ASRuntime {
-  private compile: WorkerClient;
+export class WasmRuntime {
   private run: WorkerClient;
-  private files: CompileFiles;
-  private compileOptions: CompileOptions;
-  private wasmCache = new Map<string, Uint8Array>();
-  private initialized = false;
 
-  constructor(options: ASRuntimeOptions) {
-    this.compile = new WorkerClient(options.compileThread);
+  constructor(options: WasmRuntimeOptions) {
     this.run = new WorkerClient(options.runThread, options.onHostMessage);
-    this.files = options.files;
-    this.compileOptions = options.compileOptions ?? {};
   }
 
-  async compileSource(
-    source: string,
-    files?: CompileFiles,
-    options?: CompileOptions,
-  ): Promise<Uint8Array> {
-    await this.ensureInitialized();
-    const effectiveOptions = { ...this.compileOptions, ...options };
-    const cacheKey = files || options
-      ? `${source}__${JSON.stringify({ files, options: effectiveOptions })}`
-      : source;
-    let wasm = this.wasmCache.get(cacheKey);
-    if (!wasm) {
-      const compiled = await this.compile.request({
-        type: "compile",
-        source,
-        ...(files ? { files } : {}),
-        options: effectiveOptions,
-      });
-      const compiledWasm = compiled.wasm;
-      if (!(compiledWasm instanceof Uint8Array)) {
-        throw new Error("compile worker did not return wasm");
-      }
-      wasm = compiledWasm;
-      this.wasmCache.set(cacheKey, wasm);
-    }
-    return wasm;
-  }
-
-  async instantiate(wasm: Uint8Array): Promise<ASSession> {
+  async instantiate(wasm: Uint8Array): Promise<WasmSession> {
     await this.run.request({ type: "instantiate", wasm });
-    return new ASSession(this.run);
-  }
-
-  async createSession(
-    source: string,
-    files?: CompileFiles,
-    options?: CompileOptions,
-  ): Promise<ASSession> {
-    const wasm = await this.compileSource(source, files, options);
-    return this.instantiate(wasm);
+    return new WasmSession(this.run);
   }
 
   async close(): Promise<void> {
-    await Promise.all([this.compile.terminate(), this.run.terminate()]);
-  }
-
-  private async ensureInitialized(): Promise<void> {
-    if (this.initialized) return;
-    await this.compile.request({ type: "init", files: this.files });
-    this.initialized = true;
+    await this.run.terminate();
   }
 }

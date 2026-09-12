@@ -5,5 +5,13 @@
     "outDir": "./dist"
   },
   "include": ["./src"],
-  "exclude": ["src/as/**"]
+  "exclude": [
+    "src/wasm/*.worker.ts",
+    "src/wasm/runtime.node.ts",
+    "src/wasm/host.run.worker.ts",
+    "src/wasm/run.ts",
+    "src/wasm/runtime.ts",
+    "src/wasm/workerHost.ts",
+    "src/wasm/messages.ts"
+  ]
 }

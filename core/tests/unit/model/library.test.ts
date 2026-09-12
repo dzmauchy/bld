@@ -65,9 +65,7 @@ describe("Library and Asset Loader", () => {
 
     // In-memory CompilationModel populated
     expect(lib.compilationModel).toBeInstanceOf(CompilationModel);
-    const blocksSource = lib.compilationModel.getFile("blocks.ts");
-    expect(blocksSource).toBeDefined();
-    expect(blocksSource).toContain("export class scope_f32");
+    expect(lib.compilationModel.getProfile().name).toBe("browser");
 
     // Base library is cached
     expect(Library.getBaseSync()).toBe(lib);
