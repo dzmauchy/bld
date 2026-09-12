@@ -8,6 +8,7 @@ import {
   clearRegisteredAppAssets,
   fetchText,
   getRegisteredAppAsset,
+  isAbsoluteUrl,
   isRelativeUrl,
   loadAsset,
   normalizeAssetPath,
@@ -23,6 +24,9 @@ describe("Library and Asset Loader", () => {
     expect(isRelativeUrl("./types.json")).toBe(true);
     expect(isRelativeUrl("assembly/blocks.ts")).toBe(true);
     expect(isRelativeUrl("/assets/blocks.json")).toBe(true);
+    expect(isAbsoluteUrl("https://example.com/lib.json")).toBe(true);
+    expect(isAbsoluteUrl("http://localhost:3000/lib.json")).toBe(true);
+    expect(isAbsoluteUrl("//cdn.example.com/lib.json")).toBe(true);
     expect(isRelativeUrl("https://example.com/lib.json")).toBe(false);
     expect(isRelativeUrl("http://localhost:3000/lib.json")).toBe(false);
     expect(isRelativeUrl("//cdn.example.com/lib.json")).toBe(false);

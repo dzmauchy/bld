@@ -17,8 +17,12 @@ export class AppAssetStore {
   private readonly assets = new Map<string, string>();
   private resolver: AssetResolver | null = null;
 
+  static isAbsoluteUrl(url: string): boolean {
+    return /^[a-zA-Z][a-zA-Z0-9+.-]*:/.test(url) || url.startsWith("//");
+  }
+
   static isRelativeUrl(url: string): boolean {
-    return !/^[a-zA-Z][a-zA-Z0-9+.-]*:/.test(url) && !url.startsWith("//");
+    return !AppAssetStore.isAbsoluteUrl(url);
   }
 
   static normalizePath(path: string): string {
@@ -26,17 +30,18 @@ export class AppAssetStore {
   }
 
   static resolveUrl(url: string, baseUrl?: string): string {
-    if (!baseUrl || !AppAssetStore.isRelativeUrl(url)) {
+    if (!baseUrl || AppAssetStore.isAbsoluteUrl(url)) {
       return url;
     }
-    if (!AppAssetStore.isRelativeUrl(baseUrl)) {
+    if (AppAssetStore.isAbsoluteUrl(baseUrl)) {
       try {
         return new URL(url, baseUrl).href;
       } catch {
         return url;
       }
     }
-    const baseDir = baseUrl.includes("/") ? baseUrl.slice(0, baseUrl.lastIndexOf("/") + 1) : "";
+    const slash = baseUrl.lastIndexOf("/");
+    const baseDir = slash === -1 ? "" : baseUrl.slice(0, slash + 1);
     return AppAssetStore.normalizePath(`${baseDir}${url}`);
   }
 
@@ -90,7 +95,7 @@ export class AppAssetStore {
   async load(url: string, baseUrl?: string): Promise<string> {
     const resolved = AppAssetStore.resolveUrl(url, baseUrl);
 
-    if (!AppAssetStore.isRelativeUrl(resolved)) {
+    if (AppAssetStore.isAbsoluteUrl(resolved)) {
       return AppAssetStore.fetchText(resolved);
     }
 
@@ -166,6 +171,10 @@ export class AppAssetStore {
     }
     return undefined;
   }
+}
+
+export function isAbsoluteUrl(url: string): boolean {
+  return AppAssetStore.isAbsoluteUrl(url);
 }
 
 export function isRelativeUrl(url: string): boolean {
