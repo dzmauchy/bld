@@ -1,15 +1,15 @@
-import { AsRuntime, wrapEventTargetWorker, type AsRuntimeOptions } from "core/as";
+import { ASRuntime, wrapEventTargetWorker, type ASRuntimeOptions } from "core/as";
 import { assemblyAssets } from "../assemblyAssets.ts";
 
-export type BrowserAsRuntimeOptions = {
-  onHostMessage?: AsRuntimeOptions["onHostMessage"];
+export type BrowserASRuntimeOptions = {
+  onHostMessage?: ASRuntimeOptions["onHostMessage"];
 };
 
-/** Create an AsRuntime that compiles and runs wasm in browser workers. */
-export function createBrowserAsRuntime(options: BrowserAsRuntimeOptions = {}): AsRuntime {
+/** Create an ASRuntime that compiles and runs wasm in browser workers. */
+export function createBrowserASRuntime(options: BrowserASRuntimeOptions = {}): ASRuntime {
   const compileWorker = new Worker(new URL("./compile.worker.ts", import.meta.url), { type: "module" });
   const runWorker = new Worker(new URL("./run.worker.ts", import.meta.url), { type: "module" });
-  return new AsRuntime({
+  return new ASRuntime({
     compileThread: wrapEventTargetWorker(compileWorker),
     runThread: wrapEventTargetWorker(runWorker),
     files: assemblyAssets,

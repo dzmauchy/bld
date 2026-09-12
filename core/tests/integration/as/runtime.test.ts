@@ -1,10 +1,10 @@
 import { expect, test } from "vitest";
-import { AsRuntime } from "../../../src/as/runtime.ts";
+import { ASRuntime } from "../../../src/as/runtime.ts";
 import { nodeThread } from "../../../src/as/runtime.node.ts";
 
 test("run worker forwards UI env bindings to the host thread", async () => {
   const pins: unknown[] = [];
-  const runtime = new AsRuntime({
+  const runtime = new ASRuntime({
     compileThread: nodeThread("compile.worker.ts"),
     runThread: nodeThread("host.run.worker.ts"),
     files: {},

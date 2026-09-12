@@ -1,0 +1,64 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://bld.d-ovchinnikow.workers.dev/schemas/library.schema.json",
+  "title": "PackageManifest",
+  "description": "Schema definition for package or library manifest configuration.",
+  "type": "object",
+  "properties": {
+    "$schema": {
+      "type": "string",
+      "description": "URI pointing to this JSON schema."
+    },
+    "id": {
+      "type": "string",
+      "pattern": "^[a-z0-9-_]+$",
+      "description": "Unique identifier for the package."
+    },
+    "name": {
+      "type": "string",
+      "minLength": 1,
+      "description": "Human-readable display name."
+    },
+    "icon": {
+      "type": "string",
+      "description": "Path or filename of the icon asset (e.g., SVG, PNG)."
+    },
+    "types": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "uniqueItems": true,
+      "description": "List of file paths containing type definitions."
+    },
+    "namespaces": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "uniqueItems": true,
+      "description": "List of file paths containing namespace configurations."
+    },
+    "blocks": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "uniqueItems": true,
+      "description": "List of file paths containing block definitions."
+    },
+    "assembly": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "uniqueItems": true,
+      "description": "List of assembly script or entrypoint files."
+    }
+  },
+  "required": [
+    "id",
+    "name"
+  ],
+  "additionalProperties": false
+}

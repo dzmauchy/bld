@@ -1,4 +1,4 @@
-import { describe, expect, test } from "vitest";
+import { beforeAll, describe, expect, test } from "vitest";
 import {
   DataType,
   ParameterizedType,
@@ -6,8 +6,16 @@ import {
   TypeSystem,
   TypeVariable,
 } from "../../../src/types/index.js";
+import { Library } from "../../../src/model/index.js";
 
 describe("TypeSystem & DataTypes", () => {
+  let ts: TypeSystem;
+
+  beforeAll(async () => {
+    const lib = await Library.load("base.json");
+    ts = lib.typeSystem;
+  });
+
   test("creates and compares PrimitiveTypes", () => {
     const f32 = new PrimitiveType("f32", "32-bit Float", "Float type", new Set(["i32", "u32"]));
     expect(f32.raw).toBe("f32");
@@ -37,8 +45,7 @@ describe("TypeSystem & DataTypes", () => {
     expect(pssF32.equals(pssU8)).toBe(false);
   });
 
-  test("loads from default types catalog", () => {
-    const ts = TypeSystem.createDefault();
+  test("loads from library types catalog", () => {
     const boolType = ts.getPrimitive("bool");
     expect(boolType).toBeDefined();
     expect(boolType?.name).toBe("Boolean");
@@ -53,8 +60,6 @@ describe("TypeSystem & DataTypes", () => {
   });
 
   test("parses JSON type descriptors", () => {
-    const ts = TypeSystem.createDefault();
-
     // Primitive string
     const f32 = ts.parse("f32");
     expect(f32).toBeInstanceOf(PrimitiveType);
@@ -66,6 +71,7 @@ describe("TypeSystem & DataTypes", () => {
       args: { T: { raw: "f32" } },
     });
     expect(pss).toBeInstanceOf(ParameterizedType);
+    expect(pss.raw).toBe("pss");
     expect((pss as ParameterizedType).getArg("T")?.raw).toBe("f32");
 
     // Nested parameterized descriptor
@@ -85,7 +91,6 @@ describe("TypeSystem & DataTypes", () => {
   });
 
   test("evaluates compatibility based on types.json rules", () => {
-    const ts = TypeSystem.createDefault();
     const f32 = ts.parse("f32");
     const i32 = ts.parse("i32");
     const str = ts.parse("str");

@@ -2,12 +2,13 @@
  * @title Diagram
  */
 import { BlockDefinition } from "./blockDefinition";
-import { DiagramCompiler, type AsRuntimeLike, type AsSessionLike, type CompileOptionsLike } from "./compiler";
+import { DiagramCompiler, type ASRuntimeLike, type ASSessionLike, type CompileOptionsLike } from "./compiler";
 import { Connection, type RawConnectionJson } from "./connection";
 import { DiagramBlock, type RawBlockJson } from "./diagramBlock";
 import { PortEndpoint } from "./endpoint";
 import { Palette } from "./palette";
-import { TypeInference, type TypeSystem } from "../types";
+import { Library } from "./library";
+import { TypeInference, TypeSystem } from "../types";
 
 export interface DiagramJson {
   $schema?: string;
@@ -26,7 +27,7 @@ export class Diagram {
   constructor(
     public id: string,
     public title: string,
-    readonly palette: Palette = Palette.createDefault(),
+    readonly palette: Palette = Library.getBaseSync()?.palette ?? new Palette(new TypeSystem()),
   ) {}
 
   private _typeInference?: TypeInference;
@@ -234,7 +235,10 @@ export class Diagram {
     };
   }
 
-  static fromJSON(json: DiagramJson, palette: Palette = Palette.createDefault()): Diagram {
+  static fromJSON(
+    json: DiagramJson,
+    palette: Palette = Library.getBaseSync()?.palette ?? new Palette(new TypeSystem()),
+  ): Diagram {
     const diagram = new Diagram(json.id, json.title, palette);
     if (json.$schema) diagram.schema = json.$schema;
 
@@ -263,14 +267,44 @@ export class Diagram {
   }
 
   compile(
-    runtime: AsRuntimeLike,
+    runtime: ASRuntimeLike,
     options?: CompileOptionsLike,
-    compiler = new DiagramCompiler(),
+    compiler?: DiagramCompiler,
+  ): Promise<Uint8Array>;
+  compile(
+    runtime: ASRuntimeLike,
+    compiler?: DiagramCompiler,
+  ): Promise<Uint8Array>;
+  compile(
+    runtime: ASRuntimeLike,
+    optionsOrCompiler?: CompileOptionsLike | DiagramCompiler,
+    compiler?: DiagramCompiler,
   ): Promise<Uint8Array> {
-    return compiler.compile(this, runtime, options);
+    if (optionsOrCompiler instanceof DiagramCompiler) {
+      return optionsOrCompiler.compile(this, runtime);
+    }
+    const effectiveCompiler = compiler ?? new DiagramCompiler();
+    return effectiveCompiler.compile(this, runtime, optionsOrCompiler);
   }
 
-  run(runtime: AsRuntimeLike, compiler = new DiagramCompiler()): Promise<AsSessionLike> {
-    return compiler.run(this, runtime);
+  run<TSession extends ASSessionLike = ASSessionLike>(
+    runtime: ASRuntimeLike<TSession>,
+    options?: CompileOptionsLike,
+    compiler?: DiagramCompiler,
+  ): Promise<TSession>;
+  run<TSession extends ASSessionLike = ASSessionLike>(
+    runtime: ASRuntimeLike<TSession>,
+    compiler?: DiagramCompiler,
+  ): Promise<TSession>;
+  run<TSession extends ASSessionLike = ASSessionLike>(
+    runtime: ASRuntimeLike<TSession>,
+    optionsOrCompiler?: CompileOptionsLike | DiagramCompiler,
+    compiler?: DiagramCompiler,
+  ): Promise<TSession> {
+    if (optionsOrCompiler instanceof DiagramCompiler) {
+      return optionsOrCompiler.run(this, runtime);
+    }
+    const effectiveCompiler = compiler ?? new DiagramCompiler();
+    return effectiveCompiler.run(this, runtime, optionsOrCompiler);
   }
 }

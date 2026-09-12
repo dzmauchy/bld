@@ -2,11 +2,13 @@ import { expect, test } from "vitest";
 import headers from "../../public/_headers?raw";
 import config from "../../rsbuild.config.ts";
 import coreBlocksSchema from "core/schemas/blocks.schema.json?raw";
+import coreLibrarySchema from "core/schemas/library.schema.json?raw";
 import coreNamespacesSchema from "core/schemas/namespaces.schema.json?raw";
 import coreTypesSchema from "core/schemas/types.schema.json?raw";
 
 const schemaAssets = {
   "blocks.schema.json": coreBlocksSchema,
+  "library.schema.json": coreLibrarySchema,
   "namespaces.schema.json": coreNamespacesSchema,
   "types.schema.json": coreTypesSchema,
 } as const;

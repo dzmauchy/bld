@@ -15,13 +15,14 @@
     "./as": "./src/as/index.ts",
     "./as/*": "./src/as/*",
     "./assembly/*": "./assets/assembly/*",
-    "./schemas/*": "./assets/schemas/*"
+    "./schemas/*": "./assets/schemas/*",
+    "./assets/*": "./assets/*"
   },
   "dependencies": {
     "assemblyscript": "^0.28.20"
   },
   "scripts": {
-    "build": "tsc -b",
-    "test": "vitest run"
+    "build": "tsc -b && tsc -b tsconfig.test.json",
+    "test": "tsc -b && tsc -b tsconfig.test.json && vitest run"
   }
 }

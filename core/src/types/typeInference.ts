@@ -34,7 +34,7 @@ export interface RawPortLike {
 }
 
 export class TypeInference {
-  constructor(readonly typeSystem: TypeSystem = TypeSystem.createDefault()) {}
+  constructor(readonly typeSystem: TypeSystem = new TypeSystem()) {}
 
   /**
    * Infers the concrete port type, unwrapped payload type, and vector cardinality

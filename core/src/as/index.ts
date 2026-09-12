@@ -7,11 +7,11 @@ export {
   type EnvBindings,
 } from "./run.ts";
 export {
-  AsRuntime,
-  AsSession,
+  ASRuntime,
+  ASSession,
   wrapEventTargetWorker,
   wrapNodeWorker,
-  type AsRuntimeOptions,
+  type ASRuntimeOptions,
   type CompileFiles,
   type CompileOptions,
   type HostMessageHandler,

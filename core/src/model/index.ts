@@ -9,4 +9,4 @@ export * from "./connection";
 export * from "./diagramBlock";
 export * from "./diagram";
 export * from "./compiler";
-export { defaultBlocksCatalog, defaultNamespacesCatalog } from "./defaultCatalog";
+export * from "./library";

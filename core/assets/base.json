@@ -1,0 +1,10 @@
+{
+  "$schema": "schemas/library.schema.json",
+  "id": "base",
+  "name": "Base",
+  "icon": "library-base.svg",
+  "types": ["types.json"],
+  "namespaces": ["namespaces.json"],
+  "blocks": ["blocks.json"],
+  "assembly": ["assembly/blocks.ts"]
+}

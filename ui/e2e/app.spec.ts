@@ -9,7 +9,7 @@ test("renders App", async ({ page }) => {
 });
 
 test("serves JSON schemas from /schemas", async ({ request }) => {
-  for (const name of ["blocks", "namespaces", "types"]) {
+  for (const name of ["blocks", "namespaces", "types", "library"]) {
     const response = await request.get(`/schemas/${name}.schema.json`);
     expect(response.ok(), name).toBeTruthy();
     const body = await response.json();

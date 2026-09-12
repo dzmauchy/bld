@@ -1,10 +1,18 @@
 export {
   Block,
   CloseHandler,
+  DiscardF32,
   ExecutionContext,
   GpioInHandler,
   IntervalHandler,
   Pss,
+  dest1,
+  dest2,
+  dest3,
+  gpioSinks,
+  gpioSinks3,
+  pins,
+  widths,
 } from "./context";
 export {
   const_f32,

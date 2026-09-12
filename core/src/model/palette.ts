@@ -2,8 +2,8 @@
  * @title Palette
  */
 import { BlockDefinition, type RawBlockCatalogEntry } from "./blockDefinition";
-import { defaultBlocksCatalog, defaultNamespacesCatalog, defaultTypesCatalog } from "./defaultCatalog";
 import { TypeSystem, type TypeCatalogEntry } from "../types";
+import type { Library } from "./library";
 
 export class Palette {
   private blocks = new Map<string, BlockDefinition>();
@@ -67,11 +67,7 @@ export class Palette {
     return palette;
   }
 
-  static createDefault(): Palette {
-    return Palette.fromCatalog(
-      defaultBlocksCatalog as unknown as Record<string, RawBlockCatalogEntry>,
-      defaultTypesCatalog as unknown as Record<string, TypeCatalogEntry>,
-      defaultNamespacesCatalog as unknown as Record<string, unknown>,
-    );
+  static fromLibrary(library: Library): Palette {
+    return library.palette;
   }
 }

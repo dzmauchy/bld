@@ -1,4 +1,3 @@
-import { defaultTypesCatalog } from "./defaultTypes";
 import {
   DataType,
   ParameterizedType,
@@ -130,9 +129,7 @@ export class TypeSystem {
     return ts;
   }
 
-  static createDefault(): TypeSystem {
-    return TypeSystem.fromCatalog(
-      defaultTypesCatalog as unknown as Record<string, TypeCatalogEntry>,
-    );
+  static fromLibrary(library: { typeSystem: TypeSystem }): TypeSystem {
+    return library.typeSystem;
   }
 }

@@ -5,25 +5,20 @@
     "noEmit": true,
     "declaration": false,
     "declarationMap": false,
-    "lib": [
-      "ESNext",
-      "DOM",
-      "DOM.AsyncIterable",
-      "DOM.Iterable"
-    ],
     "allowImportingTsExtensions": true,
-    "types": [
-      "@rsbuild/core/types"
-    ],
     "rootDir": ".",
-    "outDir": "./dist"
+    "types": ["node"]
   },
   "include": [
-    "./src"
+    "./src",
+    "./tests"
+  ],
+  "exclude": [
+    "./tests/assembly/**"
   ],
   "references": [
     {
-      "path": "../core"
+      "path": "./tsconfig.json"
     }
   ]
 }

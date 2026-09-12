@@ -6,10 +6,12 @@ import {
   add,
   assemblyAssetFiles,
   BlockDefinition,
+  CompilationModel,
   Connection,
   Diagram,
   DiagramBlock,
   DiagramCompiler,
+  Library,
   modelAssetFiles,
   Palette,
   PortEndpoint,
@@ -39,13 +41,15 @@ describe("core public API", () => {
     expect(BlockDefinition).toBeTypeOf("function");
     expect(TypeSystem).toBeTypeOf("function");
     expect(DiagramCompiler).toBeTypeOf("function");
+    expect(CompilationModel).toBeTypeOf("function");
+    expect(Library).toBeTypeOf("function");
   });
   test("lists every non-test model file as an asset", () => {
     expect([...modelAssetFiles].sort()).toEqual(modelSourceFiles());
   });
   test("lists library AssemblyScript files as assets", () => {
     const names = readdirSync(assemblyDir)
-      .filter((name) => name.endsWith(".ts") && name !== "harness.ts")
+      .filter((name) => name.endsWith(".ts"))
       .sort();
     expect([...assemblyAssetFiles].sort()).toEqual(names);
   });

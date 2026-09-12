@@ -132,7 +132,7 @@ class WorkerClient {
   }
 }
 
-export class AsSession {
+export class ASSession {
   constructor(private readonly client: WorkerClient) {}
 
   tick(): Promise<number> {
@@ -193,7 +193,7 @@ export class AsSession {
   }
 }
 
-export type AsRuntimeOptions = {
+export type ASRuntimeOptions = {
   compileThread: Thread;
   runThread: Thread;
   files: CompileFiles;
@@ -201,7 +201,7 @@ export type AsRuntimeOptions = {
   onHostMessage?: HostMessageHandler;
 };
 
-export class AsRuntime {
+export class ASRuntime {
   private compile: WorkerClient;
   private run: WorkerClient;
   private files: CompileFiles;
@@ -209,39 +209,52 @@ export class AsRuntime {
   private wasmCache = new Map<string, Uint8Array>();
   private initialized = false;
 
-  constructor(options: AsRuntimeOptions) {
+  constructor(options: ASRuntimeOptions) {
     this.compile = new WorkerClient(options.compileThread);
     this.run = new WorkerClient(options.runThread, options.onHostMessage);
     this.files = options.files;
     this.compileOptions = options.compileOptions ?? {};
   }
 
-  async compileSource(source: string): Promise<Uint8Array> {
+  async compileSource(
+    source: string,
+    files?: CompileFiles,
+    options?: CompileOptions,
+  ): Promise<Uint8Array> {
     await this.ensureInitialized();
-    let wasm = this.wasmCache.get(source);
+    const effectiveOptions = { ...this.compileOptions, ...options };
+    const cacheKey = files || options
+      ? `${source}__${JSON.stringify({ files, options: effectiveOptions })}`
+      : source;
+    let wasm = this.wasmCache.get(cacheKey);
     if (!wasm) {
       const compiled = await this.compile.request({
         type: "compile",
         source,
-        options: this.compileOptions,
+        ...(files ? { files } : {}),
+        options: effectiveOptions,
       });
       const compiledWasm = compiled.wasm;
       if (!(compiledWasm instanceof Uint8Array)) {
         throw new Error("compile worker did not return wasm");
       }
       wasm = compiledWasm;
-      this.wasmCache.set(source, wasm);
+      this.wasmCache.set(cacheKey, wasm);
     }
     return wasm;
   }
 
-  async instantiate(wasm: Uint8Array): Promise<AsSession> {
+  async instantiate(wasm: Uint8Array): Promise<ASSession> {
     await this.run.request({ type: "instantiate", wasm });
-    return new AsSession(this.run);
+    return new ASSession(this.run);
   }
 
-  async createSession(source: string): Promise<AsSession> {
-    const wasm = await this.compileSource(source);
+  async createSession(
+    source: string,
+    files?: CompileFiles,
+    options?: CompileOptions,
+  ): Promise<ASSession> {
+    const wasm = await this.compileSource(source, files, options);
     return this.instantiate(wasm);
   }
 

@@ -10,11 +10,11 @@ test("App renders add(2, 2) and model asset titles", () => {
       "blockDefinition.ts Block Definition",
       "compiler.ts Diagram Compiler",
       "connection.ts Connection",
-      "defaultCatalog.ts Default Catalog",
       "diagram.ts Diagram",
       "diagramBlock.ts Diagram Block",
       "endpoint.ts Port Endpoint",
       "index.ts Model Index",
+      "library.ts Library",
       "palette.ts Palette",
     ].join("\n"),
   );

@@ -2,12 +2,13 @@ import { readFileSync, readdirSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { afterAll, beforeAll, describe, expect, test } from "vitest";
-import { createNodeAsRuntime } from "../../src/as/runtime.node.ts";
+import { createNodeASRuntime, loadAssemblyFiles } from "../../src/as/runtime.node.ts";
 import { wrapGenerated } from "./testProgram.ts";
-import type { AsSession } from "../../src/as/runtime.ts";
+import type { ASSession } from "../../src/as/runtime.ts";
 
 const coreRoot = join(dirname(fileURLToPath(import.meta.url)), "../..");
 const assemblyDir = join(coreRoot, "assets/assembly");
+const testAssemblyDir = join(coreRoot, "tests/assembly");
 const blocksPath = join(coreRoot, "assets/blocks.json");
 const typesPath = join(coreRoot, "assets/types.json");
 
@@ -63,7 +64,7 @@ describe("assemblyscript assets match catalog", () => {
   });
 });
 
-const runtime = createNodeAsRuntime(assemblyDir);
+const runtime = createNodeASRuntime(assemblyDir, loadAssemblyFiles(testAssemblyDir));
 
 beforeAll(async () => {
   // Warm the workers with an empty program so the first test is not special.
@@ -74,7 +75,7 @@ afterAll(async () => {
   await runtime.close();
 });
 
-async function session(body: string): Promise<AsSession> {
+async function session(body: string): Promise<ASSession> {
   return runtime.createSession(wrapGenerated(body));
 }
 

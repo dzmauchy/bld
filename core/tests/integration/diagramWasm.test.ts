@@ -1,13 +1,19 @@
-import { dirname, join } from "node:path";
+  import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { afterAll, beforeAll, describe, expect, test } from "vitest";
-import { createNodeAsRuntime } from "../../src/as/runtime.node.ts";
-import { Diagram, PortEndpoint } from "../../src/model/index.ts";
+import { createNodeASRuntime } from "../../src/as/runtime.node.ts";
+import { Diagram, Library, PortEndpoint } from "../../src";
+import { TestCompiler } from "../testCompiler.ts";
 
 const coreRoot = join(dirname(fileURLToPath(import.meta.url)), "../..");
 const assemblyDir = join(coreRoot, "assets/assembly");
 
-const runtime = createNodeAsRuntime(assemblyDir);
+const runtime = createNodeASRuntime(assemblyDir);
+const compiler = new TestCompiler();
+
+beforeAll(async () => {
+  await Library.load("base.json");
+});
 
 afterAll(async () => {
   await runtime.close();
@@ -29,7 +35,7 @@ describe("Diagram compiling to WASM and execution", () => {
       new PortEndpoint(scope.id, "output", "sink", 0),
     );
 
-    const session = await diagram.run(runtime);
+    const session = await diagram.run(runtime, compiler);
     try {
       await session.tickThenObserve();
       expect(await session.lastPin(0, 0)).toBe(5.5);
@@ -52,7 +58,7 @@ describe("Diagram compiling to WASM and execution", () => {
       new PortEndpoint(scope.id, "output", "sink", 0),
     );
 
-    const session = await diagram.run(runtime);
+    const session = await diagram.run(runtime, compiler);
     try {
       await session.setNow(0);
       await session.tickThenObserve();
@@ -93,7 +99,7 @@ describe("Diagram compiling to WASM and execution", () => {
       new PortEndpoint(product.id, "input", "v", 1),
     );
 
-    const session = await diagram.run(runtime);
+    const session = await diagram.run(runtime, compiler);
     try {
       await session.tickThenObserve();
       expect(await session.lastPin(0, 0)).toBe(12);

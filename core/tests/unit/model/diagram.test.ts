@@ -1,11 +1,14 @@
 import { readFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
-import { describe, expect, test } from "vitest";
+import { beforeAll, describe, expect, test } from "vitest";
 import {
+  type ASRuntimeLike,
+  type ASSessionLike,
   Diagram,
   DiagramBlock,
   type DiagramJson,
+  Library,
   Palette,
   PortEndpoint,
   TypeSystem,
@@ -14,9 +17,15 @@ import {
 const coreRoot = join(dirname(fileURLToPath(import.meta.url)), "../../..");
 const diagramDemoPath = join(coreRoot, "assets/diagram_demo.json");
 
+let palette: Palette;
+
+beforeAll(async () => {
+  const lib = await Library.load("base.json");
+  palette = lib.palette;
+});
+
 describe("Palette", () => {
   test("loads all blocks from catalog", () => {
-    const palette = Palette.createDefault();
     const blocks = palette.getBlocks();
     expect(blocks.length).toBeGreaterThan(5);
 
@@ -30,7 +39,6 @@ describe("Palette", () => {
   });
 
   test("filters by category and namespace", () => {
-    const palette = Palette.createDefault();
     const sinks = palette.getBlocksByCategory("sinks");
     expect(sinks.map((b) => b.id)).toContain("scope_f32");
 
@@ -43,7 +51,6 @@ describe("Palette", () => {
   });
 
   test("searches blocks by name or description", () => {
-    const palette = Palette.createDefault();
     const results = palette.search("cosine");
     expect(results.map((b) => b.id)).toContain("cos_f32");
   });
@@ -51,7 +58,7 @@ describe("Palette", () => {
 
 describe("Diagram & Drag/Drop Blocks", () => {
   test("drags block from palette to diagram at (x, y)", () => {
-    const diagram = new Diagram("diag_1", "Test Diagram");
+    const diagram = new Diagram("diag_1", "Test Diagram", palette);
     const block = diagram.addBlock("scope_f32", { x: 100, y: 150 });
 
     expect(block).toBeInstanceOf(DiagramBlock);
@@ -63,7 +70,7 @@ describe("Diagram & Drag/Drop Blocks", () => {
   });
 
   test("moves block to new coordinates", () => {
-    const diagram = new Diagram("diag_1", "Test Diagram");
+    const diagram = new Diagram("diag_1", "Test Diagram", palette);
     const block = diagram.addBlock("cos_gen_f32", { x: 10, y: 20 });
     diagram.moveBlock(block.id, 50, 75);
 
@@ -72,7 +79,7 @@ describe("Diagram & Drag/Drop Blocks", () => {
   });
 
   test("removes block and cascades connection removal", () => {
-    const diagram = new Diagram("diag_1", "Test Diagram");
+    const diagram = new Diagram("diag_1", "Test Diagram", palette);
     const scope = diagram.addBlock("scope_f32", { x: 10, y: 10 });
     const cosGen = diagram.addBlock("cos_gen_f32", { x: 100, y: 10 });
 
@@ -90,7 +97,7 @@ describe("Diagram & Drag/Drop Blocks", () => {
 
 describe("Type Checking & Connections", () => {
   test("allows compatible connection between push stream ports", () => {
-    const diagram = new Diagram("diag_1", "Test Diagram");
+    const diagram = new Diagram("diag_1", "Test Diagram", palette);
     const scope = diagram.addBlock("scope_f32", { x: 10, y: 10 });
     const cosGen = diagram.addBlock("cos_gen_f32", { x: 100, y: 10 });
 
@@ -109,7 +116,7 @@ describe("Type Checking & Connections", () => {
   });
 
   test("rejects connection with incompatible types", () => {
-    const diagram = new Diagram("diag_1", "Test Diagram");
+    const diagram = new Diagram("diag_1", "Test Diagram", palette);
     const scope = diagram.addBlock("scope_f32", { x: 10, y: 10 });
     const gpio = diagram.addBlock("gpio_in", { x: 100, y: 10 });
 
@@ -130,7 +137,7 @@ describe("Type Checking & Connections", () => {
   });
 
   test("rejects connecting block to itself", () => {
-    const diagram = new Diagram("diag_1", "Test Diagram");
+    const diagram = new Diagram("diag_1", "Test Diagram", palette);
     const prod = diagram.addBlock("product_f32", { x: 10, y: 10 });
 
     const check = diagram.canConnect(
@@ -142,7 +149,7 @@ describe("Type Checking & Connections", () => {
   });
 
   test("rejects duplicate connection", () => {
-    const diagram = new Diagram("diag_1", "Test Diagram");
+    const diagram = new Diagram("diag_1", "Test Diagram", palette);
     const scope = diagram.addBlock("scope_f32", { x: 10, y: 10 });
     const cosGen = diagram.addBlock("cos_gen_f32", { x: 100, y: 10 });
 
@@ -162,7 +169,7 @@ describe("Type Checking & Connections", () => {
 
 describe("JSON Serialization & Default Omission", () => {
   test("omits default configuration properties from JSON output", () => {
-    const diagram = new Diagram("diag_1", "Test");
+    const diagram = new Diagram("diag_1", "Test", palette);
     const scope = diagram.addBlock("scope_f32", { x: 10, y: 20 });
 
     // Defaults for scope_f32 are period: 60, precision: 10
@@ -179,7 +186,7 @@ describe("JSON Serialization & Default Omission", () => {
 
   test("round-trips diagram_demo.json with full fidelity", () => {
     const demoRaw = JSON.parse(readFileSync(diagramDemoPath, "utf8")) as DiagramJson;
-    const diagram = Diagram.fromJSON(demoRaw);
+    const diagram = Diagram.fromJSON(demoRaw, palette);
 
     expect(diagram.id).toBe(demoRaw.id);
     expect(diagram.title).toBe(demoRaw.title);
@@ -193,7 +200,7 @@ describe("JSON Serialization & Default Omission", () => {
 
 describe("AssemblyScript Code Generation", () => {
   test("generates valid AssemblyScript for a connected diagram", () => {
-    const diagram = new Diagram("diag_1", "Test");
+    const diagram = new Diagram("diag_1", "Test", palette);
     const scope = diagram.addBlock("scope_f32", { x: 10, y: 30 }, "scope_f32_0", {
       period: 30,
       precision: 11,
@@ -212,5 +219,60 @@ describe("AssemblyScript Code Generation", () => {
     expect(source).toContain("new cos_gen_f32");
     expect(source).toContain("scope_f32_0.apply()");
     expect(source).toContain("export function tick()");
+  });
+
+  test("forwards compile options to runtime.compileSource", async () => {
+    const diagram = new Diagram("diag_opt", "Options Test", palette);
+    let capturedOptions: unknown;
+    let capturedFiles: unknown;
+
+    const mockRuntime: ASRuntimeLike = {
+      async compileSource(_source, files, options) {
+        capturedFiles = files;
+        capturedOptions = options;
+        return new Uint8Array([0, 97, 115, 109]);
+      },
+      async instantiate() {
+        throw new Error("not implemented");
+      },
+      async createSession() {
+        throw new Error("not implemented");
+      },
+    };
+
+    const options = { debug: false, optimizeLevel: 3 };
+    const wasm = await diagram.compile(mockRuntime, options);
+
+    expect(wasm).toEqual(new Uint8Array([0, 97, 115, 109]));
+    expect(capturedOptions).toEqual(options);
+    expect(capturedFiles).toBeDefined();
+  });
+
+  test("forwards compile options to runtime.createSession in run", async () => {
+    const diagram = new Diagram("diag_run_opt", "Run Options Test", palette);
+    let capturedOptions: unknown;
+    let capturedFiles: unknown;
+
+    const mockSession = {} as ASSessionLike;
+    const mockRuntime: ASRuntimeLike = {
+      async compileSource() {
+        throw new Error("not implemented");
+      },
+      async instantiate() {
+        throw new Error("not implemented");
+      },
+      async createSession(_source, files, options) {
+        capturedFiles = files;
+        capturedOptions = options;
+        return mockSession;
+      },
+    };
+
+    const options = { debug: true, optimizeLevel: 2 };
+    const session = await diagram.run(mockRuntime, options);
+
+    expect(session).toBe(mockSession);
+    expect(capturedOptions).toEqual(options);
+    expect(capturedFiles).toBeDefined();
   });
 });

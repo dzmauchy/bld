@@ -1,4 +1,4 @@
-import { describe, expect, test } from "vitest";
+import { beforeAll, describe, expect, test } from "vitest";
 import {
   ParameterizedType,
   PrimitiveType,
@@ -6,10 +6,17 @@ import {
   TypeSystem,
   TypeVariable,
 } from "../../../src/types/index.js";
+import { Library } from "../../../src/model/index.js";
 
 describe("TypeInference", () => {
-  const ts = TypeSystem.createDefault();
-  const inference = new TypeInference(ts);
+  let ts: TypeSystem;
+  let inference: TypeInference;
+
+  beforeAll(async () => {
+    const lib = await Library.load("base.json");
+    ts = lib.typeSystem;
+    inference = new TypeInference(ts);
+  });
 
   test("infers port payload type and stream classification", () => {
     const pssF32 = ts.parse({ raw: "pss", args: { T: { raw: "f32" } } });

@@ -4,4 +4,3 @@
 export * from "./types";
 export * from "./typeSystem";
 export * from "./typeInference";
-export * from "./defaultTypes";

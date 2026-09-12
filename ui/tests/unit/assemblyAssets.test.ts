@@ -1,7 +1,7 @@
 import { expect, test } from "vitest";
 import { assemblyAssetFiles } from "core";
 import { assemblyAssets } from "../../src/assemblyAssets.ts";
-import { createBrowserAsRuntime } from "../../src/as/runtime.ts";
+import { createBrowserASRuntime } from "../../src/as/runtime.ts";
 
 test("loads every core AssemblyScript library file as a source asset", () => {
   expect(Object.keys(assemblyAssets).sort()).toEqual([...assemblyAssetFiles].sort());
@@ -21,5 +21,5 @@ test("loads every core AssemblyScript library file as a source asset", () => {
 });
 
 test("browser runtime factory is exported for UI wasm hosts", () => {
-  expect(createBrowserAsRuntime).toBeTypeOf("function");
+  expect(createBrowserASRuntime).toBeTypeOf("function");
 });

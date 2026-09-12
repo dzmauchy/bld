@@ -2,14 +2,13 @@ import { readdirSync, readFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { Worker } from "node:worker_threads";
-import { AsRuntime, wrapNodeWorker, type CompileFiles, type Thread } from "./runtime.ts";
+import { ASRuntime, wrapNodeWorker, type CompileFiles, type Thread } from "./runtime.ts";
 
 const here = dirname(fileURLToPath(import.meta.url));
 
 export function nodeThread(specifier: string): Thread {
   return wrapNodeWorker(
     new Worker(join(here, specifier), {
-      type: "module",
       execArgv: ["--experimental-strip-types", "--no-warnings"],
     }),
   );
@@ -25,10 +24,13 @@ export function loadAssemblyFiles(dir: string): CompileFiles {
   return files;
 }
 
-export function createNodeAsRuntime(assemblyDir: string): AsRuntime {
-  return new AsRuntime({
+export function createNodeASRuntime(
+  assemblyDir: string,
+  extraFiles?: CompileFiles,
+): ASRuntime {
+  return new ASRuntime({
     compileThread: nodeThread("compile.worker.ts"),
     runThread: nodeThread("run.worker.ts"),
-    files: loadAssemblyFiles(assemblyDir),
+    files: { ...loadAssemblyFiles(assemblyDir), ...extraFiles },
   });
 }

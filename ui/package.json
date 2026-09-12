@@ -6,10 +6,10 @@
   "license": "AGPL-3.0-only",
   "scripts": {
     "dev": "rsbuild",
-    "build": "tsc --noEmit && rsbuild build",
+    "build": "tsc -b && tsc -b tsconfig.test.json && rsbuild build",
     "preview": "rsbuild preview",
-    "test": "vitest run && playwright test",
-    "test:e2e": "playwright test"
+    "test": "tsc -b && tsc -b tsconfig.test.json && vitest run && playwright test",
+    "test:e2e": "tsc -b tsconfig.test.json && playwright test"
   },
   "dependencies": {
     "core": "*",

@@ -1,25 +1,21 @@
 {
-  "extends": "../tsconfig.base.json",
+  "extends": "./tsconfig.json",
   "compilerOptions": {
     "composite": false,
     "noEmit": true,
     "declaration": false,
     "declarationMap": false,
-    "lib": [
-      "ESNext",
-      "DOM",
-      "DOM.AsyncIterable",
-      "DOM.Iterable"
-    ],
     "allowImportingTsExtensions": true,
-    "types": [
-      "@rsbuild/core/types"
-    ],
     "rootDir": ".",
-    "outDir": "./dist"
+    "types": [
+      "@rsbuild/core/types",
+      "node"
+    ]
   },
   "include": [
-    "./src"
+    "./src",
+    "./tests",
+    "./e2e"
   ],
   "references": [
     {
