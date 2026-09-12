@@ -1,9 +1,7 @@
 /**
  * @title App Assets
  */
-import type { Awaitable } from "../awaitable";
-
-export type AssetResolver = (path: string) => Awaitable<string | undefined | null>;
+export type AssetResolver = (path: string) => Promise<string | undefined | null>;
 
 declare const process:
   | {
@@ -84,7 +82,9 @@ export class AppAssetStore {
   }
 
   setResolver(resolver: AssetResolver | null): void {
-    this.resolver = resolver;
+    this.resolver = resolver
+      ? (path) => Promise.resolve(resolver(path))
+      : null;
   }
 
   async load(url: string, baseUrl?: string): Promise<string> {
@@ -97,7 +97,7 @@ export class AppAssetStore {
     const cleanPath = AppAssetStore.normalizePath(resolved);
 
     if (this.resolver) {
-      const result = await this.resolver(cleanPath);
+      const result = await Promise.resolve(this.resolver(cleanPath));
       if (result !== undefined && result !== null) return result;
     }
 

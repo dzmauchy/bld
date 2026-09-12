@@ -181,8 +181,8 @@ describe("Library and Asset Loader", () => {
 
   test("custom asset resolver is consulted before registered files", async () => {
     setAppAssetResolver((path) => {
-      if (path === "resolver-only.json") return "{\"from\":\"resolver\"}";
-      return undefined;
+      if (path === "resolver-only.json") return Promise.resolve("{\"from\":\"resolver\"}");
+      return Promise.resolve(undefined);
     });
     try {
       expect(await loadAsset("resolver-only.json")).toBe("{\"from\":\"resolver\"}");
