@@ -1,6 +1,7 @@
 {
   "name": "bld",
   "private": true,
+  "type": "module",
   "workspaces": [
     "core",
     "ui"
