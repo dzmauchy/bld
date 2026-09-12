@@ -1,13 +1,20 @@
 import { describe, expect, test, vi } from "vitest";
 import {
+  AppAssetStore,
+  CompilationModel,
   Library,
   Palette,
   TypeSystem,
-  CompilationModel,
-  isRelativeUrl,
-  resolveUrl,
-  registerAppAsset,
+  clearRegisteredAppAssets,
+  fetchText,
   getRegisteredAppAsset,
+  isRelativeUrl,
+  loadAsset,
+  normalizeAssetPath,
+  registerAppAsset,
+  registerAppAssets,
+  resolveUrl,
+  setAppAssetResolver,
 } from "../../../src/model/index.js";
 
 describe("Library and Asset Loader", () => {
@@ -152,5 +159,65 @@ describe("Library and Asset Loader", () => {
   test("registered in-memory app assets take priority for relative URLs", async () => {
     registerAppAsset("custom_app_asset.json", JSON.stringify({ custom: "data" }));
     expect(getRegisteredAppAsset("custom_app_asset.json")).toBe(JSON.stringify({ custom: "data" }));
+  });
+
+  test("normalizes asset paths and loads via the shared AppAssetStore", async () => {
+    expect(normalizeAssetPath("./assembly/blocks.ts")).toBe("assembly/blocks.ts");
+    expect(AppAssetStore.isRelativeUrl("types.json")).toBe(true);
+
+    registerAppAssets({
+      "bundle/a.json": "{\"a\":1}",
+      "bundle/b.json": "{\"b\":2}",
+    });
+    expect(getRegisteredAppAsset("bundle/a.json")).toBe("{\"a\":1}");
+    expect(getRegisteredAppAsset("a.json")).toBe("{\"a\":1}");
+
+    const loaded = await loadAsset("bundle/b.json");
+    expect(loaded).toBe("{\"b\":2}");
+
+    clearRegisteredAppAssets();
+    expect(getRegisteredAppAsset("bundle/a.json")).toBeUndefined();
+  });
+
+  test("custom asset resolver is consulted before registered files", async () => {
+    setAppAssetResolver((path) => {
+      if (path === "resolver-only.json") return "{\"from\":\"resolver\"}";
+      return undefined;
+    });
+    try {
+      expect(await loadAsset("resolver-only.json")).toBe("{\"from\":\"resolver\"}");
+    } finally {
+      setAppAssetResolver(null);
+    }
+  });
+
+  test("fetchText loads absolute URLs", async () => {
+    const originalFetch = globalThis.fetch;
+    globalThis.fetch = (async (url: RequestInfo | URL) => {
+      if (String(url) === "https://example.com/ping.txt") {
+        return new Response("pong", { status: 200 });
+      }
+      return new Response("Not found", { status: 404 });
+    }) as typeof fetch;
+    try {
+      expect(await fetchText("https://example.com/ping.txt")).toBe("pong");
+    } finally {
+      globalThis.fetch = originalFetch;
+    }
+  });
+
+  test("loadBase returns the cached base library and exposes the icon", async () => {
+    const lib = await Library.loadBase();
+    expect(lib).toBe(Library.getBaseSync());
+    expect(lib.icon).toBe("library-base.svg");
+    expect(Palette.fromLibrary(lib)).toBe(lib.palette);
+    expect(TypeSystem.fromLibrary(lib)).toBe(lib.typeSystem);
+  });
+
+  test("Palette.fromCatalog rebuilds blocks from library sources", async () => {
+    const lib = await Library.loadBase();
+    const palette = Palette.fromCatalog(lib.blocks, lib.types, lib.namespaces);
+    expect(palette.hasBlock("scope_f32")).toBe(true);
+    expect(palette.getBlock("scope_f32")?.title).toBe("Scope");
   });
 });

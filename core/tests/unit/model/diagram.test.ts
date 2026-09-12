@@ -5,13 +5,13 @@ import { beforeAll, describe, expect, test } from "vitest";
 import {
   type ASRuntimeLike,
   type ASSessionLike,
+  Connection,
   Diagram,
   DiagramBlock,
   type DiagramJson,
   Library,
   Palette,
   PortEndpoint,
-  TypeSystem,
 } from "../../../src/model/index.js";
 
 const coreRoot = join(dirname(fileURLToPath(import.meta.url)), "../../..");
@@ -246,6 +246,44 @@ describe("AssemblyScript Code Generation", () => {
     expect(wasm).toEqual(new Uint8Array([0, 97, 115, 109]));
     expect(capturedOptions).toEqual(options);
     expect(capturedFiles).toBeDefined();
+  });
+
+  test("exposes block lookup, disconnect, and per-block connections", () => {
+    const diagram = new Diagram("diag_1", "Test Diagram", palette);
+    const scope = diagram.addBlock("scope_f32", { x: 10, y: 10 });
+    const cosGen = diagram.addBlock("cos_gen_f32", { x: 100, y: 10 });
+
+    expect(diagram.hasBlock(scope.id)).toBe(true);
+    expect(diagram.hasBlock("missing")).toBe(false);
+
+    const conn = diagram.connect(
+      new PortEndpoint(cosGen.id, "input", "v", 0),
+      new PortEndpoint(scope.id, "output", "sink", 0),
+    );
+    expect(diagram.getConnection(conn.id)).toBe(conn);
+    expect(diagram.getConnectionsForBlock(scope.id)).toEqual([conn]);
+    expect(conn.connectsEndpoint(new PortEndpoint(scope.id, "output", "sink", 0))).toBe(true);
+
+    const restored = Connection.fromJSON(conn.id, conn.toJSON());
+    expect(restored.from.equals(conn.from)).toBe(true);
+    expect(restored.to.equals(conn.to)).toBe(true);
+
+    expect(diagram.disconnect(conn.id)).toBe(true);
+    expect(diagram.getConnection(conn.id)).toBeUndefined();
+    expect(diagram.getConnectionsForBlock(scope.id)).toHaveLength(0);
+  });
+
+  test("exposes diagram block ports, config, and endpoint identity", () => {
+    const diagram = new Diagram("diag_1", "Test Diagram", palette);
+    const scope = diagram.addBlock("scope_f32", { x: 10, y: 20 }, "scope_0", { precision: 25 });
+
+    expect(scope.getOutputPorts().map((port) => port.id)).toContain("sink");
+    expect(scope.getInputPorts()).toEqual([]);
+    expect(scope.getAllConf()).toMatchObject({ period: 60, precision: 25 });
+    expect(scope.definition.getDefaultConfig()).toMatchObject({ period: 60, precision: 10 });
+
+    const endpoint = new PortEndpoint(scope.id, "output", "sink", 0);
+    expect(endpoint.toString()).toBe(`${scope.id}.output.sink[0]`);
   });
 
   test("forwards compile options to runtime.createSession in run", async () => {

@@ -3,6 +3,7 @@ import {
   browserContext,
   BrowserCompiler,
   CompilerContext,
+  defaultBlockEmitters,
   DiagramCompiler,
   getCompilerContext,
   mcuContext,
@@ -111,18 +112,12 @@ describe("DiagramCompiler pluggable contexts", () => {
   });
 
   test("supports custom context registration", () => {
-    const customContext: CompilerContext = {
-      name: "custom_sim",
-      getFiles() {
-        return { "custom.ts": "// custom runtime" };
-      },
-      getPrelude() {
-        return "// Custom Prelude\nconst ec = null;\n";
-      },
-      getExports() {
-        return "export function customTick(): void {}\n";
-      },
-    };
+    const customContext = new CompilerContext(
+      "custom_sim",
+      () => ({ "custom.ts": "// custom runtime" }),
+      () => "// Custom Prelude\nconst ec = null;\n",
+      () => "export function customTick(): void {}\n",
+    );
 
     registerCompilerContext(customContext);
     expect(getCompilerContext("custom_sim")).toBe(customContext);
@@ -143,5 +138,28 @@ describe("DiagramCompiler pluggable contexts", () => {
 
     expect(source).toContain("new BrowserExecutionContext()");
     expect(source).not.toContain("TestExecutionContext");
+  });
+
+  test("setContext switches a compiler onto a registered target", () => {
+    const compiler = new DiagramCompiler();
+    expect(compiler.getContext()).toBe(browserContext);
+
+    compiler.setContext("mcu");
+    expect(compiler.getContext()).toBe(mcuContext);
+    expect(compiler.getFiles()["mcu_context.ts"]).toContain("class McuExecutionContext");
+
+    compiler.setContext(browserContext);
+    expect(compiler.getContext()).toBe(browserContext);
+  });
+
+  test("registers default block emitters used by diagram codegen", () => {
+    expect(defaultBlockEmitters.has("scope_f32")).toBe(true);
+    expect(defaultBlockEmitters.has("const_f32")).toBe(true);
+    expect(defaultBlockEmitters.has("gpio_in")).toBe(true);
+    expect(defaultBlockEmitters.has("unknown_block")).toBe(false);
+  });
+
+  test("test harness context is registered for wasm tests", () => {
+    expect(getCompilerContext("test")).toBe(testContext);
   });
 });

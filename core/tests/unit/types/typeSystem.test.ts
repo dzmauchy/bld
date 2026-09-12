@@ -1,6 +1,5 @@
 import { beforeAll, describe, expect, test } from "vitest";
 import {
-  DataType,
   ParameterizedType,
   PrimitiveType,
   TypeSystem,
@@ -111,5 +110,30 @@ describe("TypeSystem & DataTypes", () => {
 
     expect(ts.isCompatible(pssF32_1, pssF32_2)).toBe(true);
     expect(ts.isCompatible(pssF32_1, pssU8)).toBe(false);
+  });
+
+  test("binds and unbinds type variables", () => {
+    const variable = new TypeVariable("T", "payload");
+    expect(variable.isBound()).toBe(false);
+    expect(variable.toString()).toBe("?T");
+
+    const f32 = ts.parse("f32");
+    variable.bind(f32);
+    expect(variable.isBound()).toBe(true);
+    expect(variable.resolved).toBe(f32);
+    expect(variable.raw).toBe("f32");
+    expect(variable.equals(f32)).toBe(true);
+    expect(ts.isCompatible(variable, f32)).toBe(true);
+
+    expect(() => variable.bind(ts.parse("u8"))).toThrow(/already bound/);
+
+    variable.unbind();
+    expect(variable.isBound()).toBe(false);
+    expect(variable.resolved).toBeUndefined();
+  });
+
+  test("TypeSystem.fromLibrary returns the library type system", async () => {
+    const lib = await Library.loadBase();
+    expect(TypeSystem.fromLibrary(lib)).toBe(lib.typeSystem);
   });
 });
