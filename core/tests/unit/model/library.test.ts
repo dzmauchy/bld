@@ -65,7 +65,7 @@ describe("Library and Asset Loader", () => {
 
     // In-memory CompilationModel populated
     expect(lib.compilationModel).toBeInstanceOf(CompilationModel);
-    expect(lib.compilationModel.getProfile().name).toBe("browser");
+    expect(lib.compilationModel.getFile("assembly.js")).toBeDefined();
 
     // Base library is cached
     expect(Library.getBaseSync()).toBe(lib);
@@ -83,7 +83,7 @@ describe("Library and Asset Loader", () => {
             types: ["https://my-plugin.org/dsp/types.json"],
             namespaces: ["https://my-plugin.org/dsp/namespaces.json"],
             blocks: ["https://my-plugin.org/dsp/blocks.json"],
-            assembly: ["https://my-plugin.org/dsp/plugin.ts"],
+            assembly: "https://my-plugin.org/dsp/plugin.ts",
           }),
           { status: 200 },
         );

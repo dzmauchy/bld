@@ -1,6 +1,6 @@
 import { describe, expect, test } from "vitest";
 import { BrowserCompiler, Diagram, Library, PortEndpoint } from "../../../src";
-import { instantiateWasm, defaultEnvBindings } from "../../../src/wasm/run.ts";
+import { instantiateWasm, defaultEnvBindings } from "runtime/run.ts";
 
 describe("binaryen compile and host bindings", () => {
   test("compiled diagram calls sendPinF32", async () => {

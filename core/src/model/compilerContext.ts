@@ -9,7 +9,7 @@ export {
   getWasmProfile,
   mcuProfile,
   type WasmProfileName,
-} from "../wasm/profile";
+} from "runtime";
 
 export const browserContext = {
   name: "browser" as const,

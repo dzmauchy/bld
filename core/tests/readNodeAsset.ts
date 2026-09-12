@@ -9,8 +9,10 @@ export async function readNodeAsset(cleanPath: string): Promise<string | undefin
   const candidates = [
     join(currentDir, "../assets", cleanPath),
     join(currentDir, "../../core/assets", cleanPath),
+    join(currentDir, "../../base/dist", cleanPath),
     join(cwd, "assets", cleanPath),
     join(cwd, "core/assets", cleanPath),
+    join(cwd, "base/dist", cleanPath),
   ];
 
   for (const candidate of candidates) {

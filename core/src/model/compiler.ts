@@ -2,22 +2,19 @@
  * @title Diagram Compiler
  */
 import type { Diagram } from "./diagram";
-import type { Connection } from "./connection";
-import type { DiagramBlock } from "./diagramBlock";
 import {
   browserProfile,
+  defaultRegistry,
   getWasmProfile,
   mcuProfile,
+  planProgram,
   WasmProfile,
-  type WasmProfileName,
-} from "../wasm/profile";
-import {
-  PUSH_BLOCK_REFS,
   type CompileOptions,
   type DownstreamRef,
   type PlannedBlock,
   type WasmProgram,
-} from "../wasm/program";
+  type WasmProfileName,
+} from "runtime";
 
 export { browserProfile, mcuProfile, WasmProfile, getWasmProfile };
 export type { CompileOptions, PlannedBlock, WasmProgram, WasmProfileName, DownstreamRef };
@@ -143,83 +140,29 @@ export class CompilationModel {
   }
 }
 
-function numericIds(blocks: readonly DiagramBlock[]): Map<string, number> {
-  const map = new Map<string, number>();
-  blocks.forEach((block, index) => map.set(block.id, index));
-  return map;
-}
-
-function maxVectorIndex(
-  connections: readonly Connection[],
-  blockId: string,
-  portId?: string,
-  fallback = 0,
-): number {
-  let maxVec = fallback;
-  for (const connection of connections) {
-    if (!connection.connectsBlock(blockId)) continue;
-    const endpoint = connection.from.blockId === blockId ? connection.from : connection.to;
-    if (portId !== undefined && endpoint.portId !== portId) continue;
-    if (endpoint.vectorIndex > maxVec) maxVec = endpoint.vectorIndex;
-  }
-  return maxVec;
-}
-
-function otherEndpoint(connection: Connection, blockId: string) {
-  if (connection.from.blockId === blockId) return connection.to;
-  if (connection.to.blockId === blockId) return connection.from;
-  return undefined;
-}
-
 export function planDiagram(diagram: Diagram): WasmProgram {
-  const blocks = diagram.getBlocks();
-  const connections = diagram.getConnections();
-  const ids = numericIds(blocks);
-  const planned: PlannedBlock[] = [];
-
-  for (const block of blocks) {
-    const id = ids.get(block.id) ?? 0;
-    const consumers: DownstreamRef[] = [];
-    const pinConsumers: DownstreamRef[][] = [];
-
-    for (const connection of connections) {
-      const other = otherEndpoint(connection, block.id);
-      if (!other) continue;
-      const otherBlock = diagram.getBlock(other.blockId);
-      if (!otherBlock || !PUSH_BLOCK_REFS.has(otherBlock.ref)) continue;
-      const otherId = ids.get(other.blockId);
-      if (otherId === undefined) continue;
-      const dest = { blockId: otherId, channel: other.vectorIndex };
-      consumers.push(dest);
-      if (block.ref === "gpio_in") {
-        const self = connection.from.blockId === block.id ? connection.from : connection.to;
-        const pinIndex = self.vectorIndex;
-        while (pinConsumers.length <= pinIndex) pinConsumers.push([]);
-        pinConsumers[pinIndex].push(dest);
-      }
-    }
-
-    let receiveChannels = 1;
-    if (block.ref === "scope_f32") {
-      receiveChannels = maxVectorIndex(connections, block.id, undefined, 0) + 1;
-    } else if (block.ref === "product_f32") {
-      receiveChannels = maxVectorIndex(connections, block.id, "v", 1) + 1;
-    }
-
-    const plannedBlock: PlannedBlock = {
-      id,
-      ref: block.ref,
-      conf: block.getAllConf(),
-      consumers,
-      receiveChannels,
-    };
-    if (block.ref === "gpio_in") {
-      plannedBlock.pinConsumers = pinConsumers.length > 0 ? pinConsumers : [consumers];
-    }
-    planned.push(plannedBlock);
-  }
-
-  return { blocks: planned };
+  return planProgram(
+    {
+      blocks: diagram.getBlocks().map((block) => ({
+        id: block.id,
+        ref: block.ref,
+        conf: block.getAllConf(),
+      })),
+      connections: diagram.getConnections().map((connection) => ({
+        from: {
+          blockId: connection.from.blockId,
+          portId: connection.from.portId,
+          vectorIndex: connection.from.vectorIndex,
+        },
+        to: {
+          blockId: connection.to.blockId,
+          portId: connection.to.portId,
+          vectorIndex: connection.to.vectorIndex,
+        },
+      })),
+    },
+    defaultRegistry,
+  );
 }
 
 export class DiagramCompiler extends CompilationModel {

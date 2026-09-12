@@ -1,8 +1,8 @@
 import { afterAll, beforeAll, describe, expect, test } from "vitest";
 import { BrowserCompiler, Diagram, Library, PortEndpoint } from "../../src";
-import { compileBrowserProgram } from "../../src/wasm/compile.ts";
-import { createNodeWasmRuntime } from "../../src/wasm/runtime.node.ts";
-import type { WasmSession } from "../../src/wasm/runtime.ts";
+import { compileBrowserProgram } from "runtime";
+import { createNodeWasmRuntime } from "runtime/runtime.node.ts";
+import type { WasmSession } from "runtime/runtime.ts";
 
 const runtime = createNodeWasmRuntime();
 const compiler = new BrowserCompiler();

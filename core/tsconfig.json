@@ -13,5 +13,10 @@
     "src/wasm/runtime.ts",
     "src/wasm/workerHost.ts",
     "src/wasm/messages.ts"
+  ],
+  "references": [
+    {
+      "path": "../runtime"
+    }
   ]
 }

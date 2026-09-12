@@ -6,6 +6,7 @@ import { loadAsset, resolveUrl } from "./appAssets";
 import { BlockDefinition, type RawBlockCatalogEntry } from "./blockDefinition";
 import { CompilationModel } from "./compiler";
 import { Palette } from "./palette";
+import { defaultRegistry, installAssemblySource } from "runtime";
 
 export {
   AppAssetStore,
@@ -28,7 +29,7 @@ export interface PackageManifest {
   types?: string[];
   namespaces?: string[];
   blocks?: string[];
-  assembly?: string[];
+  assembly?: string;
 }
 
 export interface LibrarySources {
@@ -154,14 +155,13 @@ export class Library {
     }
 
     if (manifest.assembly) {
-      for (const assemblyUrl of manifest.assembly) {
-        const url = baseUrl ? resolveUrl(assemblyUrl, baseUrl) : assemblyUrl;
-        const content = await loadAsset(url);
-        allAssemblyFiles[assemblyUrl] = content;
-        const slash = assemblyUrl.lastIndexOf("/");
-        const baseName = slash === -1 ? assemblyUrl : assemblyUrl.slice(slash + 1);
-        allAssemblyFiles[baseName] = content;
-      }
+      const url = baseUrl ? resolveUrl(manifest.assembly, baseUrl) : manifest.assembly;
+      const content = await loadAsset(url);
+      allAssemblyFiles[manifest.assembly] = content;
+      const slash = manifest.assembly.lastIndexOf("/");
+      const baseName = slash === -1 ? manifest.assembly : manifest.assembly.slice(slash + 1);
+      allAssemblyFiles[baseName] = content;
+      await installAssemblySource(content, defaultRegistry);
     }
 
     return Library.fromManifest(manifest, {

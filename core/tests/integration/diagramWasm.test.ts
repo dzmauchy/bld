@@ -1,5 +1,5 @@
 import { afterAll, beforeAll, describe, expect, test } from "vitest";
-import { createNodeWasmRuntime } from "../../src/wasm/runtime.node.ts";
+import { createNodeWasmRuntime } from "runtime/runtime.node.ts";
 import { BrowserCompiler, Diagram, Library, PortEndpoint } from "../../src";
 
 const runtime = createNodeWasmRuntime();
