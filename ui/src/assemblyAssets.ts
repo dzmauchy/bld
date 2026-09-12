@@ -1,6 +1,6 @@
-import blocks from "core/assembly/blocks.ts?raw";
-import context from "core/assembly/context.ts?raw";
-import index from "core/assembly/index.ts?raw";
+import blocks from "core/assets/assembly/blocks.ts?raw";
+import context from "core/assets/assembly/context.ts?raw";
+import index from "core/assets/assembly/index.ts?raw";
 import { assemblyAssetFiles } from "core";
 
 export const assemblyAssets = {
