@@ -14,7 +14,8 @@
     "./*": "./src/*"
   },
   "dependencies": {
-    "assemblyscript": "^0.28.20"
+    "assemblyscript": "^0.28.20",
+    "binaryen": "^132.0.0"
   },
   "scripts": {
     "build": "tsc -b && tsc -b tsconfig.test.json",
