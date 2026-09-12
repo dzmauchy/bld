@@ -1,7 +1,7 @@
 /**
  * @title App Assets
  */
-export type AssetResolver = (path: string) => Promise<string | undefined | null>;
+export type AssetResolver = (path: string) => Promise<string | undefined>;
 
 declare const process:
   | {
@@ -98,7 +98,7 @@ export class AppAssetStore {
 
     if (this.resolver) {
       const result = await Promise.resolve(this.resolver(cleanPath));
-      if (result !== undefined && result !== null) return result;
+      if (result !== undefined) return result;
     }
 
     const registered = this.get(cleanPath);
@@ -107,7 +107,7 @@ export class AppAssetStore {
     }
 
     const nodeContent = this.readNodeAsset(cleanPath);
-    if (nodeContent !== null) {
+    if (nodeContent !== undefined) {
       return nodeContent;
     }
 
@@ -128,7 +128,7 @@ export class AppAssetStore {
     throw new Error(`App asset not found: ${cleanPath}`);
   }
 
-  private readNodeAsset(cleanPath: string): string | null {
+  private readNodeAsset(cleanPath: string): string | undefined {
     const proc = typeof process !== "undefined" ? process : undefined;
     if (proc?.versions?.node && typeof proc.getBuiltinModule === "function") {
       try {
@@ -142,7 +142,7 @@ export class AppAssetStore {
           | { fileURLToPath: (url: string | URL) => string }
           | undefined;
 
-        if (!fs || !path || !url) return null;
+        if (!fs || !path || !url) return undefined;
 
         const currentDir = path.dirname(url.fileURLToPath(import.meta.url));
         const cwd = proc.cwd?.() ?? "";
@@ -161,10 +161,10 @@ export class AppAssetStore {
           }
         }
       } catch {
-        return null;
+        return undefined;
       }
     }
-    return null;
+    return undefined;
   }
 }
 
