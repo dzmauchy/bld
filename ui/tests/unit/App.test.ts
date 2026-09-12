@@ -4,23 +4,27 @@ import { App } from "../../src/App.js";
 import { modelAssets } from "../../src/modelAssets.js";
 
 test("App renders add(2, 2) and model asset titles", () => {
-  expect(App()).toBe([
-    "4",
-    "basic.ts Basic types",
-    "context.ts",
-    "diagram.ts Diagram 1",
-    "gpio.ts GPIO",
-    "messages.ts",
-    "push.ts Push stream",
-  ].join("\n"));
+  expect(App()).toBe(
+    [
+      "4",
+      "blockDefinition.ts Block Definition",
+      "compiler.ts Diagram Compiler",
+      "connection.ts Connection",
+      "defaultCatalog.ts Default Catalog",
+      "diagram.ts Diagram",
+      "diagramBlock.ts Diagram Block",
+      "endpoint.ts Port Endpoint",
+      "index.ts Model Index",
+      "palette.ts Palette",
+    ].join("\n"),
+  );
 });
 
 test("loads every core model file as a source asset", () => {
   expect(Object.keys(modelAssets).sort()).toEqual([...modelAssetFiles].sort());
-  expect(modelAssets["basic.ts"]).toContain("export namespace basic");
-  expect(modelAssets["context.ts"]).toContain("export interface ExecutionContext");
-  expect(modelAssets["diagram.ts"]).toContain("export function diagram");
-  expect(modelAssets["gpio.ts"]).toContain("export namespace gpio");
-  expect(modelAssets["messages.ts"]).toContain("export type Message");
-  expect(modelAssets["push.ts"]).toContain("export namespace push");
+  expect(modelAssets["diagram.ts"]).toContain("export class Diagram");
+  expect(modelAssets["palette.ts"]).toContain("export class Palette");
+  expect(modelAssets["compiler.ts"]).toContain("export class DiagramCompiler");
+  expect(modelAssets["connection.ts"]).toContain("export class Connection");
+  expect(modelAssets["endpoint.ts"]).toContain("export class PortEndpoint");
 });

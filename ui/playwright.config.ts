@@ -7,12 +7,12 @@ export default defineConfig({
   retries: process.env.CI ? 2 : 0,
   workers: 2,
   use: {
-    baseURL: "http://localhost:3000",
+    baseURL: "http://localhost:3001",
     trace: "on-first-retry",
   },
   webServer: {
-    command: "rsbuild build && rsbuild preview",
-    url: "http://localhost:3000",
+    command: "rsbuild build && rsbuild preview --port 3001",
+    url: "http://localhost:3001",
     reuseExistingServer: !process.env.CI,
   },
 });

@@ -1,8 +1,11 @@
 export const modelAssetFiles = [
-  "basic.ts",
-  "context.ts",
+  "blockDefinition.ts",
+  "compiler.ts",
+  "connection.ts",
+  "defaultCatalog.ts",
   "diagram.ts",
-  "gpio.ts",
-  "messages.ts",
-  "push.ts",
+  "diagramBlock.ts",
+  "endpoint.ts",
+  "index.ts",
+  "palette.ts",
 ] as const;

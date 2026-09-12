@@ -2,7 +2,19 @@ import { readdirSync, readFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { describe, expect, test } from "vitest";
-import { add, assemblyAssetFiles, Block, diagram, gpio, modelAssetFiles, push } from "../../src/index.js";
+import {
+  add,
+  assemblyAssetFiles,
+  BlockDefinition,
+  Connection,
+  Diagram,
+  DiagramBlock,
+  DiagramCompiler,
+  modelAssetFiles,
+  Palette,
+  PortEndpoint,
+  TypeSystem,
+} from "../../src/index.js";
 
 const coreRoot = join(dirname(fileURLToPath(import.meta.url)), "../..");
 const modelDir = join(coreRoot, "src/model");
@@ -19,10 +31,14 @@ describe("core public API", () => {
     expect(add(2, 2)).toBe(4);
   });
   test("exports compiled model APIs", () => {
-    expect(Block).toBeTypeOf("function");
-    expect(diagram).toBeTypeOf("function");
-    expect(gpio.push.GpioInF64).toBeTypeOf("function");
-    expect(push.ScopeF64).toBeTypeOf("function");
+    expect(Diagram).toBeTypeOf("function");
+    expect(Palette).toBeTypeOf("function");
+    expect(DiagramBlock).toBeTypeOf("function");
+    expect(Connection).toBeTypeOf("function");
+    expect(PortEndpoint).toBeTypeOf("function");
+    expect(BlockDefinition).toBeTypeOf("function");
+    expect(TypeSystem).toBeTypeOf("function");
+    expect(DiagramCompiler).toBeTypeOf("function");
   });
   test("lists every non-test model file as an asset", () => {
     expect([...modelAssetFiles].sort()).toEqual(modelSourceFiles());

@@ -1,129 +1,216 @@
-import { afterEach, describe, expect, test, vi } from "vitest";
-import type { ExecutionContext } from "../../../src/model/context.js";
-import { diagram } from "../../../src/model/diagram.js";
+import { readFileSync } from "node:fs";
+import { dirname, join } from "node:path";
+import { fileURLToPath } from "node:url";
+import { describe, expect, test } from "vitest";
+import {
+  Diagram,
+  DiagramBlock,
+  type DiagramJson,
+  Palette,
+  PortEndpoint,
+  TypeSystem,
+} from "../../../src/model/index.js";
 
-type PinWrite = { blockId: number; pin: number; v: number };
+const coreRoot = join(dirname(fileURLToPath(import.meta.url)), "../../..");
+const diagramDemoPath = join(coreRoot, "assets/diagram_demo.json");
 
-function createDiagram() {
-  let nextIntervalId = 1;
-  let nowMs = 0n;
-  const intervals = new Map<number, { period: number; callback: () => void }>();
-  const closeHandlers: Array<() => void> = [];
-  const pinWrites: PinWrite[] = [];
-  const worker = new EventTarget();
-  vi.stubGlobal("self", worker);
+describe("Palette", () => {
+  test("loads all blocks from catalog", () => {
+    const palette = Palette.createDefault();
+    const blocks = palette.getBlocks();
+    expect(blocks.length).toBeGreaterThan(5);
 
-  const ec: ExecutionContext = {
-    setInterval(period, callback) {
-      const id = nextIntervalId++;
-      intervals.set(id, { period, callback });
-      return id;
-    },
-    clearInterval(id) {
-      intervals.delete(id);
-    },
-    onClose(callback) {
-      closeHandlers.push(callback);
-    },
-    sendPinF64(blockId, pin, v) {
-      pinWrites.push({ blockId: Number(blockId), pin: Number(pin), v: Number(v) });
-    },
-    cos: Math.cos,
-    sin: Math.sin,
-    tan: Math.tan,
-    random: () => 0,
-    now: () => nowMs,
-  };
+    const scope = palette.getBlock("scope_f32");
+    expect(scope).toBeDefined();
+    expect(scope?.title).toBe("Scope");
+    expect(scope?.category).toBe("sinks");
+    expect(scope?.getOutput("sink")).toBeDefined();
+    expect(scope?.getConfig("period")?.defaultValue).toBe(60);
+    expect(scope?.getConfig("precision")?.defaultValue).toBe(10);
+  });
 
-  diagram(ec);
+  test("filters by category and namespace", () => {
+    const palette = Palette.createDefault();
+    const sinks = palette.getBlocksByCategory("sinks");
+    expect(sinks.map((b) => b.id)).toContain("scope_f32");
 
-  return {
-    pinWrites,
-    intervals,
-    setNow(ms: bigint) {
-      nowMs = ms;
-    },
-    tick() {
-      for (const interval of intervals.values()) {
-        interval.callback();
-      }
-    },
-    close() {
-      for (const handler of [...closeHandlers]) {
-        handler();
-      }
-    },
-    sendGpioIn(pinIndex: number, value: boolean) {
-      worker.dispatchEvent(
-        new MessageEvent("message", {
-          data: { kind: "gpio_in", blockId: 3, pinIndex, value },
-        }),
-      );
-    },
-  };
-}
+    const sources = palette.getBlocksByCategory("sources");
+    expect(sources.map((b) => b.id)).toContain("cos_gen_f32");
+    expect(sources.map((b) => b.id)).toContain("gpio_in");
 
-afterEach(() => {
-  vi.unstubAllGlobals();
+    const pushBlocks = palette.getBlocksByNamespace(["push", "f32"]);
+    expect(pushBlocks.length).toBeGreaterThan(0);
+  });
+
+  test("searches blocks by name or description", () => {
+    const palette = Palette.createDefault();
+    const results = palette.search("cosine");
+    expect(results.map((b) => b.id)).toContain("cos_f32");
+  });
 });
 
-describe("diagram", () => {
-  test("wires constant and ramp through product, cos, and scope", () => {
-    const harness = createDiagram();
+describe("Diagram & Drag/Drop Blocks", () => {
+  test("drags block from palette to diagram at (x, y)", () => {
+    const diagram = new Diagram("diag_1", "Test Diagram");
+    const block = diagram.addBlock("scope_f32", { x: 100, y: 150 });
 
-    expect([...harness.intervals.values()].map((interval) => interval.period)).toEqual([
-      10, 10, 10,
-    ]);
-
-    harness.tick();
-    harness.pinWrites.length = 0;
-    harness.tick();
-
-    expect(harness.pinWrites).toEqual([
-      { blockId: 0, pin: 0, v: 1 },
-      { blockId: 0, pin: 1, v: Number.NaN },
-      { blockId: 0, pin: 2, v: 1 },
-      { blockId: 1, pin: 0, v: 1 },
-      { blockId: 4, pin: 0, v: 1 },
-    ]);
+    expect(block).toBeInstanceOf(DiagramBlock);
+    expect(block.ref).toBe("scope_f32");
+    expect(block.x).toBe(100);
+    expect(block.y).toBe(150);
+    expect(diagram.getBlocks()).toHaveLength(1);
+    expect(diagram.getBlock(block.id)).toBe(block);
   });
 
-  test("gpio input updates product and scope", () => {
-    const harness = createDiagram();
-    harness.tick();
-    harness.pinWrites.length = 0;
+  test("moves block to new coordinates", () => {
+    const diagram = new Diagram("diag_1", "Test Diagram");
+    const block = diagram.addBlock("cos_gen_f32", { x: 10, y: 20 });
+    diagram.moveBlock(block.id, 50, 75);
 
-    harness.sendGpioIn(0, false);
-
-    expect(harness.pinWrites).toEqual([{ blockId: 1, pin: 1, v: 0 }]);
-
-    harness.pinWrites.length = 0;
-    harness.tick();
-
-    expect(harness.pinWrites.filter((write) => write.blockId === 0)).toEqual([
-      { blockId: 0, pin: 0, v: 0 },
-      { blockId: 0, pin: 1, v: 0 },
-      { blockId: 0, pin: 2, v: 1 },
-    ]);
+    expect(block.x).toBe(50);
+    expect(block.y).toBe(75);
   });
 
-  test("ramp timestamp is converted to seconds before cosine", () => {
-    const harness = createDiagram();
-    harness.setNow(1000n);
-    harness.tick();
+  test("removes block and cascades connection removal", () => {
+    const diagram = new Diagram("diag_1", "Test Diagram");
+    const scope = diagram.addBlock("scope_f32", { x: 10, y: 10 });
+    const cosGen = diagram.addBlock("cos_gen_f32", { x: 100, y: 10 });
 
-    const cosWrite = harness.pinWrites.find((write) => write.blockId === 4);
-    expect(cosWrite?.v).toBeCloseTo(Math.cos(1));
+    diagram.connect(
+      new PortEndpoint(cosGen.id, "input", "v", 0),
+      new PortEndpoint(scope.id, "output", "sink", 0),
+    );
+    expect(diagram.getConnections()).toHaveLength(1);
+
+    diagram.removeBlock(scope.id);
+    expect(diagram.getBlocks()).toHaveLength(1);
+    expect(diagram.getConnections()).toHaveLength(0);
+  });
+});
+
+describe("Type Checking & Connections", () => {
+  test("allows compatible connection between push stream ports", () => {
+    const diagram = new Diagram("diag_1", "Test Diagram");
+    const scope = diagram.addBlock("scope_f32", { x: 10, y: 10 });
+    const cosGen = diagram.addBlock("cos_gen_f32", { x: 100, y: 10 });
+
+    const check = diagram.canConnect(
+      new PortEndpoint(cosGen.id, "input", "v", 0),
+      new PortEndpoint(scope.id, "output", "sink", 0),
+    );
+    expect(check.ok).toBe(true);
+
+    const conn = diagram.connect(
+      new PortEndpoint(cosGen.id, "input", "v", 0),
+      new PortEndpoint(scope.id, "output", "sink", 0),
+    );
+    expect(conn.id).toBeDefined();
+    expect(diagram.getConnections()).toHaveLength(1);
   });
 
-  test("onClose clears timers and gpio listener", () => {
-    const harness = createDiagram();
-    harness.close();
+  test("rejects connection with incompatible types", () => {
+    const diagram = new Diagram("diag_1", "Test Diagram");
+    const scope = diagram.addBlock("scope_f32", { x: 10, y: 10 });
+    const gpio = diagram.addBlock("gpio_in", { x: 100, y: 10 });
 
-    expect(harness.intervals.size).toBe(0);
+    // gpio_in pin is array<pss<f32>>, scope sink is pss<f32>
+    const check = diagram.canConnect(
+      new PortEndpoint(gpio.id, "input", "pin", 0),
+      new PortEndpoint(scope.id, "output", "sink", 0),
+    );
+    expect(check.ok).toBe(false);
+    expect(check.reason).toContain("Incompatible types");
 
-    harness.pinWrites.length = 0;
-    harness.sendGpioIn(0, true);
-    expect(harness.pinWrites).toEqual([]);
+    expect(() =>
+      diagram.connect(
+        new PortEndpoint(gpio.id, "input", "pin", 0),
+        new PortEndpoint(scope.id, "output", "sink", 0),
+      ),
+    ).toThrow(/Cannot connect/);
+  });
+
+  test("rejects connecting block to itself", () => {
+    const diagram = new Diagram("diag_1", "Test Diagram");
+    const prod = diagram.addBlock("product_f32", { x: 10, y: 10 });
+
+    const check = diagram.canConnect(
+      new PortEndpoint(prod.id, "output", "p", 0),
+      new PortEndpoint(prod.id, "input", "v", 0),
+    );
+    expect(check.ok).toBe(false);
+    expect(check.reason).toContain("itself");
+  });
+
+  test("rejects duplicate connection", () => {
+    const diagram = new Diagram("diag_1", "Test Diagram");
+    const scope = diagram.addBlock("scope_f32", { x: 10, y: 10 });
+    const cosGen = diagram.addBlock("cos_gen_f32", { x: 100, y: 10 });
+
+    diagram.connect(
+      new PortEndpoint(cosGen.id, "input", "v", 0),
+      new PortEndpoint(scope.id, "output", "sink", 0),
+    );
+
+    const check = diagram.canConnect(
+      new PortEndpoint(cosGen.id, "input", "v", 0),
+      new PortEndpoint(scope.id, "output", "sink", 0),
+    );
+    expect(check.ok).toBe(false);
+    expect(check.reason).toContain("already exists");
+  });
+});
+
+describe("JSON Serialization & Default Omission", () => {
+  test("omits default configuration properties from JSON output", () => {
+    const diagram = new Diagram("diag_1", "Test");
+    const scope = diagram.addBlock("scope_f32", { x: 10, y: 20 });
+
+    // Defaults for scope_f32 are period: 60, precision: 10
+    expect(scope.toJSON().conf).toBeUndefined();
+
+    // Change precision to non-default
+    scope.setConf("precision", 25);
+    expect(scope.toJSON().conf).toEqual({ precision: 25 });
+
+    // Change precision back to default
+    scope.setConf("precision", 10);
+    expect(scope.toJSON().conf).toBeUndefined();
+  });
+
+  test("round-trips diagram_demo.json with full fidelity", () => {
+    const demoRaw = JSON.parse(readFileSync(diagramDemoPath, "utf8")) as DiagramJson;
+    const diagram = Diagram.fromJSON(demoRaw);
+
+    expect(diagram.id).toBe(demoRaw.id);
+    expect(diagram.title).toBe(demoRaw.title);
+    expect(diagram.getBlocks()).toHaveLength(Object.keys(demoRaw.blocks).length);
+    expect(diagram.getConnections()).toHaveLength(Object.keys(demoRaw.connections).length);
+
+    const serialized = diagram.toJSON();
+    expect(serialized).toEqual(demoRaw);
+  });
+});
+
+describe("AssemblyScript Code Generation", () => {
+  test("generates valid AssemblyScript for a connected diagram", () => {
+    const diagram = new Diagram("diag_1", "Test");
+    const scope = diagram.addBlock("scope_f32", { x: 10, y: 30 }, "scope_f32_0", {
+      period: 30,
+      precision: 11,
+    });
+    const cosGen = diagram.addBlock("cos_gen_f32", { x: 200, y: 20 }, "cos_gen_f32_0", {
+      precision: 11,
+    });
+
+    diagram.connect(
+      new PortEndpoint(cosGen.id, "input", "v", 0),
+      new PortEndpoint(scope.id, "output", "sink", 0),
+    );
+
+    const source = diagram.generateAssemblyScript();
+    expect(source).toContain("new scope_f32");
+    expect(source).toContain("new cos_gen_f32");
+    expect(source).toContain("scope_f32_0.apply()");
+    expect(source).toContain("export function tick()");
   });
 });
