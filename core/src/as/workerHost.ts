@@ -1,8 +1,7 @@
+import type { Awaitable } from "../awaitable.ts";
 import { messageId, type WorkerResponse } from "./messages.ts";
 
-export type WorkerMessageHandler = (
-  data: unknown,
-) => Promise<WorkerResponse | void> | WorkerResponse | void;
+export type WorkerMessageHandler = (data: unknown) => Awaitable<WorkerResponse | void>;
 
 type ParentPort = {
   postMessage: (value: unknown) => void;

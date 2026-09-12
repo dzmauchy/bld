@@ -1,9 +1,9 @@
 /**
  * @title App Assets
  */
-export type AssetResolver = (
-  path: string,
-) => Promise<string | undefined | null> | string | undefined | null;
+import type { Awaitable } from "../awaitable";
+
+export type AssetResolver = (path: string) => Awaitable<string | undefined | null>;
 
 declare const process:
   | {

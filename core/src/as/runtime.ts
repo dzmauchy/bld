@@ -1,3 +1,4 @@
+import type { Awaitable } from "../awaitable.ts";
 import type {
   CompileCompileRequest,
   CompileFiles,
@@ -17,7 +18,7 @@ export interface Thread {
   postMessage(data: unknown): void;
   onMessage(handler: (data: unknown) => void): void;
   onError(handler: (error: Error) => void): void;
-  terminate(): void | Promise<unknown>;
+  terminate(): Awaitable<unknown>;
 }
 
 type NodeWorkerLike = {
@@ -127,7 +128,7 @@ class WorkerClient {
     return response;
   }
 
-  terminate(): void | Promise<unknown> {
+  terminate(): Awaitable<unknown> {
     return this.thread.terminate();
   }
 }
