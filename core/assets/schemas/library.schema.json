@@ -53,7 +53,7 @@
         "type": "string"
       },
       "uniqueItems": true,
-      "description": "List of assembly script or entrypoint files."
+      "description": "Optional extra source files shipped with the package."
     }
   },
   "required": [

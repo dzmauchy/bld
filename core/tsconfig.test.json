@@ -13,9 +13,6 @@
     "./src",
     "./tests"
   ],
-  "exclude": [
-    "./tests/assembly/**"
-  ],
   "references": [
     {
       "path": "./tsconfig.json"

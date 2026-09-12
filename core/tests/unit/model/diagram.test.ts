@@ -3,8 +3,6 @@ import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { beforeAll, describe, expect, test } from "vitest";
 import {
-  type ASRuntimeLike,
-  type ASSessionLike,
   Connection,
   Diagram,
   DiagramBlock,
@@ -198,8 +196,8 @@ describe("JSON Serialization & Default Omission", () => {
   });
 });
 
-describe("AssemblyScript Code Generation", () => {
-  test("generates valid AssemblyScript for a connected diagram", () => {
+describe("Wasm Code Generation", () => {
+  test("emits a function per block for a connected diagram", () => {
     const diagram = new Diagram("diag_1", "Test", palette);
     const scope = diagram.addBlock("scope_f32", { x: 10, y: 30 }, "scope_f32_0", {
       period: 30,
@@ -214,38 +212,18 @@ describe("AssemblyScript Code Generation", () => {
       new PortEndpoint(scope.id, "output", "sink", 0),
     );
 
-    const source = diagram.generateAssemblyScript();
-    expect(source).toContain("new scope_f32");
-    expect(source).toContain("new cos_gen_f32");
-    expect(source).toContain("scope_f32_0.apply()");
-    expect(source).toContain("export function tick()");
+    const wat = diagram.emitText();
+    expect(wat).toContain("(func $b0_push");
+    expect(wat).toContain("(func $b0_tick");
+    expect(wat).toContain("(func $b1_tick");
+    expect(wat).toContain("(func $tick");
+    expect(wat).toContain("return_call $b0_push");
   });
 
-  test("forwards compile options to runtime.compileSource", async () => {
+  test("compiles a diagram to wasm bytes", () => {
     const diagram = new Diagram("diag_opt", "Options Test", palette);
-    let capturedOptions: unknown;
-    let capturedFiles: unknown;
-
-    const mockRuntime: ASRuntimeLike = {
-      async compileSource(_source, files, options) {
-        capturedFiles = files;
-        capturedOptions = options;
-        return new Uint8Array([0, 97, 115, 109]);
-      },
-      async instantiate() {
-        throw new Error("not implemented");
-      },
-      async createSession() {
-        throw new Error("not implemented");
-      },
-    };
-
-    const options = { debug: false, optimizeLevel: 3 };
-    const wasm = await diagram.compile(mockRuntime, options);
-
-    expect(wasm).toEqual(new Uint8Array([0, 97, 115, 109]));
-    expect(capturedOptions).toEqual(options);
-    expect(capturedFiles).toBeDefined();
+    const wasm = diagram.compile({ debug: false, optimizeLevel: 0 });
+    expect(wasm.slice(0, 4)).toEqual(new Uint8Array([0, 97, 115, 109]));
   });
 
   test("exposes block lookup, disconnect, and per-block connections", () => {
@@ -286,31 +264,20 @@ describe("AssemblyScript Code Generation", () => {
     expect(endpoint.toString()).toBe(`${scope.id}.output.sink[0]`);
   });
 
-  test("forwards compile options to runtime.createSession in run", async () => {
+  test("forwards compiled wasm to runtime.instantiate in run", async () => {
     const diagram = new Diagram("diag_run_opt", "Run Options Test", palette);
-    let capturedOptions: unknown;
-    let capturedFiles: unknown;
-
-    const mockSession = {} as ASSessionLike;
-    const mockRuntime: ASRuntimeLike = {
-      async compileSource() {
-        throw new Error("not implemented");
-      },
-      async instantiate() {
-        throw new Error("not implemented");
-      },
-      async createSession(_source, files, options) {
-        capturedFiles = files;
-        capturedOptions = options;
+    diagram.addBlock("scope_f32", { x: 10, y: 10 });
+    let capturedWasm: Uint8Array | undefined;
+    const mockSession = { close: async () => 0 } as unknown as import("../../../src/model/compiler").WasmSessionLike;
+    const mockRuntime = {
+      async instantiate(wasm: Uint8Array) {
+        capturedWasm = wasm;
         return mockSession;
       },
     };
 
-    const options = { debug: true, optimizeLevel: 2 };
-    const session = await diagram.run(mockRuntime, options);
-
+    const session = await diagram.run(mockRuntime);
     expect(session).toBe(mockSession);
-    expect(capturedOptions).toEqual(options);
-    expect(capturedFiles).toBeDefined();
+    expect(capturedWasm?.slice(0, 4)).toEqual(new Uint8Array([0, 97, 115, 109]));
   });
 });

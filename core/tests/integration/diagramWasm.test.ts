@@ -1,15 +1,9 @@
-  import { dirname, join } from "node:path";
-import { fileURLToPath } from "node:url";
 import { afterAll, beforeAll, describe, expect, test } from "vitest";
-import { createNodeASRuntime } from "../../src/as/runtime.node.ts";
-import { Diagram, Library, PortEndpoint } from "../../src";
-import { TestCompiler } from "../testCompiler.ts";
+import { createNodeWasmRuntime } from "../../src/wasm/runtime.node.ts";
+import { BrowserCompiler, Diagram, Library, PortEndpoint } from "../../src";
 
-const coreRoot = join(dirname(fileURLToPath(import.meta.url)), "../..");
-const assemblyDir = join(coreRoot, "assets/assembly");
-
-const runtime = createNodeASRuntime(assemblyDir);
-const compiler = new TestCompiler();
+const runtime = createNodeWasmRuntime();
+const compiler = new BrowserCompiler();
 
 beforeAll(async () => {
   await Library.load("base.json");
@@ -81,19 +75,14 @@ describe("Diagram compiling to WASM and execution", () => {
       v: 4.0,
     });
 
-    // Connect product output to scope
     diagram.connect(
       new PortEndpoint(product.id, "output", "p", 0),
       new PortEndpoint(scope.id, "output", "sink", 0),
     );
-
-    // Connect constA to product input factor 0
     diagram.connect(
       new PortEndpoint(constA.id, "input", "v", 0),
       new PortEndpoint(product.id, "input", "v", 0),
     );
-
-    // Connect constB to product input factor 1
     diagram.connect(
       new PortEndpoint(constB.id, "input", "v", 0),
       new PortEndpoint(product.id, "input", "v", 1),

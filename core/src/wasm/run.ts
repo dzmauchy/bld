@@ -1,20 +1,43 @@
 import { attachWorker } from "./workerHost.ts";
 import type { RunRequest, WorkerResponse } from "./messages.ts";
 
-/** Wasm `env` imports. UI/browser hosts merge their bindings into this object. */
+/** Host `env` imports used by the browser wasm profile. */
 export type EnvBindings = {
-  abort?: (message: number, fileName: number, line: number, column: number) => void;
-  seed?: () => number;
+  sendPinF32?: (blockId: number, pin: number, value: number) => void;
+  cos?: (value: number) => number;
+  sin?: (value: number) => number;
   [name: string]: WebAssembly.ImportValue | undefined;
 };
 
 export function defaultEnvBindings(): EnvBindings {
   return {
-    abort(_message: number, _fileName: number, line: number, column: number) {
-      throw new Error(`AssemblyScript abort at ${line}:${column}`);
+    sendPinF32() {},
+    cos: Math.cos,
+    sin: Math.sin,
+  };
+}
+
+/** JS String Builtins polyfill used when the engine does not provide `wasm:js-string`. */
+export function jsStringBuiltins(): WebAssembly.ModuleImports {
+  return {
+    fromCharCode(code: number) {
+      return String.fromCharCode(code);
     },
-    seed() {
-      return 1;
+    concat(a: unknown, b: unknown) {
+      return `${String(a)}${String(b)}`;
+    },
+    length(value: unknown) {
+      return String(value).length;
+    },
+    equals(a: unknown, b: unknown) {
+      return String(a) === String(b) ? 1 : 0;
+    },
+    compare(a: unknown, b: unknown) {
+      const left = String(a);
+      const right = String(b);
+      if (left < right) return -1;
+      if (left > right) return 1;
+      return 0;
     },
   };
 }
@@ -36,33 +59,36 @@ function toBufferSource(wasm: Uint8Array | ArrayBuffer): ArrayBuffer {
 
 export async function instantiateWasm(
   wasm: Uint8Array | ArrayBuffer,
-  imports: WebAssembly.Imports = createWasmImports(defaultEnvBindings()),
+  env: EnvBindings = defaultEnvBindings(),
 ): Promise<WebAssembly.Instance> {
-  const result = await WebAssembly.instantiate(toBufferSource(wasm), imports);
-  return result.instance;
+  const bytes = toBufferSource(wasm);
+  const envImports = createWasmImports(env);
+  try {
+    const compile = WebAssembly.compile as (
+      bytes: BufferSource,
+      options?: { builtins?: string[] },
+    ) => Promise<WebAssembly.Module>;
+    const module = await compile(bytes, { builtins: ["js-string"] });
+    return await WebAssembly.instantiate(module, envImports);
+  } catch {
+    const result = await WebAssembly.instantiate(bytes, {
+      ...envImports,
+      "wasm:js-string": jsStringBuiltins(),
+    });
+    return result.instance;
+  }
 }
 
 /**
  * Worker entry used by the default run worker and by UI workers that inject
  * extra `env` bindings (for example `sendPinF32`).
- *
- * Functions cannot be posted into a worker, so the UI provides bindings by
- * calling this from its own worker module:
- *
- * ```ts
- * startRunWorker({
- *   ...defaultEnvBindings(),
- *   sendPinF32(blockId, pin, value) { postMessage({ type: "pin", blockId, pin, value }); },
- * });
- * ```
  */
 export function startRunWorker(env: EnvBindings = defaultEnvBindings()): void {
   let instance: WebAssembly.Instance | null = null;
-  const imports = createWasmImports(env);
   attachWorker(async (data): Promise<WorkerResponse> => {
     const message = data as RunRequest;
     if (message.type === "instantiate") {
-      instance = await instantiateWasm(message.wasm, imports);
+      instance = await instantiateWasm(message.wasm, env);
       return { id: message.id, type: "ok" };
     }
     if (message.type === "invoke") {

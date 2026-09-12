@@ -5,6 +5,5 @@
   "icon": "library-base.svg",
   "types": ["types.json"],
   "namespaces": ["namespaces.json"],
-  "blocks": ["blocks.json"],
-  "assembly": ["assembly/blocks.ts"]
+  "blocks": ["blocks.json"]
 }
