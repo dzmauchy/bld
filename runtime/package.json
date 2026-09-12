@@ -9,6 +9,8 @@
       "types": "./dist/index.d.ts",
       "default": "./src/index.ts"
     },
+    "./compile": "./src/compile.ts",
+    "./compile.ts": "./src/compile.ts",
     "./*": "./src/*"
   },
   "dependencies": {

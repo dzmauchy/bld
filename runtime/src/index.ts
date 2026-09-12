@@ -1,5 +1,3 @@
-import "./compile";
-
 export type {
   DiagramBlockJson,
   DiagramConnectionJson,
@@ -10,31 +8,19 @@ export type {
   WasmProfileName,
 } from "./json";
 export type { CompileOptions, DownstreamRef, PlannedBlock, WasmProgram } from "./program";
-export type { CompileProgramOptions } from "./compile";
-export type { CompileRequest, FetchText, LibraryAssemblyModule } from "./api";
+export type { FetchText, LibraryAssemblyModule } from "./api";
 export type { BlockSpec } from "./registry";
 export type { PlanBlock, PlanConnection, PlanEndpoint, PlanInput } from "./plan";
 
 export {
   BlockRegistry,
   defaultRegistry,
+  LibraryApi,
+  installLibrary,
 } from "./registry";
 export {
-  BlockEmitter,
-  GpioEmitter,
-  LibraryApi,
-  PushEmitter,
-  TickEmitter,
-  confNum,
-  confPins,
-  installLibrary,
-} from "./dsl";
-export {
   applyAssemblyModule,
-  compileDiagram,
-  compileProgram,
   defaultFetchText,
-  emitDiagramText,
   importAssemblySource,
   installAssemblySource,
   installLibraryFromUrl,
@@ -42,7 +28,6 @@ export {
   resolveUrl,
 } from "./api";
 export { planDiagramJson, planProgram } from "./plan";
-export { compileBrowserProgram, emitBrowserText } from "./compile";
 export {
   BrowserWasmProfile,
   McuWasmProfile,

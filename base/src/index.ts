@@ -14,11 +14,11 @@ export function install(api: LibraryApi): void {
       block.onPush((push) => {
         push.store(push.channel, push.value);
       });
-            block.onTick(block.confNum("precision", 10), (tick) => {
-              tick.forRange(tick.arrayLen(), (index) => {
-                tick.recordPin(index(), tick.arrayGet(index()));
-              });
-            });
+      block.onTick(block.confNum("precision", 10), (tick) => {
+        tick.forRange(tick.arrayLen(), (index) => {
+          tick.recordPin(index(), tick.arrayGet(index()));
+        });
+      });
     },
   });
 

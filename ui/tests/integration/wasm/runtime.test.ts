@@ -1,5 +1,5 @@
 import { expect, test } from "vitest";
-import { compileBrowserProgram } from "runtime";
+import { compileBrowserProgram } from "runtime/compile.ts";
 import { instantiateWasm } from "runtime/run.ts";
 
 test("UI compiles a wasm program and instantiates it", async () => {

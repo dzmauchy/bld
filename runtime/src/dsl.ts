@@ -1,7 +1,5 @@
 import binaryen from "binaryen";
 import type { DownstreamRef, PlannedBlock } from "./program";
-import type { BlockSpec, BlockRegistry } from "./registry";
-import { defaultRegistry } from "./registry";
 import type { Expr } from "./module";
 import { BrowserWasmModule } from "./module";
 
@@ -18,22 +16,6 @@ export function confPins(conf: Record<string, unknown>): number[] {
     return raw.map((pin) => Number(pin));
   }
   return [0];
-}
-
-/**
- * Library assembly entry. Bundled JS should export `install(api)`.
- */
-export class LibraryApi {
-  constructor(private readonly registry: BlockRegistry) {}
-
-  define(ref: string, spec: BlockSpec): void {
-    this.registry.define(ref, spec);
-  }
-}
-
-export function installLibrary(install: (api: LibraryApi) => void, registry: BlockRegistry = defaultRegistry): BlockRegistry {
-  install(new LibraryApi(registry));
-  return registry;
 }
 
 abstract class FnEmitter {

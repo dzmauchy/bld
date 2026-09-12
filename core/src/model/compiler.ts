@@ -181,10 +181,12 @@ export class DiagramCompiler extends CompilationModel {
     return this.profile.emitText(this.plan(diagram), options);
   }
 
+  /** Compile through the runtime wasm profile (browser via Binaryen; MCU unimplemented). */
   compile(diagram: Diagram, options?: CompileOptionsLike): Uint8Array {
     return this.profile.compile(this.plan(diagram), options);
   }
 
+  /** Compile with the runtime, then instantiate the module on the given wasm runtime. */
   async run<TSession extends WasmSessionLike = WasmSessionLike>(
     diagram: Diagram,
     runtime: WasmRuntimeLike<TSession>,

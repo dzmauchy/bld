@@ -1,3 +1,5 @@
+import type { BlockEmitter } from "./dsl";
+
 export type BlockSpec = {
   /**
    * When true, other blocks may push values into this block's `onPush` handler.
@@ -15,7 +17,7 @@ export type BlockSpec = {
    * Incoming vector width. `"product"` keeps a spare factor slot (default 1).
    */
   channels?: "auto" | "product";
-  emit: (block: import("./dsl").BlockEmitter) => void;
+  emit: (block: BlockEmitter) => void;
 };
 
 export class BlockRegistry {
@@ -61,3 +63,17 @@ export class BlockRegistry {
 }
 
 export const defaultRegistry = new BlockRegistry();
+
+/** Library assembly entry. Bundled JS should export `install(api)`. */
+export class LibraryApi {
+  constructor(private readonly registry: BlockRegistry) {}
+
+  define(ref: string, spec: BlockSpec): void {
+    this.registry.define(ref, spec);
+  }
+}
+
+export function installLibrary(install: (api: LibraryApi) => void, registry: BlockRegistry = defaultRegistry): BlockRegistry {
+  install(new LibraryApi(registry));
+  return registry;
+}

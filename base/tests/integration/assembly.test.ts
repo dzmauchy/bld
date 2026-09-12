@@ -2,7 +2,8 @@ import { describe, expect, test } from "vitest";
 import { readFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
-import { BlockRegistry, compileBrowserProgram, installAssemblySource, installLibrary } from "runtime";
+import { BlockRegistry, installAssemblySource, installLibrary } from "runtime";
+import { compileBrowserProgram } from "runtime/compile.ts";
 import { install } from "base";
 import { instantiateWasm } from "runtime/run.ts";
 

@@ -1,4 +1,11 @@
-export { compileBrowserProgram, emitBrowserText } from "runtime";
+export {
+  compileBrowserProgram,
+  compileDiagram,
+  emitBrowserText,
+  emitDiagramText,
+  type CompileProgramOptions,
+  type CompileRequest,
+} from "runtime/compile";
 export type { CompileOptions, DownstreamRef, PlannedBlock, WasmProgram } from "runtime";
 export {
   browserProfile,

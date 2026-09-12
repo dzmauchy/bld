@@ -1,10 +1,5 @@
-import type { DiagramJson, PackageManifest, WasmProfileName } from "./json";
-import type { CompileOptions, WasmProgram } from "./program";
-import { BlockRegistry, defaultRegistry } from "./registry";
-import { LibraryApi } from "./dsl";
-import { planDiagramJson } from "./plan";
-import { getWasmProfile } from "./profile";
-import { compileBrowserProgram, emitBrowserText } from "./compile";
+import type { PackageManifest } from "./json";
+import { BlockRegistry, defaultRegistry, LibraryApi } from "./registry";
 
 export type FetchText = (url: string) => Promise<string>;
 
@@ -80,60 +75,4 @@ export async function installLibraryFromUrl(
   const source = await fetchText(assemblyUrl);
   await installAssemblySource(source, registry);
   return manifest;
-}
-
-export type CompileRequest = {
-  diagram: DiagramJson;
-  /** URLs of `library.schema.json` manifests. */
-  libraries: string[];
-  profile?: WasmProfileName;
-  optimizeLevel?: number;
-  debug?: boolean;
-  fetchText?: FetchText;
-  registry?: BlockRegistry;
-};
-
-async function registryForRequest(request: CompileRequest): Promise<BlockRegistry> {
-  if (request.registry) return request.registry;
-  const registry = new BlockRegistry();
-  for (const url of request.libraries) {
-    if (request.fetchText) {
-      await installLibraryFromUrl(url, { fetchText: request.fetchText, registry });
-    } else {
-      await installLibraryFromUrl(url, { registry });
-    }
-  }
-  return registry;
-}
-
-function compileOptions(request: CompileRequest): CompileOptions {
-  const options: CompileOptions = {};
-  if (request.debug !== undefined) options.debug = request.debug;
-  if (request.optimizeLevel !== undefined) options.optimizeLevel = request.optimizeLevel;
-  return options;
-}
-
-export async function compileDiagram(request: CompileRequest): Promise<Uint8Array> {
-  const profile = getWasmProfile(request.profile ?? "browser");
-  const registry = await registryForRequest(request);
-  const program = planDiagramJson(request.diagram, registry);
-  if (profile.name === "browser") {
-    return compileBrowserProgram(program, { ...compileOptions(request), registry });
-  }
-  return profile.compile(program, compileOptions(request));
-}
-
-export async function emitDiagramText(request: CompileRequest): Promise<string> {
-  const profile = getWasmProfile(request.profile ?? "browser");
-  const registry = await registryForRequest(request);
-  const program = planDiagramJson(request.diagram, registry);
-  if (profile.name === "browser") {
-    return emitBrowserText(program, { ...compileOptions(request), registry });
-  }
-  return profile.emitText(program, compileOptions(request));
-}
-
-export function compileProgram(program: WasmProgram, options: CompileOptions & { registry?: BlockRegistry } = {}): Uint8Array {
-  const profile = getWasmProfile("browser");
-  return profile.compile(program, options);
 }

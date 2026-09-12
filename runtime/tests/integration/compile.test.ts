@@ -1,16 +1,18 @@
 import { describe, expect, test } from "vitest";
 import {
   BlockRegistry,
-  compileDiagram,
-  compileBrowserProgram,
-  emitBrowserText,
-  emitDiagramText,
   getWasmProfile,
   installLibrary,
   mcuProfile,
   planDiagramJson,
   type DiagramJson,
 } from "runtime";
+import {
+  compileBrowserProgram,
+  compileDiagram,
+  emitBrowserText,
+  emitDiagramText,
+} from "runtime/compile.ts";
 import { install } from "base";
 import { instantiateWasm, defaultEnvBindings } from "runtime/run.ts";
 

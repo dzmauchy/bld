@@ -3,6 +3,7 @@ import { setAppAssetResolver, registerAppAsset } from "../src/model/appAssets.js
 import { readNodeAsset } from "./readNodeAsset.ts";
 import { install } from "base";
 import { installLibrary } from "runtime";
+import "runtime/compile.ts";
 import { readFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
