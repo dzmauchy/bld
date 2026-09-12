@@ -49,7 +49,7 @@
     },
     "assembly": {
       "type": "string",
-      "description": "Path to a wasm file which implements blocks and namespaces."
+      "description": "Path to a js library bundle file which implements blocks and namespaces."
     }
   },
   "required": [
