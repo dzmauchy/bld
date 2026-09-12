@@ -3,23 +3,54 @@
  */
 import type { DataType, TypeDescriptor, TypeSystem } from "../types";
 
-export class PortDefinition {
+export abstract class PropertyDefinition {
   constructor(
     readonly id: string,
-    readonly direction: "input" | "output",
     readonly type: DataType,
-    readonly vector: boolean = false,
-    readonly concept?: unknown,
   ) {}
 }
 
-export class ConfigPropertyDefinition {
+export class PortDefinition extends PropertyDefinition {
   constructor(
-    readonly id: string,
-    readonly type: DataType,
+    id: string,
+    readonly direction: "input" | "output",
+    type: DataType,
+    readonly vector: boolean = false,
+    readonly concept?: unknown,
+  ) {
+    super(id, type);
+  }
+
+  get isInput(): boolean {
+    return this.direction === "input";
+  }
+
+  get isOutput(): boolean {
+    return this.direction === "output";
+  }
+}
+
+export class InputPortDefinition extends PortDefinition {
+  constructor(id: string, type: DataType, vector = false, concept?: unknown) {
+    super(id, "input", type, vector, concept);
+  }
+}
+
+export class OutputPortDefinition extends PortDefinition {
+  constructor(id: string, type: DataType, vector = false, concept?: unknown) {
+    super(id, "output", type, vector, concept);
+  }
+}
+
+export class ConfigPropertyDefinition extends PropertyDefinition {
+  constructor(
+    id: string,
+    type: DataType,
     readonly defaultValue: unknown,
     readonly control: Record<string, unknown> = {},
-  ) {}
+  ) {
+    super(id, type);
+  }
 }
 
 export interface RawPortCatalogEntry {
@@ -87,9 +118,8 @@ export class BlockDefinition {
       for (const [portId, entry] of Object.entries(raw.inputs)) {
         inputs.set(
           portId,
-          new PortDefinition(
+          new InputPortDefinition(
             portId,
-            "input",
             typeSystem.parse(entry.type),
             Boolean(entry.vector),
             entry.concept,
@@ -103,9 +133,8 @@ export class BlockDefinition {
       for (const [portId, entry] of Object.entries(raw.outputs)) {
         outputs.set(
           portId,
-          new PortDefinition(
+          new OutputPortDefinition(
             portId,
-            "output",
             typeSystem.parse(entry.type),
             Boolean(entry.vector),
             entry.concept,

@@ -45,4 +45,36 @@ describe("core public API", () => {
   test("lists every non-test model file as an asset", () => {
     expect([...modelAssetFiles].sort()).toEqual(modelSourceFiles());
   });
+
+  test("implements strong OOP class hierarchies and abstractions", async () => {
+    // DiagramElement hierarchy
+    const { DiagramElement, Endpoint, InputPortEndpoint, OutputPortEndpoint, PropertyDefinition, PortDefinition, InputPortDefinition, OutputPortDefinition, ConfigPropertyDefinition, CompilerContext, BrowserCompilerContext, McuCompilerContext, AbstractAssetStore, AppAssetStore, DefaultDiagramPlanner } = await import("../../src/index.js") as any;
+
+    expect(DiagramElement).toBeTypeOf("function");
+    expect(Endpoint).toBeTypeOf("function");
+    expect(PropertyDefinition).toBeTypeOf("function");
+    expect(CompilerContext).toBeTypeOf("function");
+    expect(AbstractAssetStore).toBeTypeOf("function");
+
+    // Inheritance verification
+    expect(DiagramBlock.prototype).toBeInstanceOf(DiagramElement);
+    expect(Connection.prototype).toBeInstanceOf(DiagramElement);
+
+    expect(PortEndpoint.prototype).toBeInstanceOf(Endpoint);
+    expect(InputPortEndpoint.prototype).toBeInstanceOf(PortEndpoint);
+    expect(OutputPortEndpoint.prototype).toBeInstanceOf(PortEndpoint);
+
+    expect(PortDefinition.prototype).toBeInstanceOf(PropertyDefinition);
+    expect(InputPortDefinition.prototype).toBeInstanceOf(PortDefinition);
+    expect(OutputPortDefinition.prototype).toBeInstanceOf(PortDefinition);
+    expect(ConfigPropertyDefinition.prototype).toBeInstanceOf(PropertyDefinition);
+
+    expect(BrowserCompilerContext.prototype).toBeInstanceOf(CompilerContext);
+    expect(McuCompilerContext.prototype).toBeInstanceOf(CompilerContext);
+
+    expect(AppAssetStore.prototype).toBeInstanceOf(AbstractAssetStore);
+
+    const planner = new DefaultDiagramPlanner();
+    expect(planner.plan).toBeTypeOf("function");
+  });
 });

@@ -3,8 +3,23 @@
  */
 export type AssetResolver = (path: string) => Promise<string | undefined>;
 
-export class AppAssetStore {
-  static readonly shared = new AppAssetStore();
+export interface IAssetResolver {
+  resolve(path: string): Promise<string | undefined>;
+}
+
+export abstract class AbstractAssetStore {
+  abstract get(path: string): string | undefined;
+  abstract load(url: string): Promise<string>;
+  abstract register(path: string, content: string): void;
+  abstract registerAll(assets: Record<string, string>): void;
+  abstract clear(): void;
+}
+
+export class AppAssetStore extends AbstractAssetStore {
+  private static readonly _shared = new AppAssetStore();
+  static get shared(): AppAssetStore {
+    return this._shared;
+  }
 
   private readonly assets = new Map<string, string>();
   private resolver: AssetResolver | null = null;
@@ -21,7 +36,7 @@ export class AppAssetStore {
     return response.text();
   }
 
-  register(path: string, content: string): void {
+  override register(path: string, content: string): void {
     const norm = AppAssetStore.normalizePath(path);
     this.assets.set(norm, content);
     const slash = norm.lastIndexOf("/");
@@ -33,13 +48,13 @@ export class AppAssetStore {
     }
   }
 
-  registerAll(assets: Record<string, string>): void {
+  override registerAll(assets: Record<string, string>): void {
     for (const [path, content] of Object.entries(assets)) {
       this.register(path, content);
     }
   }
 
-  get(path: string): string | undefined {
+  override get(path: string): string | undefined {
     const norm = AppAssetStore.normalizePath(path);
     if (this.assets.has(norm)) return this.assets.get(norm);
     const slash = norm.lastIndexOf("/");
@@ -50,7 +65,7 @@ export class AppAssetStore {
     return undefined;
   }
 
-  clear(): void {
+  override clear(): void {
     this.assets.clear();
   }
 
@@ -60,7 +75,7 @@ export class AppAssetStore {
       : null;
   }
 
-  async load(url: string): Promise<string> {
+  override async load(url: string): Promise<string> {
     if (URL.canParse(url)) {
       return AppAssetStore.fetchText(url);
     }

@@ -60,4 +60,34 @@ describe("library ES module loading", () => {
       "https://cdn.example/demo-assembly.js",
     );
   });
+
+  test("uses OOP classes for assembly resolution, loaders, planners and threads", async () => {
+    const {
+      AssemblyUrlResolver,
+      LibraryAssemblyLoader,
+      AbstractProgramPlanner,
+      WasmProgramPlanner,
+      WasmBackend,
+      DelegatingBrowserWasmBackend,
+    } = await import("runtime");
+
+    expect(AssemblyUrlResolver).toBeTypeOf("function");
+    expect(LibraryAssemblyLoader).toBeTypeOf("function");
+    expect(AbstractProgramPlanner).toBeTypeOf("function");
+    expect(WasmProgramPlanner.prototype).toBeInstanceOf(AbstractProgramPlanner);
+    expect(DelegatingBrowserWasmBackend.prototype).toBeInstanceOf(WasmBackend);
+
+    const {
+      Thread,
+      NodeWorkerThread,
+      EventTargetWorkerThread,
+      AbstractWasmRuntime,
+      WasmRuntime,
+    } = await import("runtime/runtime.ts");
+
+    expect(Thread).toBeTypeOf("function");
+    expect(NodeWorkerThread.prototype).toBeInstanceOf(Thread);
+    expect(EventTargetWorkerThread.prototype).toBeInstanceOf(Thread);
+    expect(WasmRuntime.prototype).toBeInstanceOf(AbstractWasmRuntime);
+  });
 });

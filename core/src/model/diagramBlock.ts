@@ -35,19 +35,46 @@ function deepEqual(a: unknown, b: unknown): boolean {
   return false;
 }
 
-export class DiagramBlock {
-  private confValues = new Map<string, unknown>();
+export abstract class DiagramElement {
+  constructor(readonly id: string) {}
+
+  abstract toJSON(): unknown;
+}
+
+export class DiagramBlock extends DiagramElement {
+  private readonly confValues = new Map<string, unknown>();
+  private _x: number;
+  private _y: number;
 
   constructor(
-    readonly id: string,
+    id: string,
     readonly definition: BlockDefinition,
-    public x: number,
-    public y: number,
+    x: number,
+    y: number,
     initialConf: Record<string, unknown> = {},
   ) {
+    super(id);
+    this._x = x;
+    this._y = y;
     for (const [key, val] of Object.entries(initialConf)) {
       this.confValues.set(key, val);
     }
+  }
+
+  get x(): number {
+    return this._x;
+  }
+
+  set x(value: number) {
+    this._x = value;
+  }
+
+  get y(): number {
+    return this._y;
+  }
+
+  set y(value: number) {
+    this._y = value;
   }
 
   get ref(): string {
@@ -55,8 +82,8 @@ export class DiagramBlock {
   }
 
   setPosition(x: number, y: number): void {
-    this.x = x;
-    this.y = y;
+    this._x = x;
+    this._y = y;
   }
 
   setConf(key: string, value: unknown): void {
@@ -109,7 +136,7 @@ export class DiagramBlock {
     return [...this.definition.outputs.values()];
   }
 
-  toJSON(): RawBlockJson {
+  override toJSON(): RawBlockJson {
     const json: RawBlockJson = {
       ref: this.definition.id,
       x: this.x,

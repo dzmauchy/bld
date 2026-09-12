@@ -12,6 +12,11 @@ export abstract class WasmProfile {
   }
 }
 
+export abstract class WasmBackend {
+  abstract compile(program: WasmProgram, options?: CompileOptions): Uint8Array;
+  abstract emitText(program: WasmProgram, options?: CompileOptions): string;
+}
+
 export type BrowserWasmBackend = {
   compile(program: WasmProgram, options?: CompileOptions): Uint8Array;
   emitText(program: WasmProgram, options?: CompileOptions): string;
@@ -21,15 +26,30 @@ function missingBrowserBackend(): never {
   throw new Error("Browser wasm backend is not loaded");
 }
 
+export class DelegatingBrowserWasmBackend extends WasmBackend {
+  private backend: BrowserWasmBackend = {
+    compile: () => missingBrowserBackend(),
+    emitText: () => missingBrowserBackend(),
+  };
+
+  setBackend(backend: BrowserWasmBackend): void {
+    this.backend = backend;
+  }
+
+  override compile(program: WasmProgram, options?: CompileOptions): Uint8Array {
+    return this.backend.compile(program, options);
+  }
+
+  override emitText(program: WasmProgram, options?: CompileOptions): string {
+    return this.backend.emitText(program, options);
+  }
+}
+
 /** Filled by `./compile` so callers can avoid importing Binaryen until needed. */
-export const browserWasmBackend: BrowserWasmBackend = {
-  compile: () => missingBrowserBackend(),
-  emitText: () => missingBrowserBackend(),
-};
+export const browserWasmBackend = new DelegatingBrowserWasmBackend();
 
 export function registerBrowserWasmBackend(backend: BrowserWasmBackend): void {
-  browserWasmBackend.compile = backend.compile;
-  browserWasmBackend.emitText = backend.emitText;
+  browserWasmBackend.setBackend(backend);
 }
 
 export class BrowserWasmProfile extends WasmProfile {

@@ -9,6 +9,7 @@ import { Palette } from "./palette";
 import { defaultRegistry, importAssembly, installAssembly, resolveAssemblyUrl, type ImportModule } from "runtime";
 
 export {
+  AbstractAssetStore,
   AppAssetStore,
   clearRegisteredAppAssets,
   fetchText,
@@ -19,6 +20,7 @@ export {
   registerAppAssets,
   setAppAssetResolver,
   type AssetResolver,
+  type IAssetResolver,
 } from "./appAssets";
 
 export interface PackageManifest {

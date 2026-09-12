@@ -2,63 +2,81 @@ import type { RunInstantiateRequest, RunInvokeRequest, WorkerOk, WorkerResponse 
 
 export type HostMessageHandler = (message: unknown) => void;
 
-export interface Thread {
-  postMessage(data: unknown): void;
-  onMessage(handler: (data: unknown) => void): void;
-  onError(handler: (error: Error) => void): void;
-  terminate(): Promise<unknown>;
+export abstract class Thread {
+  abstract postMessage(data: unknown): void;
+  abstract onMessage(handler: (data: unknown) => void): void;
+  abstract onError(handler: (error: Error) => void): void;
+  abstract terminate(): Promise<unknown>;
 }
 
-type NodeWorkerLike = {
+export type NodeWorkerLike = {
   postMessage(value: unknown): void;
   on(event: "message", listener: (value: unknown) => void): unknown;
   on(event: "error", listener: (err: Error) => void): unknown;
   terminate(): unknown;
 };
 
-type EventTargetWorkerLike = {
+export type EventTargetWorkerLike = {
   postMessage(value: unknown): void;
   addEventListener(type: "message", listener: (event: { data: unknown }) => void): void;
   addEventListener(type: "error", listener: (event: { message?: string }) => void): void;
   terminate(): void;
 };
 
+export class NodeWorkerThread extends Thread {
+  constructor(private readonly worker: NodeWorkerLike) {
+    super();
+  }
+
+  override postMessage(data: unknown): void {
+    this.worker.postMessage(data);
+  }
+
+  override onMessage(handler: (data: unknown) => void): void {
+    this.worker.on("message", handler);
+  }
+
+  override onError(handler: (error: Error) => void): void {
+    this.worker.on("error", handler);
+  }
+
+  override terminate(): Promise<unknown> {
+    return Promise.resolve(this.worker.terminate());
+  }
+}
+
+export class EventTargetWorkerThread extends Thread {
+  constructor(private readonly worker: EventTargetWorkerLike) {
+    super();
+  }
+
+  override postMessage(data: unknown): void {
+    this.worker.postMessage(data);
+  }
+
+  override onMessage(handler: (data: unknown) => void): void {
+    this.worker.addEventListener("message", (event) => {
+      handler(event.data);
+    });
+  }
+
+  override onError(handler: (error: Error) => void): void {
+    this.worker.addEventListener("error", (event) => {
+      handler(new Error(event.message ?? "worker error"));
+    });
+  }
+
+  override terminate(): Promise<unknown> {
+    return Promise.resolve(this.worker.terminate());
+  }
+}
+
 export function wrapNodeWorker(worker: NodeWorkerLike): Thread {
-  return {
-    postMessage(data) {
-      worker.postMessage(data);
-    },
-    onMessage(handler) {
-      worker.on("message", handler);
-    },
-    onError(handler) {
-      worker.on("error", handler);
-    },
-    terminate() {
-      return Promise.resolve(worker.terminate());
-    },
-  };
+  return new NodeWorkerThread(worker);
 }
 
 export function wrapEventTargetWorker(worker: EventTargetWorkerLike): Thread {
-  return {
-    postMessage(data) {
-      worker.postMessage(data);
-    },
-    onMessage(handler) {
-      worker.addEventListener("message", (event) => {
-        handler(event.data);
-      });
-    },
-    onError(handler) {
-      worker.addEventListener("error", (event) => {
-        handler(new Error(event.message ?? "worker error"));
-      });
-    },
-    terminate() {
-      return Promise.resolve(worker.terminate());
-    },
-  };
+  return new EventTargetWorkerThread(worker);
 }
 
 function isWorkerResponse(message: unknown): message is WorkerResponse {
@@ -183,19 +201,25 @@ export type WasmRuntimeOptions = {
   onHostMessage?: HostMessageHandler;
 };
 
-export class WasmRuntime {
-  private run: WorkerClient;
+export abstract class AbstractWasmRuntime {
+  abstract instantiate(wasm: Uint8Array): Promise<WasmSession>;
+  abstract close(): Promise<void>;
+}
+
+export class WasmRuntime extends AbstractWasmRuntime {
+  private readonly run: WorkerClient;
 
   constructor(options: WasmRuntimeOptions) {
+    super();
     this.run = new WorkerClient(options.runThread, options.onHostMessage);
   }
 
-  async instantiate(wasm: Uint8Array): Promise<WasmSession> {
+  override async instantiate(wasm: Uint8Array): Promise<WasmSession> {
     await this.run.request({ type: "instantiate", wasm });
     return new WasmSession(this.run);
   }
 
-  async close(): Promise<void> {
+  override async close(): Promise<void> {
     await this.run.terminate();
   }
 }

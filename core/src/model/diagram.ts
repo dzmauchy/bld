@@ -18,11 +18,37 @@ export interface DiagramJson {
   connections: Record<string, RawConnectionJson>;
 }
 
-export class Diagram {
+export interface IDiagram {
+  id: string;
+  title: string;
+  readonly palette: Palette;
+  readonly typeSystem: TypeSystem;
+  readonly typeInference: TypeInference;
+  addBlock(
+    refOrDef: string | BlockDefinition,
+    position: { x: number; y: number },
+    id?: string,
+    conf?: Record<string, unknown>,
+  ): DiagramBlock;
+  removeBlock(blockId: string): boolean;
+  getBlock(blockId: string): DiagramBlock | undefined;
+  hasBlock(blockId: string): boolean;
+  getBlocks(): DiagramBlock[];
+  moveBlock(blockId: string, x: number, y: number): void;
+  canConnect(from: PortEndpoint, to: PortEndpoint): { ok: boolean; reason?: string };
+  connect(from: PortEndpoint, to: PortEndpoint, id?: string): Connection;
+  disconnect(connectionId: string): boolean;
+  getConnection(connectionId: string): Connection | undefined;
+  getConnections(): Connection[];
+  getConnectionsForBlock(blockId: string): Connection[];
+  toJSON(): DiagramJson;
+}
+
+export class Diagram implements IDiagram {
   public schema = "schemas/diagrams.schema.json";
-  private blocks = new Map<string, DiagramBlock>();
-  private connections = new Map<string, Connection>();
-  private nextBlockSeq = new Map<string, number>();
+  private readonly blocks = new Map<string, DiagramBlock>();
+  private readonly connections = new Map<string, Connection>();
+  private readonly nextBlockSeq = new Map<string, number>();
 
   constructor(
     public id: string,

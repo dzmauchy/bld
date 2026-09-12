@@ -11,39 +11,49 @@ export {
   type WasmProfileName,
 } from "runtime";
 
-export const browserContext = {
-  name: "browser" as const,
-};
+export abstract class CompilerContext {
+  abstract readonly name: string;
+}
 
-export const mcuContext = {
-  name: "mcu" as const,
-};
+export class BrowserCompilerContext extends CompilerContext {
+  readonly name = "browser" as const;
+}
 
-const registered = new Map<string, { name: string }>([
-  ["browser", browserContext],
-  ["mcu", mcuContext],
-]);
+export class McuCompilerContext extends CompilerContext {
+  readonly name = "mcu" as const;
+}
+
+export const browserContext = new BrowserCompilerContext();
+export const mcuContext = new McuCompilerContext();
 
 export class CompilerContextRegistry {
-  static readonly shared = new CompilerContextRegistry();
-
-  register(context: { name: string }): void {
-    registered.set(context.name, context);
+  private static readonly _shared = new CompilerContextRegistry();
+  static get shared(): CompilerContextRegistry {
+    return this._shared;
   }
 
-  get(name: string): { name: string } | undefined {
-    return registered.get(name);
+  private readonly contexts = new Map<string, CompilerContext | { name: string }>([
+    ["browser", browserContext],
+    ["mcu", mcuContext],
+  ]);
+
+  register(context: CompilerContext | { name: string }): void {
+    this.contexts.set(context.name, context);
+  }
+
+  get(name: string): (CompilerContext | { name: string }) | undefined {
+    return this.contexts.get(name);
   }
 
   names(): string[] {
-    return [...registered.keys()];
+    return [...this.contexts.keys()];
   }
 }
 
-export function registerCompilerContext(context: { name: string }): void {
+export function registerCompilerContext(context: CompilerContext | { name: string }): void {
   CompilerContextRegistry.shared.register(context);
 }
 
-export function getCompilerContext(name: string): { name: string } | undefined {
+export function getCompilerContext(name: string): (CompilerContext | { name: string }) | undefined {
   return CompilerContextRegistry.shared.get(name);
 }

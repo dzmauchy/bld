@@ -5,8 +5,19 @@ import { BlockDefinition, type RawBlockCatalogEntry } from "./blockDefinition";
 import { TypeSystem, type TypeCatalogEntry } from "../types";
 import type { Library } from "./library";
 
-export class Palette {
-  private blocks = new Map<string, BlockDefinition>();
+export interface IPalette {
+  readonly typeSystem: TypeSystem;
+  registerBlock(def: BlockDefinition): void;
+  getBlock(id: string): BlockDefinition | undefined;
+  hasBlock(id: string): boolean;
+  getBlocks(): BlockDefinition[];
+  getBlocksByCategory(category: string): BlockDefinition[];
+  getBlocksByNamespace(nsPrefix: string[]): BlockDefinition[];
+  search(query: string): BlockDefinition[];
+}
+
+export class Palette implements IPalette {
+  private readonly blocks = new Map<string, BlockDefinition>();
 
   constructor(
     readonly typeSystem: TypeSystem,

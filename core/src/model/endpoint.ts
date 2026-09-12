@@ -12,24 +12,42 @@ export interface RawEndpointJson {
   port: RawPortJson;
 }
 
-export class PortEndpoint {
+export abstract class Endpoint {
+  constructor(readonly blockId: string) {}
+
+  abstract toString(): string;
+  abstract equals(other: Endpoint): boolean;
+  abstract toJSON(): unknown;
+}
+
+export class PortEndpoint extends Endpoint {
   readonly vectorIndex: number;
 
   constructor(
-    readonly blockId: string,
+    blockId: string,
     readonly portType: "input" | "output",
     readonly portId: string,
     vectorIndex = 0,
   ) {
+    super(blockId);
     this.vectorIndex = vectorIndex;
   }
 
-  toString(): string {
+  get isInput(): boolean {
+    return this.portType === "input";
+  }
+
+  get isOutput(): boolean {
+    return this.portType === "output";
+  }
+
+  override toString(): string {
     return `${this.blockId}.${this.portType}.${this.portId}[${this.vectorIndex}]`;
   }
 
-  equals(other: PortEndpoint): boolean {
+  override equals(other: Endpoint): boolean {
     return (
+      other instanceof PortEndpoint &&
       this.blockId === other.blockId &&
       this.portType === other.portType &&
       this.portId === other.portId &&
@@ -37,7 +55,7 @@ export class PortEndpoint {
     );
   }
 
-  toJSON(): RawEndpointJson {
+  override toJSON(): RawEndpointJson {
     return {
       block: this.blockId,
       port: {
@@ -49,11 +67,21 @@ export class PortEndpoint {
   }
 
   static fromJSON(json: RawEndpointJson): PortEndpoint {
-    return new PortEndpoint(
-      json.block,
-      json.port.type,
-      json.port.id,
-      json.port.vector_index ?? 0,
-    );
+    if (json.port.type === "input") {
+      return new InputPortEndpoint(json.block, json.port.id, json.port.vector_index ?? 0);
+    }
+    return new OutputPortEndpoint(json.block, json.port.id, json.port.vector_index ?? 0);
+  }
+}
+
+export class InputPortEndpoint extends PortEndpoint {
+  constructor(blockId: string, portId: string, vectorIndex = 0) {
+    super(blockId, "input", portId, vectorIndex);
+  }
+}
+
+export class OutputPortEndpoint extends PortEndpoint {
+  constructor(blockId: string, portId: string, vectorIndex = 0) {
+    super(blockId, "output", portId, vectorIndex);
   }
 }

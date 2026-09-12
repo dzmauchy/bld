@@ -1,6 +1,7 @@
 /**
  * @title Connection
  */
+import { DiagramElement } from "./diagramBlock";
 import { PortEndpoint, type RawEndpointJson } from "./endpoint";
 
 export interface RawConnectionJson {
@@ -8,12 +9,14 @@ export interface RawConnectionJson {
   to: RawEndpointJson;
 }
 
-export class Connection {
+export class Connection extends DiagramElement {
   constructor(
-    readonly id: string,
+    id: string,
     readonly from: PortEndpoint,
     readonly to: PortEndpoint,
-  ) {}
+  ) {
+    super(id);
+  }
 
   connectsBlock(blockId: string): boolean {
     return this.from.blockId === blockId || this.to.blockId === blockId;
@@ -23,7 +26,20 @@ export class Connection {
     return this.from.equals(endpoint) || this.to.equals(endpoint);
   }
 
-  toJSON(): RawConnectionJson {
+  otherEndpoint(blockId: string): PortEndpoint | undefined {
+    if (this.from.blockId === blockId) return this.to;
+    if (this.to.blockId === blockId) return this.from;
+    return undefined;
+  }
+
+  isBetween(blockA: string, blockB: string): boolean {
+    return (
+      (this.from.blockId === blockA && this.to.blockId === blockB) ||
+      (this.from.blockId === blockB && this.to.blockId === blockA)
+    );
+  }
+
+  override toJSON(): RawConnectionJson {
     return {
       from: this.from.toJSON(),
       to: this.to.toJSON(),

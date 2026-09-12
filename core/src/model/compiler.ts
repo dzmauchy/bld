@@ -19,6 +19,9 @@ import {
 export { browserProfile, mcuProfile, WasmProfile, getWasmProfile };
 export type { CompileOptions, PlannedBlock, WasmProgram, WasmProfileName, DownstreamRef };
 export {
+  CompilerContext,
+  BrowserCompilerContext,
+  McuCompilerContext,
   browserContext,
   mcuContext,
   CompilerContextRegistry,
@@ -140,41 +143,57 @@ export class CompilationModel {
   }
 }
 
+export interface IDiagramPlanner {
+  plan(diagram: Diagram): WasmProgram;
+}
+
+export class DefaultDiagramPlanner implements IDiagramPlanner {
+  constructor(private readonly registry = defaultRegistry) {}
+
+  plan(diagram: Diagram): WasmProgram {
+    return planProgram(
+      {
+        blocks: diagram.getBlocks().map((block) => ({
+          id: block.id,
+          ref: block.ref,
+          conf: block.getAllConf(),
+        })),
+        connections: diagram.getConnections().map((connection) => ({
+          from: {
+            blockId: connection.from.blockId,
+            portId: connection.from.portId,
+            vectorIndex: connection.from.vectorIndex,
+          },
+          to: {
+            blockId: connection.to.blockId,
+            portId: connection.to.portId,
+            vectorIndex: connection.to.vectorIndex,
+          },
+        })),
+      },
+      this.registry,
+    );
+  }
+}
+
 export function planDiagram(diagram: Diagram): WasmProgram {
-  return planProgram(
-    {
-      blocks: diagram.getBlocks().map((block) => ({
-        id: block.id,
-        ref: block.ref,
-        conf: block.getAllConf(),
-      })),
-      connections: diagram.getConnections().map((connection) => ({
-        from: {
-          blockId: connection.from.blockId,
-          portId: connection.from.portId,
-          vectorIndex: connection.from.vectorIndex,
-        },
-        to: {
-          blockId: connection.to.blockId,
-          portId: connection.to.portId,
-          vectorIndex: connection.to.vectorIndex,
-        },
-      })),
-    },
-    defaultRegistry,
-  );
+  return new DefaultDiagramPlanner().plan(diagram);
 }
 
 export class DiagramCompiler extends CompilationModel {
+  private readonly planner: IDiagramPlanner;
+
   constructor(
     profileOrOptions?: WasmProfile | string | CompilerOptions | Record<string, string>,
     initialFiles?: Record<string, string>,
+    planner: IDiagramPlanner = new DefaultDiagramPlanner(),
   ) {
     super(profileOrOptions, initialFiles);
+    this.planner = planner;
   }
 
   plan(diagram: Diagram): WasmProgram {
-    return planDiagram(diagram);
+    return this.planner.plan(diagram);
   }
 
   emitText(diagram: Diagram, options?: CompileOptionsLike): string {

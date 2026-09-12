@@ -19,6 +19,8 @@ export {
   installLibrary,
 } from "./registry";
 export {
+  AssemblyUrlResolver,
+  LibraryAssemblyLoader,
   applyAssemblyModule,
   defaultFetchText,
   importAssembly,
@@ -31,10 +33,17 @@ export {
   resolveAssemblyUrl,
   resolveUrl,
 } from "./api";
-export { planDiagramJson, planProgram } from "./plan";
+export {
+  AbstractProgramPlanner,
+  WasmProgramPlanner,
+  planDiagramJson,
+  planProgram,
+} from "./plan";
 export {
   BrowserWasmProfile,
+  DelegatingBrowserWasmBackend,
   McuWasmProfile,
+  WasmBackend,
   WasmProfile,
   browserProfile,
   getWasmProfile,
