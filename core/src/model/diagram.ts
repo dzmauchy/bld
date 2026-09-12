@@ -140,9 +140,7 @@ export class Diagram implements IDiagram {
     if (from.vectorIndex < 0 || to.vectorIndex < 0) return { ok: false, reason: "Vector index must be non-negative" };
 
     for (const conn of this.connections.values()) {
-      if ((conn.from.equals(from) && conn.to.equals(to)) || (conn.from.equals(to) && conn.to.equals(from))) {
-        return { ok: false, reason: "Connection already exists" };
-      }
+      if (conn.matches(from, to)) return { ok: false, reason: "Connection already exists" };
     }
 
     const inferenceResult = this.typeInference.inferConnection(fromPort.type, toPort.type);

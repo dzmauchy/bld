@@ -239,6 +239,22 @@ export class PushEmitter extends FnEmitter {
     return this.loc(1, binaryen.f32);
   }
 
+  storeChannel(): void {
+    this.store(this.channel, this.value);
+  }
+
+  storeAndRecord(pin: Expr = this.channel): void {
+    this.storeChannel();
+    this.recordPin(pin, this.value);
+  }
+
+  transformAndRecord(fn: (val: Expr) => Expr, pin: number | Expr = 0): void {
+    const out = this.letF32(fn(this.value));
+    const pinExpr = typeof pin === "number" ? this.i32(pin) : pin;
+    this.recordPin(pinExpr, out());
+    this.forward(out());
+  }
+
   build(): { locals: binaryen.Type[]; body: Expr[] } {
     return this.finishBody();
   }
@@ -250,6 +266,22 @@ export class TickEmitter extends FnEmitter {
   constructor(wasm: BrowserWasmModule, block: PlannedBlock) {
     super(wasm, block);
     this.ifClosedReturn();
+  }
+
+  flushArrayToPins(): void {
+    this.forRange(this.arrayLen(), (idx) => this.recordPin(idx(), this.arrayGet(idx())));
+  }
+
+  pulse(period: number, duty: number): Expr {
+    if (period <= 0) return this.f32(0);
+    return this.select(
+      this.i64LtU(
+        this.i64RemU(this.nowI64(), this.i64ExtendU32(this.i32(period))),
+        this.i64TruncUSatF32(this.f32(period * duty)),
+      ),
+      this.f32(1),
+      this.f32(0),
+    );
   }
 
   build(): { locals: binaryen.Type[]; body: Expr[] } {
@@ -290,6 +322,10 @@ export class GpioEmitter extends FnEmitter {
     }
   }
 
+  forwardPins(): void {
+    this.eachPin((_pin, consumers) => this.forward(this.highIfTrue(), consumers));
+  }
+
   build(): { locals: binaryen.Type[]; body: Expr[] } {
     return this.finishBody();
   }
@@ -322,6 +358,10 @@ export class BlockEmitter {
     return confNum(this.block.conf, key, fallback);
   }
 
+  precision(fallback = 10): number {
+    return this.confNum("precision", fallback);
+  }
+
   /** Allocate a GC f32 array used as the block's sliding/latest-value buffer. */
   values(init: "nan" | "one" | number): void {
     const value = init === "nan" ? Number.NaN : init === "one" ? 1 : init;
@@ -335,11 +375,19 @@ export class BlockEmitter {
     this.wasm.addPushFunction(this.block.id, locals, body);
   }
 
+  onUnaryPush(fn: (push: PushEmitter, val: Expr) => Expr, pin = 0): void {
+    this.onPush((push) => push.transformAndRecord((val) => fn(push, val), pin));
+  }
+
   onTick(interval: number, handler: (tick: TickEmitter) => void): void {
     const tick = new TickEmitter(this.wasm, this.block);
     handler(tick);
     const { locals, body } = tick.build();
     this.wasm.addTickFunction(this.block.id, locals, body, interval);
+  }
+
+  forwardOnTick(valueFn: (tick: TickEmitter) => Expr, defaultInterval = 10): void {
+    this.onTick(this.precision(defaultInterval), (tick) => tick.forward(valueFn(tick)));
   }
 
   onGpio(handler: (gpio: GpioEmitter) => void): void {

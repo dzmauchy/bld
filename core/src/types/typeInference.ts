@@ -65,35 +65,27 @@ export class TypeInference {
     };
   }
 
+  unwrapArray(type: DataType): DataType {
+    return type instanceof ParameterizedType && type.raw === "array" && type.getArg("T")
+      ? this.unwrapArray(type.getArg("T")!)
+      : type;
+  }
+
   /**
    * Unwraps nested stream/array wrapper types to find the innermost payload data type.
    * e.g., pss<f32> -> f32, array<pss<f32>> -> f32
    */
   inferPayloadType(type: DataType): DataType | undefined {
-    if (type instanceof ParameterizedType) {
-      if (type.raw === "pss") {
-        return type.getArg("T");
-      }
-      if (type.raw === "array") {
-        const itemType = type.getArg("T");
-        if (itemType) return this.inferPayloadType(itemType) ?? itemType;
-      }
-    }
-    return undefined;
+    const inner = this.unwrapArray(type);
+    return inner instanceof ParameterizedType && inner.raw === "pss" ? inner.getArg("T") : undefined;
   }
 
   /**
    * Checks if a type is a push stream (pss).
    */
   isStreamType(type: DataType): boolean {
-    if (type instanceof ParameterizedType) {
-      if (type.raw === "pss") return true;
-      if (type.raw === "array") {
-        const itemType = type.getArg("T");
-        return itemType ? this.isStreamType(itemType) : false;
-      }
-    }
-    return false;
+    const inner = this.unwrapArray(type);
+    return inner instanceof ParameterizedType && inner.raw === "pss";
   }
 
   /**

@@ -1,4 +1,4 @@
-import type { BlockEmitter } from "./dsl";
+import type { BlockEmitter, Expr, PushEmitter, TickEmitter } from "./dsl";
 
 export type BlockSpec = {
   /**
@@ -70,6 +70,24 @@ export class LibraryApi {
 
   define(ref: string, spec: BlockSpec): void {
     this.registry.define(ref, spec);
+  }
+
+  definePush(ref: string, emit: (block: BlockEmitter) => void, priority = 1, channels?: "auto" | "product"): void {
+    const spec: BlockSpec = { push: true, priority, emit };
+    if (channels !== undefined) spec.channels = channels;
+    this.define(ref, spec);
+  }
+
+  definePeriodic(ref: string, emit: (block: BlockEmitter) => void): void {
+    this.define(ref, { tick: true, emit });
+  }
+
+  defineUnary(ref: string, fn: (push: PushEmitter, val: Expr) => Expr, priority = 1): void {
+    this.definePush(ref, (b) => b.onUnaryPush(fn), priority);
+  }
+
+  defineGenerator(ref: string, fn: (tick: TickEmitter, block: BlockEmitter) => Expr, defaultInterval = 10): void {
+    this.definePeriodic(ref, (b) => b.forwardOnTick((t) => fn(t, b), defaultInterval));
   }
 }
 

@@ -39,6 +39,10 @@ export class Connection extends DiagramElement {
     );
   }
 
+  matches(a: PortEndpoint, b: PortEndpoint): boolean {
+    return (this.from.equals(a) && this.to.equals(b)) || (this.from.equals(b) && this.to.equals(a));
+  }
+
   override toJSON(): RawConnectionJson {
     return {
       from: this.from.toJSON(),

@@ -11,120 +11,39 @@ export function install(api: LibraryApi): void {
     priority: 0,
     emit(block) {
       block.values("nan");
-      block.onPush((push) => {
-        push.store(push.channel, push.value);
-      });
-      block.onTick(block.confNum("precision", 10), (tick) => {
-        tick.forRange(tick.arrayLen(), (index) => {
-          tick.recordPin(index(), tick.arrayGet(index()));
-        });
-      });
+      block.onPush((push) => push.storeChannel());
+      block.onTick(block.precision(10), (tick) => tick.flushArrayToPins());
     },
   });
 
-  api.define("product_f32", {
-    push: true,
-    priority: 1,
-    channels: "product",
-    emit(block) {
+  api.definePush(
+    "product_f32",
+    (block) => {
       block.values("one");
       block.onPush((push) => {
-        push.store(push.channel, push.value);
-        push.recordPin(push.channel, push.value);
+        push.storeAndRecord();
         push.forward(push.product());
       });
     },
-  });
+    1,
+    "product",
+  );
 
-  api.define("cos_f32", {
-    push: true,
-    priority: 1,
-    emit(block) {
-      block.onPush((push) => {
-        const out = push.letF32(push.cos(push.value));
-        push.recordPin(push.i32(0), out());
-        push.forward(out());
-      });
-    },
-  });
+  api.defineUnary("cos_f32", (push, val) => push.cos(val));
+  api.defineUnary("sin_f32", (push, val) => push.sin(val));
 
-  api.define("sin_f32", {
-    push: true,
-    priority: 1,
-    emit(block) {
-      block.onPush((push) => {
-        const out = push.letF32(push.sin(push.value));
-        push.recordPin(push.i32(0), out());
-        push.forward(out());
-      });
-    },
-  });
+  api.defineGenerator("const_f32", (_tick, block) => _tick.f32(block.confNum("v", 0)));
+  api.defineGenerator("cos_gen_f32", (tick) => tick.cos(tick.nowSeconds()));
+  api.defineGenerator("sin_gen_f32", (tick) => tick.sin(tick.nowSeconds()));
+  api.defineGenerator("rand_gen_f32", (tick) => tick.random());
 
-  api.define("const_f32", {
-    tick: true,
-    emit(block) {
-      block.onTick(block.confNum("precision", 10), (tick) => {
-        tick.forward(tick.f32(block.confNum("v", 0)));
-      });
-    },
-  });
-
-  api.define("cos_gen_f32", {
-    tick: true,
-    emit(block) {
-      block.onTick(block.confNum("precision", 10), (tick) => {
-        tick.forward(tick.cos(tick.nowSeconds()));
-      });
-    },
-  });
-
-  api.define("sin_gen_f32", {
-    tick: true,
-    emit(block) {
-      block.onTick(block.confNum("precision", 10), (tick) => {
-        tick.forward(tick.sin(tick.nowSeconds()));
-      });
-    },
-  });
-
-  api.define("rand_gen_f32", {
-    tick: true,
-    emit(block) {
-      block.onTick(block.confNum("precision", 10), (tick) => {
-        tick.forward(tick.random());
-      });
-    },
-  });
-
-  api.define("pulse_gen_f32", {
-    tick: true,
-    emit(block) {
-      const period = Math.max(0, block.confNum("period", 10));
-      const duty = block.confNum("duty_cycle", 0.5);
-      block.onTick(1, (tick) => {
-        const high =
-          period === 0
-            ? tick.f32(0)
-            : tick.select(
-                tick.i64LtU(
-                  tick.i64RemU(tick.nowI64(), tick.i64ExtendU32(tick.i32(period))),
-                  tick.i64TruncUSatF32(tick.f32(period * duty)),
-                ),
-                tick.f32(1),
-                tick.f32(0),
-              );
-        tick.forward(high);
-      });
-    },
+  api.definePeriodic("pulse_gen_f32", (block) => {
+    const period = Math.max(0, block.confNum("period", 10));
+    const duty = block.confNum("duty_cycle", 0.5);
+    block.onTick(1, (tick) => tick.forward(tick.pulse(period, duty)));
   });
 
   api.define("gpio_in", {
-    emit(block) {
-      block.onGpio((gpio) => {
-        gpio.eachPin((_pinIndex, consumers) => {
-          gpio.forward(gpio.highIfTrue(), consumers);
-        });
-      });
-    },
+    emit: (block) => block.onGpio((gpio) => gpio.forwardPins()),
   });
 }

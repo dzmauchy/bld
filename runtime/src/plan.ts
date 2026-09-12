@@ -38,12 +38,6 @@ export class WasmProgramPlanner extends AbstractProgramPlanner {
     return new Map(blockIds.map((id, index) => [id, index]));
   }
 
-  private otherEndpoint(connection: PlanConnection, blockId: string): PlanEndpoint | undefined {
-    if (connection.from.blockId === blockId) return connection.to;
-    if (connection.to.blockId === blockId) return connection.from;
-    return undefined;
-  }
-
   private maxVectorIndex(
     connections: PlanConnection[],
     blockId: string,
@@ -51,7 +45,7 @@ export class WasmProgramPlanner extends AbstractProgramPlanner {
     fallback: number,
   ): number {
     return connections.reduce((max, c) => {
-      const ep = c.from.blockId === blockId ? c.from : c.to.blockId === blockId ? c.to : undefined;
+      const ep = c.to.blockId === blockId ? c.to : undefined;
       return ep && (portId === undefined || ep.portId === portId) ? Math.max(max, ep.vectorIndex) : max;
     }, fallback);
   }
@@ -67,17 +61,16 @@ export class WasmProgramPlanner extends AbstractProgramPlanner {
     const pinConsumers: DownstreamRef[][] = [];
 
     for (const connection of input.connections) {
-      const other = this.otherEndpoint(connection, block.id);
-      if (!other) continue;
-      const otherBlock = byId.get(other.blockId);
-      if (!otherBlock || !this.registry.isPush(otherBlock.ref)) continue;
-      const otherId = ids.get(other.blockId);
-      if (otherId === undefined) continue;
-      const dest = { blockId: otherId, channel: other.vectorIndex };
+      if (connection.from.blockId !== block.id) continue;
+      const target = connection.to;
+      const targetBlock = byId.get(target.blockId);
+      if (!targetBlock || !this.registry.isPush(targetBlock.ref)) continue;
+      const targetId = ids.get(target.blockId);
+      if (targetId === undefined) continue;
+      const dest = { blockId: targetId, channel: target.vectorIndex };
       consumers.push(dest);
       if (block.ref === "gpio_in") {
-        const self = connection.from.blockId === block.id ? connection.from : connection.to;
-        const pinIndex = self.vectorIndex;
+        const pinIndex = connection.from.vectorIndex;
         while (pinConsumers.length <= pinIndex) pinConsumers.push([]);
         pinConsumers[pinIndex].push(dest);
       }
