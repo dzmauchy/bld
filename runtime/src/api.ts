@@ -35,14 +35,12 @@ export function registerAssemblyUrl(name: string, url: string): void {
 }
 
 export function resolveAssemblyUrl(url: string, baseUrl?: string): string {
-  const aliased = assemblyAliases.get(url);
-  if (aliased) return aliased;
   const resolved = resolveUrl(url, baseUrl);
   const resolvedAlias = assemblyAliases.get(resolved);
   if (resolvedAlias) return resolvedAlias;
   if (!URL.canParse(resolved)) {
-    const named = assemblyAliases.get(basename(resolved));
-    if (named) return named;
+    const aliased = assemblyAliases.get(url) ?? assemblyAliases.get(basename(resolved));
+    if (aliased) return aliased;
   }
   return resolved;
 }

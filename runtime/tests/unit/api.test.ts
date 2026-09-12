@@ -56,7 +56,7 @@ describe("library ES module loading", () => {
   test("registerAssemblyUrl maps relative names to import specifiers", () => {
     registerAssemblyUrl("demo-assembly.js", "file:///tmp/demo-assembly.js");
     expect(resolveAssemblyUrl("demo-assembly.js")).toBe("file:///tmp/demo-assembly.js");
-    expect(resolveAssemblyUrl("https://cdn.example/demo-assembly.js")).toBe(
+    expect(resolveAssemblyUrl("demo-assembly.js", "https://cdn.example/base.json")).toBe(
       "https://cdn.example/demo-assembly.js",
     );
   });
