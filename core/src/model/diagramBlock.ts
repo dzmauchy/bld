@@ -10,71 +10,26 @@ export interface RawBlockJson {
   conf?: Record<string, unknown>;
 }
 
-function deepEqual(a: unknown, b: unknown): boolean {
-  if (a === b) return true;
-  if (a === undefined && b === undefined) return true;
-  if (a === null && b === null) return true;
-  if (Array.isArray(a) && Array.isArray(b)) {
-    if (a.length !== b.length) return false;
-    for (let i = 0; i < a.length; i++) {
-      if (!deepEqual(a[i], b[i])) return false;
-    }
-    return true;
-  }
-  if (typeof a === "object" && typeof b === "object" && a !== null && b !== null) {
-    const keysA = Object.keys(a as Record<string, unknown>);
-    const keysB = Object.keys(b as Record<string, unknown>);
-    if (keysA.length !== keysB.length) return false;
-    for (const key of keysA) {
-      if (!deepEqual((a as Record<string, unknown>)[key], (b as Record<string, unknown>)[key])) {
-        return false;
-      }
-    }
-    return true;
-  }
-  return false;
-}
+const isEqual = (a: unknown, b: unknown): boolean =>
+  a === b || (typeof a === "object" && typeof b === "object" && JSON.stringify(a) === JSON.stringify(b));
 
 export abstract class DiagramElement {
   constructor(readonly id: string) {}
-
   abstract toJSON(): unknown;
 }
 
 export class DiagramBlock extends DiagramElement {
   private readonly confValues = new Map<string, unknown>();
-  private _x: number;
-  private _y: number;
 
   constructor(
     id: string,
     readonly definition: BlockDefinition,
-    x: number,
-    y: number,
+    public x: number,
+    public y: number,
     initialConf: Record<string, unknown> = {},
   ) {
     super(id);
-    this._x = x;
-    this._y = y;
-    for (const [key, val] of Object.entries(initialConf)) {
-      this.confValues.set(key, val);
-    }
-  }
-
-  get x(): number {
-    return this._x;
-  }
-
-  set x(value: number) {
-    this._x = value;
-  }
-
-  get y(): number {
-    return this._y;
-  }
-
-  set y(value: number) {
-    this._y = value;
+    Object.entries(initialConf).forEach(([k, v]) => this.confValues.set(k, v));
   }
 
   get ref(): string {
@@ -82,8 +37,8 @@ export class DiagramBlock extends DiagramElement {
   }
 
   setPosition(x: number, y: number): void {
-    this._x = x;
-    this._y = y;
+    this.x = x;
+    this.y = y;
   }
 
   setConf(key: string, value: unknown): void {
@@ -91,39 +46,24 @@ export class DiagramBlock extends DiagramElement {
   }
 
   getConf<T = unknown>(key: string): T | undefined {
-    if (this.confValues.has(key)) {
-      return this.confValues.get(key) as T;
-    }
-    const prop = this.definition.getConfig(key);
-    return prop?.defaultValue as T | undefined;
+    return (this.confValues.has(key) ? this.confValues.get(key) : this.definition.getConfig(key)?.defaultValue) as T | undefined;
   }
 
   getAllConf(): Record<string, unknown> {
-    const result = this.definition.getDefaultConfig();
-    for (const [k, v] of this.confValues) {
-      result[k] = v;
-    }
-    return result;
+    return Object.assign(this.definition.getDefaultConfig(), Object.fromEntries(this.confValues));
   }
 
   isDefault(key: string): boolean {
-    const current = this.getConf(key);
-    const def = this.definition.getConfig(key)?.defaultValue;
-    return deepEqual(current, def);
+    return isEqual(this.getConf(key), this.definition.getConfig(key)?.defaultValue);
   }
 
   getNonDefaultConfig(): Record<string, unknown> {
     const nonDefault: Record<string, unknown> = {};
     for (const [key] of this.definition.config) {
-      if (!this.isDefault(key)) {
-        nonDefault[key] = this.getConf(key);
-      }
+      if (!this.isDefault(key)) nonDefault[key] = this.getConf(key);
     }
-    // Also include any extra custom properties not in definition
     for (const [key, value] of this.confValues) {
-      if (!this.definition.config.has(key)) {
-        nonDefault[key] = value;
-      }
+      if (!this.definition.config.has(key)) nonDefault[key] = value;
     }
     return nonDefault;
   }
@@ -137,15 +77,12 @@ export class DiagramBlock extends DiagramElement {
   }
 
   override toJSON(): RawBlockJson {
-    const json: RawBlockJson = {
+    const conf = this.getNonDefaultConfig();
+    return {
       ref: this.definition.id,
       x: this.x,
       y: this.y,
+      ...(Object.keys(conf).length ? { conf } : {}),
     };
-    const nonDefault = this.getNonDefaultConfig();
-    if (Object.keys(nonDefault).length > 0) {
-      json.conf = nonDefault;
-    }
-    return json;
   }
 }

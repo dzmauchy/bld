@@ -35,9 +35,7 @@ export class WasmProgramPlanner extends AbstractProgramPlanner {
   }
 
   private numericIds(blockIds: readonly string[]): Map<string, number> {
-    const map = new Map<string, number>();
-    blockIds.forEach((id, index) => map.set(id, index));
-    return map;
+    return new Map(blockIds.map((id, index) => [id, index]));
   }
 
   private otherEndpoint(connection: PlanConnection, blockId: string): PlanEndpoint | undefined {
@@ -52,19 +50,10 @@ export class WasmProgramPlanner extends AbstractProgramPlanner {
     portId: string | undefined,
     fallback: number,
   ): number {
-    let maxVec = fallback;
-    for (const connection of connections) {
-      const endpoint =
-        connection.from.blockId === blockId
-          ? connection.from
-          : connection.to.blockId === blockId
-            ? connection.to
-            : undefined;
-      if (!endpoint) continue;
-      if (portId !== undefined && endpoint.portId !== portId) continue;
-      if (endpoint.vectorIndex > maxVec) maxVec = endpoint.vectorIndex;
-    }
-    return maxVec;
+    return connections.reduce((max, c) => {
+      const ep = c.from.blockId === blockId ? c.from : c.to.blockId === blockId ? c.to : undefined;
+      return ep && (portId === undefined || ep.portId === portId) ? Math.max(max, ep.vectorIndex) : max;
+    }, fallback);
   }
 
   private planBlock(
@@ -115,42 +104,30 @@ export class WasmProgramPlanner extends AbstractProgramPlanner {
   override plan(input: PlanInput): WasmProgram {
     const ids = this.numericIds(input.blocks.map((block) => block.id));
     const byId = new Map(input.blocks.map((block) => [block.id, block]));
-    const planned: PlannedBlock[] = [];
-
-    for (const block of input.blocks) {
-      const id = ids.get(block.id) ?? 0;
-      planned.push(this.planBlock(block, id, input, ids, byId));
-    }
-
-    return { blocks: planned };
+    return { blocks: input.blocks.map((b) => this.planBlock(b, ids.get(b.id) ?? 0, input, ids, byId)) };
   }
 
   override planDiagramJson(diagram: DiagramJson): WasmProgram {
-    const blocks: PlanBlock[] = Object.entries(diagram.blocks ?? {}).map(([id, block]) => ({
+    const toEndpoint = (ep: { block: string; port: { id: string; vector_index?: number } }): PlanEndpoint => ({
+      blockId: ep.block,
+      portId: ep.port.id,
+      vectorIndex: ep.port.vector_index ?? 0,
+    });
+    const blocks: PlanBlock[] = Object.entries(diagram.blocks ?? {}).map(([id, b]) => ({
       id,
-      ref: block.ref,
-      conf: block.conf ?? {},
+      ref: b.ref,
+      conf: b.conf ?? {},
     }));
-    const connections: PlanConnection[] = Object.values(diagram.connections ?? {}).map((connection) => ({
-      from: {
-        blockId: connection.from.block,
-        portId: connection.from.port.id,
-        vectorIndex: connection.from.port.vector_index ?? 0,
-      },
-      to: {
-        blockId: connection.to.block,
-        portId: connection.to.port.id,
-        vectorIndex: connection.to.port.vector_index ?? 0,
-      },
+    const connections: PlanConnection[] = Object.values(diagram.connections ?? {}).map((c) => ({
+      from: toEndpoint(c.from),
+      to: toEndpoint(c.to),
     }));
     return this.plan({ blocks, connections });
   }
 }
 
-export function planProgram(input: PlanInput, registry: BlockRegistry): WasmProgram {
-  return new WasmProgramPlanner(registry).plan(input);
-}
+export const planProgram = (input: PlanInput, registry: BlockRegistry): WasmProgram =>
+  new WasmProgramPlanner(registry).plan(input);
 
-export function planDiagramJson(diagram: DiagramJson, registry: BlockRegistry): WasmProgram {
-  return new WasmProgramPlanner(registry).planDiagramJson(diagram);
-}
+export const planDiagramJson = (diagram: DiagramJson, registry: BlockRegistry): WasmProgram =>
+  new WasmProgramPlanner(registry).planDiagramJson(diagram);

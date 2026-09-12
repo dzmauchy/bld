@@ -40,29 +40,19 @@ export class AppAssetStore extends AbstractAssetStore {
     const norm = AppAssetStore.normalizePath(path);
     this.assets.set(norm, content);
     const slash = norm.lastIndexOf("/");
-    if (slash !== -1) {
-      const base = norm.slice(slash + 1);
-      if (!this.assets.has(base)) {
-        this.assets.set(base, content);
-      }
+    if (slash !== -1 && !this.assets.has(norm.slice(slash + 1))) {
+      this.assets.set(norm.slice(slash + 1), content);
     }
   }
 
   override registerAll(assets: Record<string, string>): void {
-    for (const [path, content] of Object.entries(assets)) {
-      this.register(path, content);
-    }
+    Object.entries(assets).forEach(([p, c]) => this.register(p, c));
   }
 
   override get(path: string): string | undefined {
     const norm = AppAssetStore.normalizePath(path);
-    if (this.assets.has(norm)) return this.assets.get(norm);
     const slash = norm.lastIndexOf("/");
-    if (slash !== -1) {
-      const base = norm.slice(slash + 1);
-      if (this.assets.has(base)) return this.assets.get(base);
-    }
-    return undefined;
+    return this.assets.get(norm) ?? (slash !== -1 ? this.assets.get(norm.slice(slash + 1)) : undefined);
   }
 
   override clear(): void {
@@ -70,70 +60,29 @@ export class AppAssetStore extends AbstractAssetStore {
   }
 
   setResolver(resolver: AssetResolver | null): void {
-    this.resolver = resolver
-      ? (path) => Promise.resolve(resolver(path))
-      : null;
+    this.resolver = resolver ? (path) => Promise.resolve(resolver(path)) : null;
   }
 
   override async load(url: string): Promise<string> {
-    if (URL.canParse(url)) {
-      return AppAssetStore.fetchText(url);
-    }
-
+    if (URL.canParse(url)) return AppAssetStore.fetchText(url);
     const cleanPath = AppAssetStore.normalizePath(url);
-
     if (this.resolver) {
       const result = await Promise.resolve(this.resolver(cleanPath));
       if (result !== undefined) return result;
     }
-
     const registered = this.get(cleanPath);
-    if (registered !== undefined) {
-      return registered;
-    }
-
+    if (registered !== undefined) return registered;
     throw new Error(`App asset not found: ${cleanPath}`);
   }
 }
 
-export function normalizeAssetPath(path: string): string {
-  return AppAssetStore.normalizePath(path);
-}
-
-export function resolveUrl(url: string, baseUrl?: string): string {
-  if (URL.canParse(url)) {
-    return url;
-  }
-  if (baseUrl) {
-    return new URL(url, baseUrl).href;
-  }
-  return url;
-}
-
-export function registerAppAsset(path: string, content: string): void {
-  AppAssetStore.shared.register(path, content);
-}
-
-export function registerAppAssets(assets: Record<string, string>): void {
-  AppAssetStore.shared.registerAll(assets);
-}
-
-export function getRegisteredAppAsset(path: string): string | undefined {
-  return AppAssetStore.shared.get(path);
-}
-
-export function clearRegisteredAppAssets(): void {
-  AppAssetStore.shared.clear();
-}
-
-export function setAppAssetResolver(resolver: AssetResolver | null): void {
-  AppAssetStore.shared.setResolver(resolver);
-}
-
-export async function fetchText(url: string): Promise<string> {
-  return AppAssetStore.fetchText(url);
-}
-
-export async function loadAsset(url: string): Promise<string> {
-  return AppAssetStore.shared.load(url);
-}
+export const normalizeAssetPath = (path: string): string => AppAssetStore.normalizePath(path);
+export const resolveUrl = (url: string, baseUrl?: string): string =>
+  URL.canParse(url) ? url : baseUrl ? new URL(url, baseUrl).href : url;
+export const registerAppAsset = (path: string, content: string): void => AppAssetStore.shared.register(path, content);
+export const registerAppAssets = (assets: Record<string, string>): void => AppAssetStore.shared.registerAll(assets);
+export const getRegisteredAppAsset = (path: string): string | undefined => AppAssetStore.shared.get(path);
+export const clearRegisteredAppAssets = (): void => AppAssetStore.shared.clear();
+export const setAppAssetResolver = (resolver: AssetResolver | null): void => AppAssetStore.shared.setResolver(resolver);
+export const fetchText = (url: string): Promise<string> => AppAssetStore.fetchText(url);
+export const loadAsset = (url: string): Promise<string> => AppAssetStore.shared.load(url);

@@ -51,58 +51,33 @@ export class TypeSystem {
   }
 
   parse(desc: TypeDescriptor | string): DataType {
-    if (typeof desc === "string") {
-      const prim = this.primitives.get(desc);
-      if (prim) return prim;
-      if (desc.startsWith("?")) return new TypeVariable(desc.slice(1));
-      return new PrimitiveType(desc, desc);
-    }
-    const { raw, args } = desc;
+    const raw = typeof desc === "string" ? desc : desc.raw;
+    const args = typeof desc === "string" ? undefined : desc.args;
     if (!args || Object.keys(args).length === 0) {
-      const prim = this.primitives.get(raw);
-      if (prim) return prim;
-      if (raw.startsWith("?")) return new TypeVariable(raw.slice(1));
-      return new PrimitiveType(raw, raw);
+      return this.primitives.get(raw) ?? (raw.startsWith("?") ? new TypeVariable(raw.slice(1)) : new PrimitiveType(raw, raw));
     }
-
     const template = this.parameterizedTemplates.get(raw);
-    const parsedArgs = new Map<string, DataType>();
-    for (const [key, childDesc] of Object.entries(args)) {
-      parsedArgs.set(key, this.parse(childDesc));
-    }
-    return new ParameterizedType(
-      raw,
-      template?.name ?? raw,
-      template?.description ?? "",
-      parsedArgs,
-    );
+    const parsedArgs = new Map(Object.entries(args).map(([k, v]) => [k, this.parse(v)]));
+    return new ParameterizedType(raw, template?.name ?? raw, template?.description ?? "", parsedArgs);
   }
 
   isCompatible(source: DataType, target: DataType): boolean {
-    if (source instanceof TypeVariable && source.isBound()) {
-      return this.isCompatible(source.resolved!, target);
-    }
-    if (target instanceof TypeVariable && target.isBound()) {
-      return this.isCompatible(source, target.resolved!);
-    }
-
+    if (source instanceof TypeVariable && source.isBound()) return this.isCompatible(source.resolved!, target);
+    if (target instanceof TypeVariable && target.isBound()) return this.isCompatible(source, target.resolved!);
     if (source.equals(target)) return true;
-
     if (source instanceof PrimitiveType && target instanceof PrimitiveType) {
       return target.isArgCompatibleWith(source.raw);
     }
-
     if (source instanceof ParameterizedType && target instanceof ParameterizedType) {
-      if (source.raw !== target.raw) return false;
-      if (source.args.size !== target.args.size) return false;
-      for (const [paramName, sourceArg] of source.args) {
-        const targetArg = target.getArg(paramName);
-        if (!targetArg) return false;
-        if (!this.isCompatible(sourceArg, targetArg)) return false;
-      }
-      return true;
+      return (
+        source.raw === target.raw &&
+        source.args.size === target.args.size &&
+        [...source.args].every(([k, v]) => {
+          const t = target.getArg(k);
+          return t !== undefined && this.isCompatible(v, t);
+        })
+      );
     }
-
     return false;
   }
 
@@ -111,19 +86,9 @@ export class TypeSystem {
     for (const [raw, entry] of Object.entries(catalog)) {
       if (raw === "$schema") continue;
       if (entry.params) {
-        ts.registerParameterized(
-          raw,
-          entry.name,
-          entry.description ?? "",
-          Object.keys(entry.params),
-        );
+        ts.registerParameterized(raw, entry.name, entry.description ?? "", Object.keys(entry.params));
       } else {
-        ts.registerPrimitive(
-          raw,
-          entry.name,
-          entry.description ?? "",
-          entry.as_arg_compatible_with ?? [],
-        );
+        ts.registerPrimitive(raw, entry.name, entry.description ?? "", entry.as_arg_compatible_with ?? []);
       }
     }
     return ts;

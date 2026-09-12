@@ -95,16 +95,18 @@ export class BlockDefinition {
     return this.outputs.get(id);
   }
 
+  getPort(id: string, direction: "input" | "output"): PortDefinition | undefined {
+    return (direction === "input" ? this.inputs : this.outputs).get(id);
+  }
+
   getConfig(id: string): ConfigPropertyDefinition | undefined {
     return this.config.get(id);
   }
 
   getDefaultConfig(): Record<string, unknown> {
     const result: Record<string, unknown> = {};
-    for (const [key, prop] of this.config) {
-      if (prop.defaultValue !== undefined) {
-        result[key] = prop.defaultValue;
-      }
+    for (const [k, p] of this.config) {
+      if (p.defaultValue !== undefined) result[k] = p.defaultValue;
     }
     return result;
   }
@@ -113,58 +115,16 @@ export class BlockDefinition {
     const ns = raw.ns ?? [];
     const category = ns.length >= 3 ? ns[2] : ns[ns.length - 1] ?? "";
 
-    const inputs = new Map<string, PortDefinition>();
-    if (raw.inputs) {
-      for (const [portId, entry] of Object.entries(raw.inputs)) {
-        inputs.set(
-          portId,
-          new InputPortDefinition(
-            portId,
-            typeSystem.parse(entry.type),
-            Boolean(entry.vector),
-            entry.concept,
-          ),
-        );
-      }
-    }
+    const buildPorts = (entries: Record<string, RawPortCatalogEntry> | undefined, Cls: typeof InputPortDefinition | typeof OutputPortDefinition) =>
+      new Map(Object.entries(entries ?? {}).map(([portId, e]) => [portId, new Cls(portId, typeSystem.parse(e.type), Boolean(e.vector), e.concept)]));
 
-    const outputs = new Map<string, PortDefinition>();
-    if (raw.outputs) {
-      for (const [portId, entry] of Object.entries(raw.outputs)) {
-        outputs.set(
-          portId,
-          new OutputPortDefinition(
-            portId,
-            typeSystem.parse(entry.type),
-            Boolean(entry.vector),
-            entry.concept,
-          ),
-        );
-      }
-    }
-
-    const config = new Map<string, ConfigPropertyDefinition>();
-    if (raw.conf) {
-      for (const [confId, entry] of Object.entries(raw.conf)) {
-        const control = entry.control ?? {};
-        let defaultValue = control.default;
-        if (defaultValue === undefined) {
-          // Check if set_of_pins or array
-          if (control.type === "set_of_pins") {
-            defaultValue = [0];
-          }
-        }
-        config.set(
-          confId,
-          new ConfigPropertyDefinition(
-            confId,
-            typeSystem.parse(entry.type),
-            defaultValue,
-            control,
-          ),
-        );
-      }
-    }
+    const config = new Map(
+      Object.entries(raw.conf ?? {}).map(([confId, entry]) => {
+        const ctrl = entry.control ?? {};
+        const defaultValue = ctrl.default !== undefined ? ctrl.default : ctrl.type === "set_of_pins" ? [0] : undefined;
+        return [confId, new ConfigPropertyDefinition(confId, typeSystem.parse(entry.type), defaultValue, ctrl)];
+      }),
+    );
 
     return new BlockDefinition(
       id,
@@ -173,8 +133,8 @@ export class BlockDefinition {
       raw.icon ?? "",
       ns,
       category,
-      inputs,
-      outputs,
+      buildPorts(raw.inputs, InputPortDefinition),
+      buildPorts(raw.outputs, OutputPortDefinition),
       config,
     );
   }

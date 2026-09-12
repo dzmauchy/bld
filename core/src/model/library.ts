@@ -3,7 +3,7 @@
  */
 import { TypeSystem, type TypeCatalogEntry } from "../types";
 import { loadAsset, resolveUrl } from "./appAssets";
-import { BlockDefinition, type RawBlockCatalogEntry } from "./blockDefinition";
+import type { RawBlockCatalogEntry } from "./blockDefinition";
 import { CompilationModel } from "./compiler";
 import { Palette } from "./palette";
 import { defaultRegistry, importAssembly, installAssembly, resolveAssemblyUrl, type ImportModule } from "runtime";
@@ -77,19 +77,12 @@ export class Library {
     const blocks = sources.blocks ?? {};
     const assemblyFiles = sources.assemblyFiles ?? {};
 
-    const typeSystem = TypeSystem.fromCatalog(types);
-    const palette = new Palette(typeSystem, namespaces);
-
-    for (const [id, raw] of Object.entries(blocks)) {
-      if (id === "$schema") continue;
-      palette.registerBlock(BlockDefinition.fromRaw(id, raw, typeSystem));
-    }
-
+    const palette = Palette.fromCatalog(blocks, types, namespaces);
     const compilationModel = new CompilationModel(assemblyFiles);
 
     const lib = new Library(
       manifest,
-      typeSystem,
+      palette.typeSystem,
       palette,
       compilationModel,
       types,
@@ -98,10 +91,7 @@ export class Library {
       assemblyFiles,
     );
 
-    if (manifest.id === "base") {
-      Library.base = lib;
-    }
-
+    if (manifest.id === "base") Library.base = lib;
     return lib;
   }
 
@@ -109,59 +99,27 @@ export class Library {
     manifestOrUrl: string | PackageManifest,
     options: LibraryLoadOptions = {},
   ): Promise<Library> {
-    let manifest: PackageManifest;
-    const baseUrl =
-      typeof manifestOrUrl === "string" && URL.canParse(manifestOrUrl)
-        ? manifestOrUrl
-        : undefined;
+    const baseUrl = typeof manifestOrUrl === "string" && URL.canParse(manifestOrUrl) ? manifestOrUrl : undefined;
+    const manifest: PackageManifest = typeof manifestOrUrl === "string"
+      ? JSON.parse(await loadAsset(manifestOrUrl))
+      : manifestOrUrl;
 
-    if (typeof manifestOrUrl === "string") {
-      const manifestText = await loadAsset(manifestOrUrl);
-      manifest = JSON.parse(manifestText) as PackageManifest;
-    } else {
-      manifest = manifestOrUrl;
-    }
+    const loadCatalog = async <T>(urls?: string[]): Promise<Record<string, T>> => {
+      const result: Record<string, T> = {};
+      for (const itemUrl of urls ?? []) {
+        const url = baseUrl ? resolveUrl(itemUrl, baseUrl) : itemUrl;
+        const parsed = JSON.parse(await loadAsset(url)) as Record<string, T>;
+        for (const [k, v] of Object.entries(parsed)) {
+          if (k !== "$schema") result[k] = v;
+        }
+      }
+      return result;
+    };
 
-    const allTypes: Record<string, TypeCatalogEntry> = {};
-    const allNamespaces: Record<string, unknown> = {};
-    const allBlocks: Record<string, RawBlockCatalogEntry> = {};
+    const allTypes = await loadCatalog<TypeCatalogEntry>(manifest.types);
+    const allNamespaces = await loadCatalog<unknown>(manifest.namespaces);
+    const allBlocks = await loadCatalog<RawBlockCatalogEntry>(manifest.blocks);
     const allAssemblyFiles: Record<string, string> = {};
-
-    if (manifest.types) {
-      for (const typesUrl of manifest.types) {
-        const url = baseUrl ? resolveUrl(typesUrl, baseUrl) : typesUrl;
-        const content = await loadAsset(url);
-        const parsed = JSON.parse(content) as Record<string, TypeCatalogEntry>;
-        for (const [key, value] of Object.entries(parsed)) {
-          if (key === "$schema") continue;
-          allTypes[key] = value;
-        }
-      }
-    }
-
-    if (manifest.namespaces) {
-      for (const nsUrl of manifest.namespaces) {
-        const url = baseUrl ? resolveUrl(nsUrl, baseUrl) : nsUrl;
-        const content = await loadAsset(url);
-        const parsed = JSON.parse(content) as Record<string, unknown>;
-        for (const [key, value] of Object.entries(parsed)) {
-          if (key === "$schema") continue;
-          allNamespaces[key] = value;
-        }
-      }
-    }
-
-    if (manifest.blocks) {
-      for (const blocksUrl of manifest.blocks) {
-        const url = baseUrl ? resolveUrl(blocksUrl, baseUrl) : blocksUrl;
-        const content = await loadAsset(url);
-        const parsed = JSON.parse(content) as Record<string, RawBlockCatalogEntry>;
-        for (const [key, value] of Object.entries(parsed)) {
-          if (key === "$schema") continue;
-          allBlocks[key] = value;
-        }
-      }
-    }
 
     if (manifest.assembly) {
       const url = baseUrl ? resolveUrl(manifest.assembly, baseUrl) : manifest.assembly;

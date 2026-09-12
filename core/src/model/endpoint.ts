@@ -1,6 +1,8 @@
 /**
  * @title Port Endpoint
  */
+import type { BlockDefinition, PortDefinition } from "./blockDefinition";
+
 export interface RawPortJson {
   type: "input" | "output";
   id: string;
@@ -21,16 +23,13 @@ export abstract class Endpoint {
 }
 
 export class PortEndpoint extends Endpoint {
-  readonly vectorIndex: number;
-
   constructor(
     blockId: string,
     readonly portType: "input" | "output",
     readonly portId: string,
-    vectorIndex = 0,
+    readonly vectorIndex = 0,
   ) {
     super(blockId);
-    this.vectorIndex = vectorIndex;
   }
 
   get isInput(): boolean {
@@ -39,6 +38,10 @@ export class PortEndpoint extends Endpoint {
 
   get isOutput(): boolean {
     return this.portType === "output";
+  }
+
+  getPort(definition: BlockDefinition): PortDefinition | undefined {
+    return definition.getPort(this.portId, this.portType);
   }
 
   override toString(): string {
@@ -67,10 +70,8 @@ export class PortEndpoint extends Endpoint {
   }
 
   static fromJSON(json: RawEndpointJson): PortEndpoint {
-    if (json.port.type === "input") {
-      return new InputPortEndpoint(json.block, json.port.id, json.port.vector_index ?? 0);
-    }
-    return new OutputPortEndpoint(json.block, json.port.id, json.port.vector_index ?? 0);
+    const Cls = json.port.type === "input" ? InputPortEndpoint : OutputPortEndpoint;
+    return new Cls(json.block, json.port.id, json.port.vector_index ?? 0);
   }
 }
 

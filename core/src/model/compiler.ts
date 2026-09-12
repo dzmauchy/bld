@@ -137,9 +137,7 @@ export class CompilationModel {
   }
 
   getFiles(): Record<string, string> {
-    const result: Record<string, string> = {};
-    for (const [key, value] of this.files.entries()) result[key] = value;
-    return result;
+    return Object.fromEntries(this.files);
   }
 }
 
@@ -153,22 +151,10 @@ export class DefaultDiagramPlanner implements IDiagramPlanner {
   plan(diagram: Diagram): WasmProgram {
     return planProgram(
       {
-        blocks: diagram.getBlocks().map((block) => ({
-          id: block.id,
-          ref: block.ref,
-          conf: block.getAllConf(),
-        })),
-        connections: diagram.getConnections().map((connection) => ({
-          from: {
-            blockId: connection.from.blockId,
-            portId: connection.from.portId,
-            vectorIndex: connection.from.vectorIndex,
-          },
-          to: {
-            blockId: connection.to.blockId,
-            portId: connection.to.portId,
-            vectorIndex: connection.to.vectorIndex,
-          },
+        blocks: diagram.getBlocks().map((b) => ({ id: b.id, ref: b.ref, conf: b.getAllConf() })),
+        connections: diagram.getConnections().map((c) => ({
+          from: { blockId: c.from.blockId, portId: c.from.portId, vectorIndex: c.from.vectorIndex },
+          to: { blockId: c.to.blockId, portId: c.to.portId, vectorIndex: c.to.vectorIndex },
         })),
       },
       this.registry,
@@ -176,9 +162,7 @@ export class DefaultDiagramPlanner implements IDiagramPlanner {
   }
 }
 
-export function planDiagram(diagram: Diagram): WasmProgram {
-  return new DefaultDiagramPlanner().plan(diagram);
-}
+export const planDiagram = (diagram: Diagram): WasmProgram => new DefaultDiagramPlanner().plan(diagram);
 
 export class DiagramCompiler extends CompilationModel {
   private readonly planner: IDiagramPlanner;

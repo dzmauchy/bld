@@ -37,33 +37,27 @@ function optimize(mod: binaryen.Module, options: CompileOptions): void {
   }
 }
 
-export function compileBrowserProgram(program: WasmProgram, options: CompileProgramOptions = {}): Uint8Array {
-  const registry = options.registry ?? defaultRegistry;
-  const builder = buildModule(program, registry);
-  const mod = builder.m;
+function withModule<T>(program: WasmProgram, options: CompileProgramOptions, fn: (mod: binaryen.Module) => T): T {
+  const mod = buildModule(program, options.registry ?? defaultRegistry).m;
   try {
     optimize(mod, options);
-    if (!mod.validate()) {
-      throw new Error("Invalid browser wasm module");
-    }
-    return copyBinary(mod.emitBinary());
+    return fn(mod);
   } finally {
     mod.dispose();
   }
 }
 
+export function compileBrowserProgram(program: WasmProgram, options: CompileProgramOptions = {}): Uint8Array {
+  return withModule(program, options, (mod) => {
+    if (!mod.validate()) throw new Error("Invalid browser wasm module");
+    return copyBinary(mod.emitBinary());
+  });
+}
+
 export { BlockEmitter } from "./dsl";
 
 export function emitBrowserText(program: WasmProgram, options: CompileProgramOptions = {}): string {
-  const registry = options.registry ?? defaultRegistry;
-  const builder = buildModule(program, registry);
-  const mod = builder.m;
-  try {
-    optimize(mod, options);
-    return mod.emitText();
-  } finally {
-    mod.dispose();
-  }
+  return withModule(program, options, (mod) => mod.emitText());
 }
 
 registerBrowserWasmBackend({
@@ -87,9 +81,7 @@ async function registryForRequest(request: CompileRequest): Promise<BlockRegistr
   if (request.registry) return request.registry;
   const registry = new BlockRegistry();
   for (const url of request.libraries) {
-    const options: { registry: BlockRegistry; fetchText?: FetchText; importModule?: ImportModule } = {
-      registry,
-    };
+    const options: { registry: BlockRegistry; fetchText?: FetchText; importModule?: ImportModule } = { registry };
     if (request.fetchText) options.fetchText = request.fetchText;
     if (request.importModule) options.importModule = request.importModule;
     await installLibraryFromUrl(url, options);
@@ -97,30 +89,23 @@ async function registryForRequest(request: CompileRequest): Promise<BlockRegistr
   return registry;
 }
 
-function requestCompileOptions(request: CompileRequest): CompileOptions {
-  const options: CompileOptions = {};
+async function prepareCompile(request: CompileRequest) {
+  const profile = getWasmProfile(request.profile ?? "browser");
+  const registry = await registryForRequest(request);
+  const program = planDiagramJson(request.diagram, registry);
+  const options: CompileProgramOptions = { registry };
   if (request.debug !== undefined) options.debug = request.debug;
   if (request.optimizeLevel !== undefined) options.optimizeLevel = request.optimizeLevel;
-  return options;
+  return { profile, program, options };
 }
 
 export async function compileDiagram(request: CompileRequest): Promise<Uint8Array> {
-  const profile = getWasmProfile(request.profile ?? "browser");
-  const registry = await registryForRequest(request);
-  const program = planDiagramJson(request.diagram, registry);
-  if (profile.name === "browser") {
-    return compileBrowserProgram(program, { ...requestCompileOptions(request), registry });
-  }
-  return profile.compile(program, requestCompileOptions(request));
+  const { profile, program, options } = await prepareCompile(request);
+  return profile.name === "browser" ? compileBrowserProgram(program, options) : profile.compile(program, options);
 }
 
 export async function emitDiagramText(request: CompileRequest): Promise<string> {
-  const profile = getWasmProfile(request.profile ?? "browser");
-  const registry = await registryForRequest(request);
-  const program = planDiagramJson(request.diagram, registry);
-  if (profile.name === "browser") {
-    return emitBrowserText(program, { ...requestCompileOptions(request), registry });
-  }
-  return profile.emitText(program, requestCompileOptions(request));
+  const { profile, program, options } = await prepareCompile(request);
+  return profile.name === "browser" ? emitBrowserText(program, options) : profile.emitText(program, options);
 }
 

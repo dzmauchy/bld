@@ -82,17 +82,9 @@ export class LibraryAssemblyLoader {
 
   apply(mod: LibraryAssemblyModule, registry: BlockRegistry): void {
     const api = new LibraryApi(registry);
-    if (typeof mod.install === "function") {
-      mod.install(api);
-      return;
-    }
-    if (typeof mod.default === "function") {
-      mod.default(api);
-      return;
-    }
-    if (mod.default && typeof mod.default === "object" && typeof mod.default.install === "function") {
-      mod.default.install(api);
-    }
+    if (typeof mod.install === "function") mod.install(api);
+    else if (typeof mod.default === "function") mod.default(api);
+    else if (mod.default && typeof mod.default === "object" && typeof mod.default.install === "function") mod.default.install(api);
   }
 
   async install(
@@ -116,8 +108,7 @@ export class LibraryAssemblyLoader {
     url: string,
     fetchText: FetchText = (u) => this.fetchText(u),
   ): Promise<PackageManifest> {
-    const text = await fetchText(url);
-    return JSON.parse(text) as PackageManifest;
+    return JSON.parse(await fetchText(url)) as PackageManifest;
   }
 
   async installFromUrl(
@@ -139,66 +130,23 @@ export class LibraryAssemblyLoader {
   }
 }
 
-export function resolveUrl(url: string, baseUrl?: string): string {
-  return AssemblyUrlResolver.shared.resolveUrl(url, baseUrl);
-}
-
-/** Map a relative assembly name (e.g. `assembly.js`) to an importable URL. */
-export function registerAssemblyUrl(name: string, url: string): void {
-  AssemblyUrlResolver.shared.register(name, url);
-}
-
-export function resolveAssemblyUrl(url: string, baseUrl?: string): string {
-  return AssemblyUrlResolver.shared.resolve(url, baseUrl);
-}
-
-export async function defaultFetchText(url: string): Promise<string> {
-  return LibraryAssemblyLoader.shared.fetchText(url);
-}
-
-/** Load a library JS file as an ES module. */
-export async function importAssembly(url: string): Promise<LibraryAssemblyModule> {
-  return LibraryAssemblyLoader.shared.importAssembly(url);
-}
-
-/** Dynamic-import ESM source when a URL is not available (tests / in-memory). */
-export async function importAssemblySource(source: string): Promise<LibraryAssemblyModule> {
-  return LibraryAssemblyLoader.shared.importAssemblySource(source);
-}
-
-export function applyAssemblyModule(mod: LibraryAssemblyModule, registry: BlockRegistry): void {
-  LibraryAssemblyLoader.shared.apply(mod, registry);
-}
-
-export async function installAssembly(
+export const resolveUrl = (url: string, baseUrl?: string): string => AssemblyUrlResolver.shared.resolveUrl(url, baseUrl);
+export const registerAssemblyUrl = (name: string, url: string): void => AssemblyUrlResolver.shared.register(name, url);
+export const resolveAssemblyUrl = (url: string, baseUrl?: string): string => AssemblyUrlResolver.shared.resolve(url, baseUrl);
+export const defaultFetchText = (url: string): Promise<string> => LibraryAssemblyLoader.shared.fetchText(url);
+export const importAssembly = (url: string): Promise<LibraryAssemblyModule> => LibraryAssemblyLoader.shared.importAssembly(url);
+export const importAssemblySource = (source: string): Promise<LibraryAssemblyModule> => LibraryAssemblyLoader.shared.importAssemblySource(source);
+export const applyAssemblyModule = (mod: LibraryAssemblyModule, registry: BlockRegistry): void => LibraryAssemblyLoader.shared.apply(mod, registry);
+export const installAssembly = (
   url: string,
   registry: BlockRegistry = defaultRegistry,
   importModule: ImportModule = importAssembly,
-): Promise<void> {
-  return LibraryAssemblyLoader.shared.install(url, registry, importModule);
-}
-
-export async function installAssemblySource(
-  source: string,
-  registry: BlockRegistry = defaultRegistry,
-): Promise<void> {
-  return LibraryAssemblyLoader.shared.installSource(source, registry);
-}
-
-export async function loadLibraryManifest(
+): Promise<void> => LibraryAssemblyLoader.shared.install(url, registry, importModule);
+export const installAssemblySource = (source: string, registry: BlockRegistry = defaultRegistry): Promise<void> =>
+  LibraryAssemblyLoader.shared.installSource(source, registry);
+export const loadLibraryManifest = (url: string, fetchText: FetchText = defaultFetchText): Promise<PackageManifest> =>
+  LibraryAssemblyLoader.shared.loadManifest(url, fetchText);
+export const installLibraryFromUrl = (
   url: string,
-  fetchText: FetchText = defaultFetchText,
-): Promise<PackageManifest> {
-  return LibraryAssemblyLoader.shared.loadManifest(url, fetchText);
-}
-
-export async function installLibraryFromUrl(
-  url: string,
-  options: {
-    fetchText?: FetchText;
-    importModule?: ImportModule;
-    registry?: BlockRegistry;
-  } = {},
-): Promise<PackageManifest> {
-  return LibraryAssemblyLoader.shared.installFromUrl(url, options);
-}
+  options: { fetchText?: FetchText; importModule?: ImportModule; registry?: BlockRegistry } = {},
+): Promise<PackageManifest> => LibraryAssemblyLoader.shared.installFromUrl(url, options);

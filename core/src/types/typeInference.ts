@@ -186,37 +186,22 @@ export class TypeInference {
     const fromType = from instanceof DataType ? from : from.dataType;
     const toType = to instanceof DataType ? to : to.dataType;
 
-    // First try direct compatibility in both directions (for push streams where either end can be sink/caller)
-    const directCompatible =
-      this.typeSystem.isCompatible(fromType, toType) ||
-      this.typeSystem.isCompatible(toType, fromType);
-
-    if (directCompatible) {
-      const payloadType = this.inferPayloadType(fromType) ?? this.inferPayloadType(toType);
+    if (this.typeSystem.isCompatible(fromType, toType) || this.typeSystem.isCompatible(toType, fromType)) {
       return {
         ok: true,
         effectiveType: fromType,
-        payloadType,
+        payloadType: this.inferPayloadType(fromType) ?? this.inferPayloadType(toType),
       };
     }
 
-    // Try unification for generic or type variable matching
-    const forwardUnify = this.unify(fromType, toType);
-    if (forwardUnify.ok) {
-      return {
-        ok: true,
-        effectiveType: fromType,
-        payloadType: this.inferPayloadType(fromType),
-      };
-    }
-
-    const backwardUnify = this.unify(toType, fromType);
-    if (backwardUnify.ok) {
-      return {
-        ok: true,
-        effectiveType: toType,
-        payloadType: this.inferPayloadType(toType),
-      };
+    for (const [primary, secondary] of [[fromType, toType], [toType, fromType]]) {
+      if (this.unify(primary, secondary).ok) {
+        return {
+          ok: true,
+          effectiveType: primary,
+          payloadType: this.inferPayloadType(primary),
+        };
+      }
     }
 
     return {
@@ -229,24 +214,13 @@ export class TypeInference {
    * Infers the DataType of a literal JSON configuration value.
    */
   inferLiteralType(value: unknown): DataType {
-    if (typeof value === "boolean") {
-      return this.typeSystem.parse("bool");
-    }
+    if (typeof value === "boolean") return this.typeSystem.parse("bool");
     if (typeof value === "number") {
-      if (Number.isInteger(value)) {
-        if (value >= 0 && value <= 255) return this.typeSystem.parse("u8");
-        return this.typeSystem.parse("u32");
-      }
-      return this.typeSystem.parse("f32");
+      return this.typeSystem.parse(!Number.isInteger(value) ? "f32" : value >= 0 && value <= 255 ? "u8" : "u32");
     }
-    if (typeof value === "string") {
-      return this.typeSystem.parse("str");
-    }
+    if (typeof value === "string") return this.typeSystem.parse("str");
     if (Array.isArray(value)) {
-      if (value.length === 0) {
-        return this.typeSystem.parse({ raw: "array", args: { T: { raw: "u8" } } });
-      }
-      const elemType = this.inferLiteralType(value[0]);
+      const elemType = value.length === 0 ? this.typeSystem.parse("u8") : this.inferLiteralType(value[0]);
       return new ParameterizedType("array", "Array", "", new Map([["T", elemType]]));
     }
     return this.typeSystem.parse("any");

@@ -50,10 +50,8 @@ export class CompilerContextRegistry {
   }
 }
 
-export function registerCompilerContext(context: CompilerContext | { name: string }): void {
+export const registerCompilerContext = (context: CompilerContext | { name: string }): void =>
   CompilerContextRegistry.shared.register(context);
-}
 
-export function getCompilerContext(name: string): (CompilerContext | { name: string }) | undefined {
-  return CompilerContextRegistry.shared.get(name);
-}
+export const getCompilerContext = (name: string): (CompilerContext | { name: string }) | undefined =>
+  CompilerContextRegistry.shared.get(name);
