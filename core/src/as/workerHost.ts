@@ -1,8 +1,6 @@
 import { messageId, type WorkerResponse } from "./messages.ts";
 
-export type WorkerMessageHandler = (
-  data: unknown,
-) => Promise<WorkerResponse | void> | WorkerResponse | void;
+export type WorkerMessageHandler = (data: unknown) => Promise<WorkerResponse | void>;
 
 type ParentPort = {
   postMessage: (value: unknown) => void;
@@ -30,7 +28,7 @@ async function dispatch(
   post: (result: WorkerResponse) => void,
 ): Promise<void> {
   try {
-    const result = await handler(data);
+    const result = await Promise.resolve(handler(data));
     if (result) post(result);
   } catch (error) {
     post({

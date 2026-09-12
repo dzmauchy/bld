@@ -1,6 +1,9 @@
 export const modelAssetFiles = [
+  "appAssets.ts",
   "blockDefinition.ts",
+  "blockEmitters.ts",
   "compiler.ts",
+  "compilerContext.ts",
   "connection.ts",
   "diagram.ts",
   "diagramBlock.ts",

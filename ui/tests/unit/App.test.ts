@@ -7,8 +7,11 @@ test("App renders add(2, 2) and model asset titles", () => {
   expect(App()).toBe(
     [
       "4",
+      "appAssets.ts App Assets",
       "blockDefinition.ts Block Definition",
+      "blockEmitters.ts Block Emitters",
       "compiler.ts Diagram Compiler",
+      "compilerContext.ts Compiler Context",
       "connection.ts Connection",
       "diagram.ts Diagram",
       "diagramBlock.ts Diagram Block",

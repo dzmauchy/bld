@@ -17,7 +17,7 @@ export interface Thread {
   postMessage(data: unknown): void;
   onMessage(handler: (data: unknown) => void): void;
   onError(handler: (error: Error) => void): void;
-  terminate(): void | Promise<unknown>;
+  terminate(): Promise<unknown>;
 }
 
 type NodeWorkerLike = {
@@ -46,7 +46,7 @@ export function wrapNodeWorker(worker: NodeWorkerLike): Thread {
       worker.on("error", handler);
     },
     terminate() {
-      void worker.terminate();
+      return Promise.resolve(worker.terminate());
     },
   };
 }
@@ -67,7 +67,7 @@ export function wrapEventTargetWorker(worker: EventTargetWorkerLike): Thread {
       });
     },
     terminate() {
-      worker.terminate();
+      return Promise.resolve(worker.terminate());
     },
   };
 }
@@ -127,8 +127,8 @@ class WorkerClient {
     return response;
   }
 
-  terminate(): void | Promise<unknown> {
-    return this.thread.terminate();
+  terminate(): Promise<unknown> {
+    return Promise.resolve(this.thread.terminate());
   }
 }
 
