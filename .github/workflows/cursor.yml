@@ -1,0 +1,29 @@
+name: Cursor Issue Resolver
+
+on:
+  issues:
+    types: [ labeled ]
+
+jobs:
+  cursor-agent:
+    if: github.event.label.name == 'cursor'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      issues: write
+      pull-requests: write
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v7
+      - name: Install Cursor CLI
+        run: |
+          curl https://cursor.com/install -fsS | bash
+          echo "$HOME/.cursor/bin" >> $GITHUB_PATH
+      - name: Run Cursor Agent
+        env:
+          CURSOR_API_KEY: ${{ secrets.CURSOR_API_KEY }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          agent -p "Resolve GitHub Issue #${{ github.event.issue.number }}: ${{ github.event.issue.title }}. \
+          Description: ${{ github.event.issue.body }}. \
+          Create a new branch, implement the requested changes, run existing tests, and submit a pull request."
