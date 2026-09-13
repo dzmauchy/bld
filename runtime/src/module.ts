@@ -1,23 +1,15 @@
 import binaryen from "binaryen";
-import {
-  MEMORY_INITIAL_PAGES,
-  MEMORY_MAX_PAGES,
-  MAX_PINS,
-  MAX_INTERVALS,
-  OFFSET_WRITE_COUNT,
-  OFFSET_HAS_PIN,
-  OFFSET_LAST_PIN,
-  OFFSET_INTERVAL_PERIODS,
-} from "./memory";
 import type { DownstreamRef, WasmProgram } from "./program";
 
 export type Expr = binaryen.ExpressionRef;
 type BinModule = binaryen.Module;
 
+/** Maximum pins per block for the GC pin arrays. */
+const MAX_PINS = 8;
+
 function browserFeatures(): number {
   const F = binaryen.Features;
   return (
-    F.SIMD128 |
     F.BulkMemory |
     F.BulkMemoryOpt |
     F.ReferenceTypes |
@@ -28,7 +20,6 @@ function browserFeatures(): number {
     F.ExceptionHandling |
     F.TailCall |
     F.GC |
-    F.Atomics |
     F.Strings |
     F.MutableGlobals
   );
@@ -61,6 +52,9 @@ export class BrowserWasmModule {
   readonly m: BinModule;
   readonly arrayHeap: number;
   readonly arrayNull: binaryen.Type;
+  /** Heap type for (array (mut i32)) — used for pinHas, intervalPeriods. */
+  readonly i32ArrayHeap: number;
+  readonly i32ArrayNull: binaryen.Type;
   readonly tickFns: string[] = [];
   readonly gpioIds: number[] = [];
   intervalPeriods: number[] = [];
@@ -68,18 +62,24 @@ export class BrowserWasmModule {
   private labelSeq = 0;
   private readonly valueInits: ValueInit[] = [];
   private readonly startHooks: Expr[] = [];
+  /** Tracks the total number of blocks to size the pin arrays. */
+  private maxBlockId = 0;
 
   constructor() {
     this.m = new binaryen.Module();
     this.m.setFeatures(browserFeatures());
 
-    const tb = new binaryen.TypeBuilder(1);
+    const tb = new binaryen.TypeBuilder(2);
+    // index 0: (array (mut f32)) — for per-block value arrays AND pinVals
     tb.setArrayType(0, binaryen.f32, binaryen.notPacked, true);
-    const [arrayHeap] = tb.buildAndDispose();
+    // index 1: (array (mut i32)) — for pinHas and intervalPeriods
+    tb.setArrayType(1, binaryen.i32, binaryen.notPacked, true);
+    const [arrayHeap, i32ArrayHeap] = tb.buildAndDispose();
     this.arrayHeap = arrayHeap;
     this.arrayNull = binaryen.getTypeFromHeapType(arrayHeap, true);
+    this.i32ArrayHeap = i32ArrayHeap;
+    this.i32ArrayNull = binaryen.getTypeFromHeapType(i32ArrayHeap, true);
 
-    this.m.setMemory(MEMORY_INITIAL_PAGES, MEMORY_MAX_PAGES, "memory", [], true);
     this.m.addTag("err", binaryen.i32, binaryen.none);
 
     this.m.addFunctionImport(
@@ -112,7 +112,14 @@ export class BrowserWasmModule {
     this.m.addGlobal("closed", binaryen.i32, true, this.i32(0));
     this.m.addGlobal("intervalCount", binaryen.i32, true, this.i32(0));
     this.m.addGlobal("gpioCount", binaryen.i32, true, this.i32(0));
+    this.m.addGlobal("pinWriteCount", binaryen.i32, true, this.i32(0));
     this.m.addGlobal("stringProbe", binaryen.i32, true, this.m.i32.add(this.i32(0), this.i32(0)));
+
+    // GC arrays for pin state
+    this.m.addGlobal("pinHas", this.i32ArrayNull, true, this.m.ref.null(this.i32ArrayNull));
+    this.m.addGlobal("pinVals", this.arrayNull, true, this.m.ref.null(this.arrayNull));
+    // GC array for interval periods
+    this.m.addGlobal("intervalPeriods", this.i32ArrayNull, true, this.m.ref.null(this.i32ArrayNull));
 
     this.emitRecordPin();
     this.emitRuntimeExports();
@@ -155,12 +162,21 @@ export class BrowserWasmModule {
     return this.m.array.set(this.values(id), index, value);
   }
 
-  pinSlot(blockLocal: number, pinLocal: number): Expr {
+  /** Compute pin slot: blockId * MAX_PINS + (pin & (MAX_PINS - 1)). */
+  private pinSlot(blockLocal: number, pinLocal: number): Expr {
     const m = this.m;
     return m.i32.add(
       m.i32.mul(this.loc(blockLocal, binaryen.i32), this.i32(MAX_PINS)),
       m.i32.and(m.i32.extend8_s(this.loc(pinLocal, binaryen.i32)), this.i32(MAX_PINS - 1)),
     );
+  }
+
+  private pinHasRef(): Expr {
+    return this.m.ref.as_non_null(this.m.global.get("pinHas", this.i32ArrayNull));
+  }
+
+  private pinValsRef(): Expr {
+    return this.m.ref.as_non_null(this.m.global.get("pinVals", this.arrayNull));
   }
 
   emitRecordPin(): void {
@@ -172,14 +188,13 @@ export class BrowserWasmModule {
       [binaryen.i32],
       m.block(null, [
         m.local.set(3, this.pinSlot(0, 1)),
-        m.drop(m.i32.atomic.rmw.add(0, this.i32(OFFSET_WRITE_COUNT), this.i32(1))),
-        m.i32.store8(0, 0, m.i32.add(this.i32(OFFSET_HAS_PIN), this.loc(3, binaryen.i32)), this.i32(1)),
-        m.f32.store(
-          0,
-          0,
-          m.i32.add(this.i32(OFFSET_LAST_PIN), m.i32.mul(this.loc(3, binaryen.i32), this.i32(4))),
-          this.loc(2, binaryen.f32),
-        ),
+        // pinWriteCount++
+        m.global.set("pinWriteCount", m.i32.add(m.global.get("pinWriteCount", binaryen.i32), this.i32(1))),
+        // pinHas[slot] = 1
+        m.array.set(this.pinHasRef(), this.loc(3, binaryen.i32), this.i32(1)),
+        // pinVals[slot] = value
+        m.array.set(this.pinValsRef(), this.loc(3, binaryen.i32), this.loc(2, binaryen.f32)),
+        // call host
         m.call("host_sendPinF32", [this.loc(0, binaryen.i32), this.loc(1, binaryen.i32), this.loc(2, binaryen.f32)], binaryen.none),
       ]),
     );
@@ -248,16 +263,16 @@ export class BrowserWasmModule {
       binaryen.none,
       [],
       m.block(null, [
-        m.i32.atomic.store(0, this.i32(OFFSET_WRITE_COUNT), this.i32(0)),
-        m.memory.fill(this.i32(OFFSET_HAS_PIN), this.i32(0), this.i32(MAX_PINS * 64)),
+        m.global.set("pinWriteCount", this.i32(0)),
+        m.array.fill(this.pinHasRef(), this.i32(0), this.i32(0), m.array.len(this.pinHasRef())),
       ]),
     );
     m.addFunction(
-      "pinWriteCount",
+      "pinWriteCount_",
       binaryen.none,
       binaryen.i32,
       [],
-      m.i32.atomic.load(0, this.i32(OFFSET_WRITE_COUNT)),
+      m.global.get("pinWriteCount", binaryen.i32),
     );
     m.addFunction(
       "activeIntervalCount",
@@ -281,13 +296,11 @@ export class BrowserWasmModule {
       m.if(
         m.i32.ge_u(this.loc(0, binaryen.i32), m.global.get("intervalCount", binaryen.i32)),
         this.i32(0),
-        m.i32.load(
-          0,
-          0,
-          m.i32.add(
-            this.i32(OFFSET_INTERVAL_PERIODS),
-            m.i32.mul(this.loc(0, binaryen.i32), this.i32(4)),
-          ),
+        m.array.get(
+          m.ref.as_non_null(m.global.get("intervalPeriods", this.i32ArrayNull)),
+          this.loc(0, binaryen.i32),
+          binaryen.i32,
+          false,
         ),
       ),
     );
@@ -298,7 +311,7 @@ export class BrowserWasmModule {
       [binaryen.i32],
       m.block(null, [
         m.local.set(2, this.pinSlot(0, 1)),
-        m.i32.load8_u(0, 0, m.i32.add(this.i32(OFFSET_HAS_PIN), this.loc(2, binaryen.i32))),
+        m.array.get(this.pinHasRef(), this.loc(2, binaryen.i32), binaryen.i32, false),
       ], binaryen.i32),
     );
     m.addFunction(
@@ -309,20 +322,26 @@ export class BrowserWasmModule {
       m.block(null, [
         m.local.set(2, this.pinSlot(0, 1)),
         m.if(
-          m.i32.load8_u(0, 0, m.i32.add(this.i32(OFFSET_HAS_PIN), this.loc(2, binaryen.i32))),
-          m.f32.load(
-            0,
-            0,
-            m.i32.add(this.i32(OFFSET_LAST_PIN), m.i32.mul(this.loc(2, binaryen.i32), this.i32(4))),
-          ),
+          m.array.get(this.pinHasRef(), this.loc(2, binaryen.i32), binaryen.i32, false),
+          m.array.get(this.pinValsRef(), this.loc(2, binaryen.i32), binaryen.f32, false),
           this.f32(Number.NaN),
         ),
       ], binaryen.f32),
     );
   }
 
+  trackBlockId(id: number): void {
+    if (id > this.maxBlockId) this.maxBlockId = id;
+  }
+
   finishExports(program: WasmProgram): void {
     const m = this.m;
+
+    // Track max block id for pin array sizing
+    for (const block of program.blocks) {
+      this.trackBlockId(block.id);
+    }
+
     if (this.tickFns.length > 0) {
       m.addTable("ticks", this.tickFns.length, this.tickFns.length);
       m.addActiveElementSegment("ticks", "tick_elem", this.tickFns, this.i32(0));
@@ -391,6 +410,9 @@ export class BrowserWasmModule {
       ]),
     );
 
+    // Pin array size: (maxBlockId + 1) * MAX_PINS
+    const pinArraySize = (this.maxBlockId + 1) * MAX_PINS;
+
     const startStmts: Expr[] = [
       m.global.set(
         "stringProbe",
@@ -411,12 +433,26 @@ export class BrowserWasmModule {
       ),
       m.global.set("intervalCount", this.i32(this.tickFns.length)),
       m.global.set("gpioCount", this.i32(this.gpioCount)),
+      // Initialize pin GC arrays
+      m.global.set("pinHas", m.array.new(this.i32ArrayHeap, this.i32(pinArraySize), this.i32(0))),
+      m.global.set("pinVals", m.array.new(this.arrayHeap, this.i32(pinArraySize), this.f32(Number.NaN))),
     ];
 
-    for (let i = 0; i < this.intervalPeriods.length && i < MAX_INTERVALS; i++) {
-      startStmts.push(
-        m.i32.store(0, 0, this.i32(OFFSET_INTERVAL_PERIODS + i * 4), this.i32(this.intervalPeriods[i] ?? 0)),
-      );
+    // Initialize interval periods as a GC array
+    if (this.intervalPeriods.length > 0) {
+      const periodsArray = m.array.new(this.i32ArrayHeap, this.i32(this.intervalPeriods.length), this.i32(0));
+      startStmts.push(m.global.set("intervalPeriods", periodsArray));
+      for (let i = 0; i < this.intervalPeriods.length; i++) {
+        startStmts.push(
+          m.array.set(
+            m.ref.as_non_null(m.global.get("intervalPeriods", this.i32ArrayNull)),
+            this.i32(i),
+            this.i32(this.intervalPeriods[i] ?? 0),
+          ),
+        );
+      }
+    } else {
+      startStmts.push(m.global.set("intervalPeriods", m.array.new(this.i32ArrayHeap, this.i32(0), this.i32(0))));
     }
 
     const byId = new Map(program.blocks.map((block) => [block.id, block]));
@@ -444,7 +480,6 @@ export class BrowserWasmModule {
       "clearPins",
       "lastPin",
       "hasPin",
-      "pinWriteCount",
       "activeIntervalCount",
       "intervalPeriodAt",
       "activeGpioListenerCount",
@@ -452,6 +487,8 @@ export class BrowserWasmModule {
     ]) {
       m.addFunctionExport(name, name);
     }
+    // pinWriteCount_ is the internal name to avoid collision with the global
+    m.addFunctionExport("pinWriteCount_", "pinWriteCount");
   }
 
   ensureValuesGlobal(id: number): void {
@@ -460,10 +497,12 @@ export class BrowserWasmModule {
 
   initValues(id: number, length: number, init: number): void {
     this.ensureValuesGlobal(id);
+    this.trackBlockId(id);
     this.valueInits.push({ id, length, init });
   }
 
   addPushFunction(id: number, extraLocals: binaryen.Type[], body: Expr[]): void {
+    this.trackBlockId(id);
     this.m.addFunction(
       pushName(id),
       binaryen.createType([binaryen.i32, binaryen.f32]),
@@ -474,6 +513,7 @@ export class BrowserWasmModule {
   }
 
   addTickFunction(id: number, extraLocals: binaryen.Type[], body: Expr[], interval: number): void {
+    this.trackBlockId(id);
     this.intervalPeriods.push(interval);
     this.m.addFunction(
       tickName(id),
@@ -486,6 +526,7 @@ export class BrowserWasmModule {
   }
 
   addGpioFunction(id: number, extraLocals: binaryen.Type[], body: Expr[]): void {
+    this.trackBlockId(id);
     this.gpioIds.push(id);
     this.gpioCount += 1;
     this.m.addFunction(

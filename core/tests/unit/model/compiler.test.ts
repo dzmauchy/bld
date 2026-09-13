@@ -51,12 +51,12 @@ describe("DiagramCompiler wasm profiles", () => {
     expect(wat).toContain("(func $b1_tick");
     expect(wat).toContain("(export \"tick\"");
     expect(wat).toContain("(export \"emitGpioIn\"");
-    expect(wat).toContain("i32.atomic.rmw.add");
+    expect(wat).toContain("array.set");
     expect(wat).toContain("return_call");
     expect(wat).toContain("wasm:js-string");
     expect(wat).toContain("array.new");
     expect(wat).toContain("(try");
-    expect(wat).toContain("(memory $0 1 1 shared)");
+    expect(wat).toContain("array.fill");
     expect(wat).not.toContain("AssemblyScript");
   });
 

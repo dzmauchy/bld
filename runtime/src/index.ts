@@ -50,15 +50,3 @@ export {
   mcuProfile,
 } from "./profile";
 export { PUSH_BLOCK_REFS, TICK_BLOCK_REFS, RegistryBlockPredicateView, type IBlockPredicate } from "./sets";
-export {
-  MEMORY_INITIAL_PAGES,
-  MEMORY_MAX_PAGES,
-  MAX_BLOCKS,
-  MAX_PINS,
-  MAX_INTERVALS,
-  OFFSET_WRITE_COUNT,
-  OFFSET_CLOSED,
-  OFFSET_HAS_PIN,
-  OFFSET_LAST_PIN,
-  OFFSET_INTERVAL_PERIODS,
-} from "./memory";
