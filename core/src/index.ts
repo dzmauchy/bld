@@ -4,7 +4,6 @@ export function add(left: number, right: number): number {
 
 export * from "./types/index";
 export * from "./model/index";
-export * as ri from "./ri/index";
 export { modelAssetFiles } from "./modelAssets";
 export {
   CoreSchemaCatalog,
