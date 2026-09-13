@@ -33,7 +33,7 @@ export abstract class PeriodicReducerBlock implements Block {
 }
 
 export abstract class PeriodicGeneratorBlock implements Block {
-  constructor(readonly ctx: ExecutionContext, readonly id: u32, readonly precision: u32 = 10) {}
+  protected constructor(readonly ctx: ExecutionContext, readonly id: u32, readonly precision: u32 = 10) {}
   protected abstract computeSample(elapsedSec: number): f32;
   public apply(v: VectorizedInput<pss<f32>>): void {
     this.ctx.onStart(() => {

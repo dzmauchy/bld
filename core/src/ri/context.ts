@@ -1,9 +1,9 @@
-export type u8 = Uint8Array[0];
-export type u16 = Uint16Array[0];
-export type u32 = Uint32Array[0];
-export type u64 = BigUint64Array[0];
-export type f32 = Float32Array[0];
-export type f64 = Float64Array[0];
+export type u8 = Uint8Array<ArrayBuffer>[0];
+export type u16 = Uint16Array<ArrayBuffer>[0];
+export type u32 = Uint32Array<ArrayBuffer>[0];
+export type u64 = BigUint64Array<ArrayBuffer>[0];
+export type f32 = Float32Array<ArrayBuffer>[0];
+export type f64 = Float64Array<ArrayBuffer>[0];
 
 export type pss<T> = (v: T) => void;
 export type VectorizedOutput<T> = (size: u8) => T[];
