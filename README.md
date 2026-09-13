@@ -1,4 +1,4 @@
-# bld — Visual Programming IDE & WebAssembly Runtime
+<img src="ui/public/icons/bigbld.svg" alt="BLD Logo" width="640" height="320" style="margin-bottom: -80px"/>
 
 [![TypeScript](https://img.shields.io/badge/TypeScript-5.x-blue.svg)](https://www.typescriptlang.org/)
 [![WebAssembly](https://img.shields.io/badge/WebAssembly-Wasm%20GC-654FF0.svg)](https://webassembly.org/)

@@ -105,7 +105,7 @@
 
   <!-- ==================== LETTER: D ==================== -->
   <!-- Heavy Architectural Arch + Center Counterweight Sphere -->
-  Add<g id="letter-D">
+  <g id="letter-D">
     <!-- Outer D Shell -->
     <path d="M 350,80 L 400,80 C 472,80 478,140 478,256 C 478,372 472,432 400,432 L 350,432 Z" 
           fill="url(#darkGirder)" stroke="url(#beamGrad)" stroke-width="8"/>
