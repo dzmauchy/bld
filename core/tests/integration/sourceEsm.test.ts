@@ -12,16 +12,21 @@ function transformTypeScript(source: string): string {
 }
 
 describe("RI TypeScript sources as independently transformed ESM", () => {
-  test("context.ts erases to a module with no runtime exports", () => {
-    const code = transformTypeScript(readFileSync(join(riDir, "context.ts"), "utf8"));
-    expect(code).not.toMatch(/\bexport\b/);
+  const blocksSource = readFileSync(join(riDir, "blocks.ts"), "utf8");
+  const contextSource = readFileSync(join(riDir, "context.ts"), "utf8");
+
+  test("context aliases stay type-only so Playwright does not import them as values", () => {
+    expect(contextSource).toMatch(/^export type f32 = /m);
+    expect(blocksSource).toMatch(/^import type \{[^}]*\bf32\b[^}]*\} from "\.\/context";/m);
+    expect(blocksSource).not.toMatch(/^import \{[^}]*\bf32\b[^}]*\} from "\.\/context";/m);
   });
 
-  test("blocks.ts does not import type-only names from context as runtime values", async () => {
+  test("isolated ESM transform of blocks.ts loads without a runtime context binding", async () => {
     const dir = mkdtempSync(join(tmpdir(), "ri-source-esm-"));
-    const blocks = transformTypeScript(readFileSync(join(riDir, "blocks.ts"), "utf8"));
-    const context = transformTypeScript(readFileSync(join(riDir, "context.ts"), "utf8"));
+    const blocks = transformTypeScript(blocksSource);
+    const context = transformTypeScript(contextSource);
 
+    expect(context).not.toMatch(/\bexport\b/);
     expect(blocks).not.toMatch(/from\s*["']\.\/context["']/);
 
     writeFileSync(join(dir, "context.js"), context);
