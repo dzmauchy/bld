@@ -182,6 +182,12 @@ describe("JSON Serialization & Default Omission", () => {
     expect(scope.toJSON().conf).toBeUndefined();
   });
 
+  test("new diagrams reference the published diagram schema", () => {
+    const diagram = new Diagram("diag_1", "Test", palette);
+    expect(diagram.schema).toBe("schemas/diagram.schema.json");
+    expect(diagram.toJSON().$schema).toBe("schemas/diagram.schema.json");
+  });
+
   test("round-trips diagram_demo.json with full fidelity", () => {
     const demoRaw = JSON.parse(readFileSync(diagramDemoPath, "utf8")) as DiagramJson;
     const diagram = Diagram.fromJSON(demoRaw, palette);

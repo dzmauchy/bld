@@ -7,6 +7,7 @@ import {
   BlockDefinition,
   CompilationModel,
   Connection,
+  CoreSchemaCatalog,
   Diagram,
   DiagramBlock,
   DiagramCompiler,
@@ -14,11 +15,14 @@ import {
   modelAssetFiles,
   Palette,
   PortEndpoint,
+  SchemaCatalog,
   TypeSystem,
+  schemaAssetFiles,
 } from "../../src/index.js";
 
 const coreRoot = join(dirname(fileURLToPath(import.meta.url)), "../..");
 const modelDir = join(coreRoot, "src/model");
+const schemaDir = join(coreRoot, "assets/schemas");
 
 function modelSourceFiles(): string[] {
   return readdirSync(modelDir)
@@ -44,6 +48,21 @@ describe("core public API", () => {
   });
   test("lists every non-test model file as an asset", () => {
     expect([...modelAssetFiles].sort()).toEqual(modelSourceFiles());
+  });
+
+  test("lists every JSON schema as a published asset", () => {
+    const schemaFiles = readdirSync(schemaDir)
+      .filter((name) => name.endsWith(".schema.json"))
+      .sort();
+    expect(schemaAssetFiles).toEqual(schemaFiles);
+    expect(schemaFiles).toEqual([
+      "blocks.schema.json",
+      "diagram.schema.json",
+      "library.schema.json",
+      "namespaces.schema.json",
+      "types.schema.json",
+    ]);
+    expect(CoreSchemaCatalog.shared.diagramSchemaPath).toBe("schemas/diagram.schema.json");
   });
 
   test("implements strong OOP class hierarchies and abstractions", async () => {
@@ -73,6 +92,9 @@ describe("core public API", () => {
     expect(McuCompilerContext.prototype).toBeInstanceOf(CompilerContext);
 
     expect(AppAssetStore.prototype).toBeInstanceOf(AbstractAssetStore);
+
+    expect(SchemaCatalog).toBeTypeOf("function");
+    expect(CoreSchemaCatalog.prototype).toBeInstanceOf(SchemaCatalog);
 
     const planner = new DefaultDiagramPlanner();
     expect(planner.plan).toBeTypeOf("function");
