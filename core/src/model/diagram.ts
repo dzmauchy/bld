@@ -9,6 +9,7 @@ import { PortEndpoint } from "./endpoint";
 import { Palette } from "./palette";
 import { Library } from "./library";
 import { TypeInference, TypeSystem } from "../types";
+import { diagramSchemaPath } from "../schemaAssets";
 
 export interface DiagramJson {
   $schema?: string;
@@ -45,7 +46,7 @@ export interface IDiagram {
 }
 
 export class Diagram implements IDiagram {
-  public schema = "schemas/diagrams.schema.json";
+  public schema = diagramSchemaPath;
   private readonly blocks = new Map<string, DiagramBlock>();
   private readonly connections = new Map<string, Connection>();
   private readonly nextBlockSeq = new Map<string, number>();
