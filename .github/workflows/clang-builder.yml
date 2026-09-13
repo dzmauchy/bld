@@ -21,6 +21,7 @@ permissions:
 jobs:
   build-wasm:
     runs-on: ubuntu-latest
+    timeout-minutes: 180
 
     steps:
       - name: Free Disk Space with apt-get & Configure Swap
@@ -45,7 +46,7 @@ jobs:
           # Prune remaining tool caches and dangling runtime directories
           sudo rm -rf /usr/local/lib/android /usr/share/dotnet /opt/ghc "$AGENT_TOOLSDIRECTORY" || true
 
-          # Configure 8 GB swap (sufficient RAM buffer while retaining ~18 GB disk for the build)
+          # 13 GB swap: LTO-free LLVM still peaks near runner RAM during tablegen and linking
           sudo swapoff -a || true
           sudo rm -f /swapfile || true
           sudo fallocate -l 13G /swapfile
@@ -53,6 +54,7 @@ jobs:
           sudo mkswap /swapfile
           sudo swapon /swapfile
           df -h
+          swapon --show
 
       - name: Install System Dependencies (with LLD and Clang)
         run: |
@@ -75,7 +77,7 @@ jobs:
         with:
           repository: llvm/llvm-project
           ref: ${{ github.event.inputs.llvm_ref || 'release/23.x' }}
-          fetch-depth: '1'
+          fetch-depth: 1
           path: llvm-project
 
       - name: Stage 1 - Build Native TableGen Tools (Using LLD)
@@ -90,6 +92,8 @@ jobs:
             -DLLVM_ENABLE_BINDINGS=OFF
 
           # LLVM 19+ requires llvm-min-tblgen alongside llvm-tblgen and clang-tblgen
+          # Ubuntu ninja 1.13.2 has no --status flag; NINJA_STATUS is the supported API.
+          export NINJA_STATUS="[%f/%t %e] "
           ninja -C build-native -j 2 llvm-tblgen clang-tblgen llvm-min-tblgen || ninja -C build-native -j 2 llvm-tblgen clang-tblgen
 
       - name: Stage 2 - Build Clang to WebAssembly (Ultra-Minimized & No Objective-C)
@@ -98,17 +102,17 @@ jobs:
           NATIVE_BIN="$(pwd)/build-native/bin"
 
           # 1. -Os instead of -Oz, no -flto to prevent runner OOM.
-          # 2. Complete stripping of Objective-C rewriter, ARCMT, and bindings.
+          # 2. Disable Objective-C rewriter, HLSL, analyzer, and bindings.
           # 3. Maximum memory set to 2GB to adhere to wasm32 limits.
           emcmake cmake -G Ninja -B build-wasm -S llvm \
             -DCMAKE_BUILD_TYPE=MinSizeRel \
             -DLLVM_ENABLE_PROJECTS="clang" \
             -DLLVM_TARGETS_TO_BUILD="WebAssembly" \
+            -DLLVM_DEFAULT_TARGET_TRIPLE="wasm32-unknown-emscripten" \
             -DLLVM_NATIVE_TOOL_DIR="$NATIVE_BIN" \
             -DLLVM_ENABLE_THREADS=OFF \
             -DLLVM_ENABLE_BACKTRACES=OFF \
             -DLLVM_ENABLE_CRASH_OVERRIDES=OFF \
-            -DLLVM_ENABLE_TERMINFO=OFF \
             -DLLVM_ENABLE_LIBXML2=OFF \
             -DLLVM_ENABLE_ZLIB=OFF \
             -DLLVM_ENABLE_ZSTD=OFF \
@@ -121,18 +125,15 @@ jobs:
             -DLLVM_BUILD_TOOLS=OFF \
             -DLLVM_BUILD_UTILS=OFF \
             -DCLANG_ENABLE_STATIC_ANALYZER=OFF \
-            -DCLANG_ENABLE_ARCMT=OFF \
             -DCLANG_ENABLE_OBJC_REWRITER=OFF \
-            -DCLANG_TOOL_CLANG_REWRITE_OBJC_BUILD=OFF \
-            -DCLANG_TOOL_ARCMT_TEST_BUILD=OFF \
             -DCLANG_TOOL_C_INDEX_TEST_BUILD=OFF \
-            -DCLANG_DEFAULT_OBJCRUNTIME="" \
             -DCLANG_ENABLE_HLSL=OFF \
             -DCLANG_BUILD_TOOLS=ON \
             -DCMAKE_CXX_FLAGS="-Os -ffunction-sections -fdata-sections -fno-exceptions -fno-rtti" \
             -DCMAKE_EXE_LINKER_FLAGS="-Os -Wl,--gc-sections -sALLOW_MEMORY_GROWTH=1 -sINITIAL_MEMORY=256MB -sMAXIMUM_MEMORY=2GB -sFORCE_FILESYSTEM=1 -sDISABLE_EXCEPTION_CATCHING=1 -sWASM_BIGINT=1 -sTEXTDECODER=2 -sEXPORTED_RUNTIME_METHODS=FS,callMain -sEXPORT_NAME=createClangModule -sMODULARIZE=1"
 
-          ninja -C build-wasm -j 2 --status="[%f/%t %e] " clang
+          export NINJA_STATUS="[%f/%t %e] "
+          ninja -C build-wasm -j 2 clang
 
       - name: Stage 3 - Optimize with Binaryen and Compress
         run: |
@@ -146,8 +147,18 @@ jobs:
             exit 1
           fi
 
-          # Binary-level symbol and producer stripping
-          wasm-opt -Oz --strip-debug --strip-producers \
+          # setup-emsdk puts emcc on PATH, but wasm-opt lives in upstream/bin.
+          # Ubuntu's binaryen 108 rejects Emscripten output (bulk-memory disabled).
+          WASM_OPT="${EMSDK}/upstream/bin/wasm-opt"
+          if [ ! -x "$WASM_OPT" ]; then
+            echo "Error: wasm-opt not found at $WASM_OPT"
+            ls -la "${EMSDK}/upstream/bin" || true
+            exit 1
+          fi
+          "$WASM_OPT" --version
+
+          # Enable features used by current Emscripten; -all covers bulk-memory, sign-ext, etc.
+          "$WASM_OPT" -Oz --strip-debug --strip-producers -all \
             "$SRC_DIR/clang.wasm" -o dist/clang.wasm
 
           cp "$SRC_DIR/clang.js" dist/clang.js
@@ -157,6 +168,7 @@ jobs:
           brotli -9 -k -f dist/clang.js
 
           tar -czvf dist/clang-wasm.tar.gz -C dist clang.js clang.wasm clang.js.br clang.wasm.br
+          ls -lh dist
 
       - name: Determine Release Tag
         id: release_meta
