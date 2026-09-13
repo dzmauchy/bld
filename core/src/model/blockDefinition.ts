@@ -95,8 +95,12 @@ export class BlockDefinition {
     return this.outputs.get(id);
   }
 
-  getPort(id: string, direction: "input" | "output"): PortDefinition | undefined {
-    return (direction === "input" ? this.inputs : this.outputs).get(id);
+  getPort(id: string, direction?: "input" | "output"): PortDefinition | undefined {
+    if (direction) {
+      return (direction === "input" ? this.inputs : this.outputs).get(id) ??
+        (direction === "input" ? this.outputs : this.inputs).get(id);
+    }
+    return this.inputs.get(id) ?? this.outputs.get(id);
   }
 
   getConfig(id: string): ConfigPropertyDefinition | undefined {

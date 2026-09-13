@@ -1,13 +1,25 @@
 /**
  * @title Block Emitters
  */
-import {
-  defaultRegistry,
-  PUSH_BLOCK_REFS,
-  TICK_BLOCK_REFS,
-  RegistryBlockPredicateView,
-} from "runtime";
+import { defaultRegistry, type BlockRegistry } from "runtime";
 
-export { PUSH_BLOCK_REFS, TICK_BLOCK_REFS, RegistryBlockPredicateView };
+/**
+ * Contract for querying available block emitter implementations.
+ * The core domain is agnostic about what execution type a block belongs to.
+ */
+export interface IBlockRegistryView {
+  has(ref: string): boolean;
+}
 
-export const defaultBlockEmitters = new RegistryBlockPredicateView(defaultRegistry);
+/**
+ * Agnostic view of available block emitters in a registry.
+ */
+export class BlockEmitterRegistryView implements IBlockRegistryView {
+  constructor(private readonly registry: BlockRegistry = defaultRegistry) {}
+
+  has(ref: string): boolean {
+    return this.registry.has(ref);
+  }
+}
+
+export const defaultBlockEmitters = new BlockEmitterRegistryView(defaultRegistry);
