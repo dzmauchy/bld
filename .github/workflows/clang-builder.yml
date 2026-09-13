@@ -129,9 +129,8 @@ jobs:
             -DCLANG_TOOL_C_INDEX_TEST_BUILD=OFF \
             -DCLANG_ENABLE_HLSL=OFF \
             -DCLANG_BUILD_TOOLS=ON \
-            -DCMAKE_CXX_FLAGS="-Os -ffunction-sections -fdata-sections -fno-exceptions -fno-rtti" \
-            -DCMAKE_EXE_LINKER_FLAGS="-Os -Wl,--gc-sections -sALLOW_MEMORY_GROWTH=1 -sINITIAL_MEMORY=256MB -sMAXIMUM_MEMORY=2GB -sFORCE_FILESYSTEM=1 -sDISABLE_EXCEPTION_CATCHING=1 -sWASM_BIGINT=1 -sTEXTDECODER=2 -sEXPORTED_RUNTIME_METHODS=FS,callMain -sEXPORT_NAME=createClangModule -sMODULARIZE=1"
-
+            -DCMAKE_CXX_FLAGS="-Os -ffunction-sections -fdata-sections -fno-exceptions -fno-rtti -mbulk-memory -mextended-const -mtail-call -mmultivalue -msign-ext -mnontrapping-fptoint -mreference-types"
+            -DCMAKE_EXE_LINKER_FLAGS="-Os -Wl,--gc-sections -mbulk-memory -mextended-const -mtail-call -mmultivalue -msign-ext -mnontrapping-fptoint -mreference-types -sMALLOC=emmalloc -sEVAL_CTORS=1 -sALLOW_MEMORY_GROWTH=1 -sINITIAL_MEMORY=256MB -sMAXIMUM_MEMORY=2GB -sFORCE_FILESYSTEM=1 -sDISABLE_EXCEPTION_CATCHING=1 -sWASM_BIGINT=1 -sTEXTDECODER=2 -sEXPORTED_RUNTIME_METHODS=FS,callMain -sEXPORT_NAME=createClangModule -sMODULARIZE=1"
           export NINJA_STATUS="[%f/%t %e] "
           ninja -C build-wasm -j 2 clang
 
@@ -156,10 +155,7 @@ jobs:
             exit 1
           fi
           "$WASM_OPT" --version
-
-          # Enable features used by current Emscripten; -all covers bulk-memory, sign-ext, etc.
-          "$WASM_OPT" -Oz --strip-debug --strip-producers -all \
-            "$SRC_DIR/clang.wasm" -o dist/clang.wasm
+          "$WASM_OPT" -Oz --converge --strip-debug --strip-producers --strip-target-features --reorder-functions -all "$SRC_DIR/clang.wasm" -o dist/clang.wasm
 
           cp "$SRC_DIR/clang.js" dist/clang.js
 
