@@ -1,0 +1,141 @@
+name: Build and Release Clang WASM
+
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+    inputs:
+      llvm_ref:
+        description: 'LLVM branch or tag to checkout'
+        required: true
+        default: 'release/23.x'
+      release_tag:
+        description: 'Release tag name (for manual runs)'
+        required: false
+        default: 'clang-23-wasm-latest'
+
+permissions:
+  contents: write
+
+jobs:
+  build-wasm:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Free Disk Space & Add Swap
+        # Standard runners have 7 GB RAM; LTO and LLVM table generation require swap to prevent OOM (error 137)
+        run: |
+          sudo swapoff -a || true
+          sudo rm -f /swapfile || true
+          sudo fallocate -l 12G /swapfile
+          sudo chmod 600 /swapfile
+          sudo mkswap /swapfile
+          sudo swapon /swapfile
+
+      - name: Install System Dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            ninja-build \
+            cmake \
+            binaryen \
+            brotli \
+            python3
+
+      - name: Setup Emscripten SDK
+        uses: mymindstorm/setup-emsdk@v14
+        with:
+          version: latest
+
+      - name: Checkout LLVM Monorepo
+        uses: actions/checkout@v4
+        with:
+          repository: llvm/llvm-project
+          ref: ${{ github.event.inputs.llvm_ref || 'release/23.x' }}
+          depth: 1
+          path: llvm-project
+
+      - name: Stage 1 - Build Native TableGen Tools
+        run: |
+          cd llvm-project
+          cmake -G Ninja -B build-native -S llvm \
+            -DCMAKE_BUILD_TYPE=Release \
+            -DLLVM_ENABLE_PROJECTS="clang"
+
+          ninja -C build-native llvm-tblgen clang-tblgen
+
+      - name: Stage 2 - Build Clang to WebAssembly (Ultra-Minimized)
+        run: |
+          cd llvm-project
+          NATIVE_BIN="$(pwd)/build-native/bin"
+
+          emcmake cmake -G Ninja -B build-wasm -S llvm \
+            -DCMAKE_BUILD_TYPE=MinSizeRel \
+            -DLLVM_ENABLE_PROJECTS="clang" \
+            -DLLVM_TARGETS_TO_BUILD="WebAssembly" \
+            -DLLVM_NATIVE_TOOL_DIR="$NATIVE_BIN" \
+            -DLLVM_ENABLE_THREADS=OFF \
+            -DLLVM_ENABLE_BACKTRACES=OFF \
+            -DLLVM_ENABLE_CRASH_OVERRIDES=OFF \
+            -DLLVM_ENABLE_TERMINFO=OFF \
+            -DLLVM_ENABLE_LIBXML2=OFF \
+            -DLLVM_ENABLE_ZLIB=OFF \
+            -DLLVM_ENABLE_ZSTD=OFF \
+            -DLLVM_ENABLE_PLUGINS=OFF \
+            -DLLVM_INCLUDE_TESTS=OFF \
+            -DLLVM_INCLUDE_EXAMPLES=OFF \
+            -DLLVM_INCLUDE_BENCHMARKS=OFF \
+            -DLLVM_INCLUDE_DOCS=OFF \
+            -DLLVM_BUILD_TOOLS=OFF \
+            -DLLVM_BUILD_UTILS=OFF \
+            -DCLANG_ENABLE_STATIC_ANALYZER=OFF \
+            -DCLANG_ENABLE_ARCMT=OFF \
+            -DCLANG_ENABLE_OBJC_REWRITER=OFF \
+            -DCLANG_BUILD_TOOLS=OFF \
+            -DCMAKE_CXX_FLAGS="-Oz -flto -ffunction-sections -fdata-sections -fno-exceptions -fno-rtti" \
+            -DCMAKE_EXE_LINKER_FLAGS="-Oz -flto -Wl,--gc-sections -Wl,--strip-all -sALLOW_MEMORY_GROWTH=1 -sFILESYSTEM=1 -sDISABLE_EXCEPTION_CATCHING=1 -sWASM_BIGINT=1 -sTEXTDECODER=2 -sEXPORTED_RUNTIME_METHODS=['FS','callMain'] -sEXPORT_NAME='createClangModule' -sMODULARIZE=1"
+
+          ninja -C build-wasm clang
+
+      - name: Stage 3 - Optimize with Binaryen and Compress
+        run: |
+          mkdir -p dist
+          SRC_DIR="llvm-project/build-wasm/bin"
+
+          # Optimize Wasm binary and strip remaining symbols/metadata
+          wasm-opt -Oz --strip-debug --strip-producers --converge \
+            "$SRC_DIR/clang.wasm" -o dist/clang.wasm
+
+          cp "$SRC_DIR/clang.js" dist/clang.js
+
+          # Generate Brotli compressed assets for browser delivery
+          brotli -9 -k dist/clang.wasm
+          brotli -9 -k dist/clang.js
+
+          # Bundle tarball for single-file download
+          tar -czvf dist/clang-wasm.tar.gz -C dist clang.js clang.wasm clang.js.br clang.wasm.br
+
+      - name: Determine Release Tag
+        id: release_meta
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            echo "tag=${{ github.event.inputs.release_tag }}" >> $GITHUB_OUTPUT
+          else
+            echo "tag=${{ github.ref_name }}" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Publish Artifacts to GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ steps.release_meta.outputs.tag }}
+          name: "Clang 23 WebAssembly Build (${{ steps.release_meta.outputs.tag }})"
+          draft: false
+          prerelease: false
+          generate_release_notes: true
+          files: |
+            dist/clang.wasm
+            dist/clang.js
+            dist/clang.wasm.br
+            dist/clang.js.br
+            dist/clang-wasm.tar.gz
