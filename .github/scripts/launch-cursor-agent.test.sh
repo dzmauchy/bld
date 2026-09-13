@@ -46,12 +46,28 @@ else
   echo "SKIP actionlint (not installed)"
 fi
 
+assert_contains "workflow triggers on issue labeled" "$(cat "$WORKFLOW")" "types: [labeled]"
+assert_contains "workflow filters cursor label" "$(cat "$WORKFLOW")" "github.event.label.name == 'cursor'"
+assert_contains "workflow launches via script" "$(cat "$WORKFLOW")" "bash .github/scripts/launch-cursor-agent.sh"
+assert_contains "workflow can use a PAT for @cursor" "$(cat "$WORKFLOW")" "secrets.CURSOR_GH_TOKEN || github.token"
+
 STUB_DIR="$(mktemp -d)"
 trap 'rm -rf "$STUB_DIR"' EXIT
 
 cat > "${STUB_DIR}/gh" <<'EOF'
 #!/usr/bin/env bash
-printf '%s\n' "$@" > /tmp/cursor-test-gh-args.txt
+: > /tmp/cursor-test-gh-args.txt
+prev=""
+for arg in "$@"; do
+  printf '%s\n' "$arg" >> /tmp/cursor-test-gh-args.txt
+  if [ "$prev" = "--body-file" ] && [ -f "$arg" ]; then
+    cat "$arg" >> /tmp/cursor-test-gh-args.txt
+  fi
+  if [ "$prev" = "--body" ]; then
+    printf '%s\n' "$arg" >> /tmp/cursor-test-gh-args.txt
+  fi
+  prev="$arg"
+done
 echo "gh invoked"
 EOF
 
@@ -97,19 +113,25 @@ run_launcher() {
     bash "$SCRIPT"
 }
 
-rm -f /tmp/cursor-test-gh-args.txt /tmp/cursor-agent-payload.json
+rm -f /tmp/cursor-test-gh-args.txt /tmp/cursor-test-curl-args.txt /tmp/cursor-agent-payload.json
 set +e
 unset CURSOR_API_KEY
-OUT="$(run_launcher 2>&1)"
+ISSUE_BODY=$'All schemas:\n\n- core/assets/schemas/blocks.schema.json\nUse `defaults` and $HOME and "quotes".'
+OUT="$(ISSUE_BODY="$ISSUE_BODY" run_launcher 2>&1)"
 STATUS=$?
 set -e
-assert_eq "missing secret exit 1" "$STATUS" "1"
-assert_contains "missing secret error annotation" "$OUT" "Repository secret CURSOR_API_KEY is not set."
+assert_eq "missing secret exit 0" "$STATUS" "0"
+assert_contains "missing secret warning annotation" "$OUT" "Repository secret CURSOR_API_KEY is not set"
 GH_ARGS="$(cat /tmp/cursor-test-gh-args.txt)"
 assert_contains "gh uses --repo" "$GH_ARGS" "--repo"
 assert_contains "gh targets this repository" "$GH_ARGS" "dzmauchy/bld"
 assert_contains "gh comments on the issue" "$GH_ARGS" "24"
-assert_contains "missing-secret comment mentions CURSOR_API_KEY" "$GH_ARGS" "CURSOR_API_KEY"
+assert_contains "missing-secret comment mentions @cursor" "$GH_ARGS" "@cursor"
+assert_contains "missing-secret comment uses fresh main" "$GH_ARGS" "Use the fresh main branch"
+assert_contains "missing-secret comment keeps backticks" "$GH_ARGS" '`defaults`'
+assert_contains "missing-secret comment keeps dollar vars" "$GH_ARGS" '$HOME'
+assert_contains "missing-secret comment keeps quotes" "$GH_ARGS" 'quotes'
+assert_eq "missing secret does not call Cursor API" "$(test -f /tmp/cursor-test-curl-args.txt && echo yes || echo no)" "no"
 
 write_response() {
   local file="${STUB_DIR}/response.json"
@@ -138,6 +160,7 @@ assert_contains "payload keeps dollar vars" "$PAYLOAD" '$HOME'
 assert_contains "payload keeps quotes" "$PAYLOAD" 'quotes'
 assert_contains "payload starts from default branch" "$PAYLOAD" '"startingRef": "main"'
 assert_contains "payload auto-creates a PR" "$PAYLOAD" '"autoCreatePR": true'
+assert_contains "payload uses fresh main" "$PAYLOAD" "Use the fresh main branch"
 
 write_response '{"id":"bc_abc123","target":{"url":"https://cursor.com/agents?id=bc_abc123"}}'
 rm -f /tmp/cursor-test-gh-args.txt
