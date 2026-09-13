@@ -23,25 +23,47 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - name: Free Disk Space & Add Swap
-        # Standard runners have 7 GB RAM; LTO and LLVM table generation require swap to prevent OOM (error 137)
+      - name: Free Disk Space with apt-get & Configure Swap
         run: |
+          # Purge heavy preinstalled software suites via apt-get
+          sudo apt-get update
+          sudo apt-get remove --purge -y \
+            azure-cli \
+            google-cloud-cli \
+            google-chrome-stable \
+            firefox \
+            powershell \
+            "dotnet-*" \
+            "aspnetcore-*" \
+            "mono-*" \
+            "php*" \
+            "mysql-*" \
+            "postgresql-*"
+          sudo apt-get autoremove --purge -y
+          sudo apt-get clean
+
+          # Prune remaining tool caches and dangling runtime directories
+          sudo rm -rf /usr/local/lib/android /usr/share/dotnet /opt/ghc "$AGENT_TOOLSDIRECTORY" || true
+
+          # Configure swap space
           sudo swapoff -a || true
           sudo rm -f /swapfile || true
           sudo fallocate -l 12G /swapfile
           sudo chmod 600 /swapfile
           sudo mkswap /swapfile
           sudo swapon /swapfile
+          df -h
 
-      - name: Install System Dependencies
+      - name: Install System Dependencies (with LLD and Clang)
         run: |
           sudo apt-get update
           sudo apt-get install -y --no-install-recommends \
             ninja-build \
             cmake \
-            binaryen \
             brotli \
-            python3
+            python3 \
+            clang \
+            lld
 
       - name: Setup Emscripten SDK
         uses: mymindstorm/setup-emsdk@v14
@@ -49,21 +71,24 @@ jobs:
           version: latest
 
       - name: Checkout LLVM Monorepo
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
         with:
           repository: llvm/llvm-project
           ref: ${{ github.event.inputs.llvm_ref || 'release/23.x' }}
           depth: 1
           path: llvm-project
 
-      - name: Stage 1 - Build Native TableGen Tools
+      - name: Stage 1 - Build Native TableGen Tools (Using LLD)
         run: |
           cd llvm-project
           cmake -G Ninja -B build-native -S llvm \
             -DCMAKE_BUILD_TYPE=Release \
-            -DLLVM_ENABLE_PROJECTS="clang"
+            -DLLVM_ENABLE_PROJECTS="clang" \
+            -DCMAKE_C_COMPILER=clang \
+            -DCMAKE_CXX_COMPILER=clang++ \
+            -DLLVM_USE_LINKER=lld
 
-          ninja -C build-native llvm-tblgen clang-tblgen
+          ninja -C build-native -j 2 llvm-tblgen clang-tblgen
 
       - name: Stage 2 - Build Clang to WebAssembly (Ultra-Minimized)
         run: |
@@ -92,28 +117,31 @@ jobs:
             -DCLANG_ENABLE_STATIC_ANALYZER=OFF \
             -DCLANG_ENABLE_ARCMT=OFF \
             -DCLANG_ENABLE_OBJC_REWRITER=OFF \
-            -DCLANG_BUILD_TOOLS=OFF \
-            -DCMAKE_CXX_FLAGS="-Oz -flto -ffunction-sections -fdata-sections -fno-exceptions -fno-rtti" \
-            -DCMAKE_EXE_LINKER_FLAGS="-Oz -flto -Wl,--gc-sections -Wl,--strip-all -sALLOW_MEMORY_GROWTH=1 -sFILESYSTEM=1 -sDISABLE_EXCEPTION_CATCHING=1 -sWASM_BIGINT=1 -sTEXTDECODER=2 -sEXPORTED_RUNTIME_METHODS=['FS','callMain'] -sEXPORT_NAME='createClangModule' -sMODULARIZE=1"
+            -DCLANG_BUILD_TOOLS=ON \
+            -DCMAKE_CXX_FLAGS="-Os -ffunction-sections -fdata-sections -fno-exceptions -fno-rtti" \
+            -DCMAKE_EXE_LINKER_FLAGS="-Os -Wl,--gc-sections -Wl,--strip-all -sALLOW_MEMORY_GROWTH=1 -sINITIAL_MEMORY=256MB -sMAXIMUM_MEMORY=4GB -sFORCE_FILESYSTEM=1 -sDISABLE_EXCEPTION_CATCHING=1 -sWASM_BIGINT=1 -sTEXTDECODER=2 -sEXPORTED_RUNTIME_METHODS=FS,callMain -sEXPORT_NAME=createClangModule -sMODULARIZE=1"
 
-          ninja -C build-wasm clang
+          ninja -C build-wasm -j 2 --status="[%f/%t %e] " clang
 
       - name: Stage 3 - Optimize with Binaryen and Compress
         run: |
           mkdir -p dist
           SRC_DIR="llvm-project/build-wasm/bin"
 
-          # Optimize Wasm binary and strip remaining symbols/metadata
-          wasm-opt -Oz --strip-debug --strip-producers --converge \
+          if [ ! -f "$SRC_DIR/clang.wasm" ]; then
+            echo "Error: $SRC_DIR/clang.wasm not found!"
+            ls -la "$SRC_DIR"
+            exit 1
+          fi
+
+          wasm-opt -Oz --strip-debug --strip-producers \
             "$SRC_DIR/clang.wasm" -o dist/clang.wasm
 
           cp "$SRC_DIR/clang.js" dist/clang.js
 
-          # Generate Brotli compressed assets for browser delivery
-          brotli -9 -k dist/clang.wasm
-          brotli -9 -k dist/clang.js
+          brotli -9 -k -f dist/clang.wasm
+          brotli -9 -k -f dist/clang.js
 
-          # Bundle tarball for single-file download
           tar -czvf dist/clang-wasm.tar.gz -C dist clang.js clang.wasm clang.js.br clang.wasm.br
 
       - name: Determine Release Tag
@@ -126,7 +154,7 @@ jobs:
           fi
 
       - name: Publish Artifacts to GitHub Release
-        uses: softprops/action-gh-release@v2
+        uses: softprops/action-gh-release@v3
         with:
           tag_name: ${{ steps.release_meta.outputs.tag }}
           name: "Clang 23 WebAssembly Build (${{ steps.release_meta.outputs.tag }})"
