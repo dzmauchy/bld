@@ -12,7 +12,7 @@ import {
   type WasmRuntimeLike,
   type WasmSessionLike,
 } from "../src";
-import { createNodeWasmRuntime } from "runtime/runtime.node.ts";
+import { createNodeWasmRuntime } from "runtime/tests/runtime.node.ts";
 import { compileDiagram } from "runtime/compile.ts";
 import { importAssembly } from "runtime";
 

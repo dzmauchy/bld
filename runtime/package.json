@@ -11,6 +11,7 @@
     },
     "./compile": "./src/compile.ts",
     "./compile.ts": "./src/compile.ts",
+    "./tests/runtime.node.ts": "./tests/runtime.node.ts",
     "./*": "./src/*"
   },
   "dependencies": {

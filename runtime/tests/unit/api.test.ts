@@ -79,11 +79,11 @@ describe("library ES module loading", () => {
 
     const {
       Thread,
-      NodeWorkerThread,
       EventTargetWorkerThread,
       AbstractWasmRuntime,
       WasmRuntime,
     } = await import("runtime/runtime.ts");
+    const { NodeWorkerThread } = await import("../runtime.node.ts");
 
     expect(Thread).toBeTypeOf("function");
     expect(NodeWorkerThread.prototype).toBeInstanceOf(Thread);

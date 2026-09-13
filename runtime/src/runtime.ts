@@ -9,30 +9,12 @@ export abstract class Thread {
   abstract terminate(): Promise<unknown>;
 }
 
-export type NodeWorkerLike = {
-  postMessage(value: unknown): void;
-  on(event: "message", listener: (value: unknown) => void): unknown;
-  on(event: "error", listener: (err: Error) => void): unknown;
-  terminate(): unknown;
-};
-
 export type EventTargetWorkerLike = {
   postMessage(value: unknown): void;
   addEventListener(type: "message", listener: (event: { data: unknown }) => void): void;
   addEventListener(type: "error", listener: (event: { message?: string }) => void): void;
   terminate(): void;
 };
-
-export class NodeWorkerThread extends Thread {
-  constructor(private readonly worker: NodeWorkerLike) {
-    super();
-  }
-
-  override postMessage(data: unknown): void { this.worker.postMessage(data); }
-  override onMessage(handler: (data: unknown) => void): void { this.worker.on("message", handler); }
-  override onError(handler: (error: Error) => void): void { this.worker.on("error", handler); }
-  override terminate(): Promise<unknown> { return Promise.resolve(this.worker.terminate()); }
-}
 
 export class EventTargetWorkerThread extends Thread {
   constructor(private readonly worker: EventTargetWorkerLike) {
@@ -49,7 +31,6 @@ export class EventTargetWorkerThread extends Thread {
   override terminate(): Promise<unknown> { return Promise.resolve(this.worker.terminate()); }
 }
 
-export const wrapNodeWorker = (worker: NodeWorkerLike): Thread => new NodeWorkerThread(worker);
 export const wrapEventTargetWorker = (worker: EventTargetWorkerLike): Thread => new EventTargetWorkerThread(worker);
 
 function isWorkerResponse(message: unknown): message is WorkerResponse {
