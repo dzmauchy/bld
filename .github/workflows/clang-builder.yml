@@ -75,7 +75,6 @@ jobs:
         with:
           repository: llvm/llvm-project
           ref: ${{ github.event.inputs.llvm_ref || 'release/23.x' }}
-          depth: 1
           path: llvm-project
 
       - name: Stage 1 - Build Native TableGen Tools (Using LLD)
