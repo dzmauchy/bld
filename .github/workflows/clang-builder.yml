@@ -45,10 +45,10 @@ jobs:
           # Prune remaining tool caches and dangling runtime directories
           sudo rm -rf /usr/local/lib/android /usr/share/dotnet /opt/ghc "$AGENT_TOOLSDIRECTORY" || true
 
-          # Configure swap space
+          # Configure 8 GB swap (sufficient RAM buffer while retaining ~18 GB disk for the build)
           sudo swapoff -a || true
           sudo rm -f /swapfile || true
-          sudo fallocate -l 12G /swapfile
+          sudo fallocate -l 13G /swapfile
           sudo chmod 600 /swapfile
           sudo mkswap /swapfile
           sudo swapon /swapfile
@@ -75,6 +75,7 @@ jobs:
         with:
           repository: llvm/llvm-project
           ref: ${{ github.event.inputs.llvm_ref || 'release/23.x' }}
+          fetch-depth: '1'
           path: llvm-project
 
       - name: Stage 1 - Build Native TableGen Tools (Using LLD)
@@ -85,15 +86,20 @@ jobs:
             -DLLVM_ENABLE_PROJECTS="clang" \
             -DCMAKE_C_COMPILER=clang \
             -DCMAKE_CXX_COMPILER=clang++ \
-            -DLLVM_USE_LINKER=lld
+            -DLLVM_USE_LINKER=lld \
+            -DLLVM_ENABLE_BINDINGS=OFF
 
-          ninja -C build-native -j 2 llvm-tblgen clang-tblgen
+          # LLVM 19+ requires llvm-min-tblgen alongside llvm-tblgen and clang-tblgen
+          ninja -C build-native -j 2 llvm-tblgen clang-tblgen llvm-min-tblgen || ninja -C build-native -j 2 llvm-tblgen clang-tblgen
 
-      - name: Stage 2 - Build Clang to WebAssembly (Ultra-Minimized)
+      - name: Stage 2 - Build Clang to WebAssembly (Ultra-Minimized & No Objective-C)
         run: |
           cd llvm-project
           NATIVE_BIN="$(pwd)/build-native/bin"
 
+          # 1. -Os instead of -Oz, no -flto to prevent runner OOM.
+          # 2. Complete stripping of Objective-C rewriter, ARCMT, and bindings.
+          # 3. Maximum memory set to 2GB to adhere to wasm32 limits.
           emcmake cmake -G Ninja -B build-wasm -S llvm \
             -DCMAKE_BUILD_TYPE=MinSizeRel \
             -DLLVM_ENABLE_PROJECTS="clang" \
@@ -107,6 +113,7 @@ jobs:
             -DLLVM_ENABLE_ZLIB=OFF \
             -DLLVM_ENABLE_ZSTD=OFF \
             -DLLVM_ENABLE_PLUGINS=OFF \
+            -DLLVM_ENABLE_BINDINGS=OFF \
             -DLLVM_INCLUDE_TESTS=OFF \
             -DLLVM_INCLUDE_EXAMPLES=OFF \
             -DLLVM_INCLUDE_BENCHMARKS=OFF \
@@ -116,9 +123,14 @@ jobs:
             -DCLANG_ENABLE_STATIC_ANALYZER=OFF \
             -DCLANG_ENABLE_ARCMT=OFF \
             -DCLANG_ENABLE_OBJC_REWRITER=OFF \
+            -DCLANG_TOOL_CLANG_REWRITE_OBJC_BUILD=OFF \
+            -DCLANG_TOOL_ARCMT_TEST_BUILD=OFF \
+            -DCLANG_TOOL_C_INDEX_TEST_BUILD=OFF \
+            -DCLANG_DEFAULT_OBJCRUNTIME="" \
+            -DCLANG_ENABLE_HLSL=OFF \
             -DCLANG_BUILD_TOOLS=ON \
             -DCMAKE_CXX_FLAGS="-Os -ffunction-sections -fdata-sections -fno-exceptions -fno-rtti" \
-            -DCMAKE_EXE_LINKER_FLAGS="-Os -Wl,--gc-sections -Wl,--strip-all -sALLOW_MEMORY_GROWTH=1 -sINITIAL_MEMORY=256MB -sMAXIMUM_MEMORY=4GB -sFORCE_FILESYSTEM=1 -sDISABLE_EXCEPTION_CATCHING=1 -sWASM_BIGINT=1 -sTEXTDECODER=2 -sEXPORTED_RUNTIME_METHODS=FS,callMain -sEXPORT_NAME=createClangModule -sMODULARIZE=1"
+            -DCMAKE_EXE_LINKER_FLAGS="-Os -Wl,--gc-sections -sALLOW_MEMORY_GROWTH=1 -sINITIAL_MEMORY=256MB -sMAXIMUM_MEMORY=2GB -sFORCE_FILESYSTEM=1 -sDISABLE_EXCEPTION_CATCHING=1 -sWASM_BIGINT=1 -sTEXTDECODER=2 -sEXPORTED_RUNTIME_METHODS=FS,callMain -sEXPORT_NAME=createClangModule -sMODULARIZE=1"
 
           ninja -C build-wasm -j 2 --status="[%f/%t %e] " clang
 
@@ -129,15 +141,18 @@ jobs:
 
           if [ ! -f "$SRC_DIR/clang.wasm" ]; then
             echo "Error: $SRC_DIR/clang.wasm not found!"
-            ls -la "$SRC_DIR"
+            ls -la "$SRC_DIR" || true
+            find llvm-project/build-wasm -name "clang*.wasm" || true
             exit 1
           fi
 
+          # Binary-level symbol and producer stripping
           wasm-opt -Oz --strip-debug --strip-producers \
             "$SRC_DIR/clang.wasm" -o dist/clang.wasm
 
           cp "$SRC_DIR/clang.js" dist/clang.js
 
+          # Generate pre-compressed Brotli artifacts
           brotli -9 -k -f dist/clang.wasm
           brotli -9 -k -f dist/clang.js
 
