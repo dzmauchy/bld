@@ -49,18 +49,16 @@ export class ParameterizedType extends DataType {
 
   toString(): string {
     if (this.args.size === 0) return this.raw;
-    const parts = [...this.args.entries()].map(([k, v]) => `${k}=${v.toString()}`).join(", ");
+    const parts = this.args.entries().map(([k, v]) => `${k}=${v.toString()}`).toArray().join(", ");
     return `${this.raw}<${parts}>`;
   }
 
   equals(other: DataType): boolean {
     if (!(other instanceof ParameterizedType) || other.raw !== this.raw) return false;
-    if (other.args.size !== this.args.size) return false;
-    for (const [k, v] of this.args) {
-      const otherV = other.args.get(k);
-      if (!otherV || !v.equals(otherV)) return false;
-    }
-    return true;
+    return (
+      other.args.size === this.args.size &&
+      this.args.entries().every(([k, v]) => other.args.get(k)?.equals(v) ?? false)
+    );
   }
 }
 

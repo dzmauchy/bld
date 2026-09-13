@@ -66,8 +66,8 @@ export class BrowserWasmModule {
   intervalPeriods: number[] = [];
   gpioCount = 0;
   private labelSeq = 0;
-  private valueInits: ValueInit[] = [];
-  private startHooks: Expr[] = [];
+  private readonly valueInits: ValueInit[] = [];
+  private readonly startHooks: Expr[] = [];
 
   constructor() {
     this.m = new binaryen.Module();

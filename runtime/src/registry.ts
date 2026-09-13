@@ -24,7 +24,7 @@ export class BlockRegistry {
   }
 
   refs(): string[] {
-    return [...this.blocks.keys()];
+    return this.blocks.keys().toArray();
   }
 
   require(ref: string): BlockSpec {

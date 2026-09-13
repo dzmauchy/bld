@@ -14,8 +14,8 @@ export interface TypeCatalogEntry {
 }
 
 export class TypeSystem {
-  private primitives = new Map<string, PrimitiveType>();
-  private parameterizedTemplates = new Map<
+  private readonly primitives = new Map<string, PrimitiveType>();
+  private readonly parameterizedTemplates = new Map<
     string,
     { name: string; description: string; params: readonly string[] }
   >();
@@ -72,7 +72,7 @@ export class TypeSystem {
       return (
         source.raw === target.raw &&
         source.args.size === target.args.size &&
-        [...source.args].every(([k, v]) => {
+        source.args.entries().every(([k, v]) => {
           const t = target.getArg(k);
           return t !== undefined && this.isCompatible(v, t);
         })

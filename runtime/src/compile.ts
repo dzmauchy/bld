@@ -99,11 +99,11 @@ async function prepareCompile(request: CompileRequest) {
 
 export async function compileDiagram(request: CompileRequest): Promise<Uint8Array> {
   const { profile, program, options } = await prepareCompile(request);
-  return profile.name === "browser" ? compileBrowserProgram(program, options) : profile.compile(program, options);
+  return profile.compile(program, options);
 }
 
 export async function emitDiagramText(request: CompileRequest): Promise<string> {
   const { profile, program, options } = await prepareCompile(request);
-  return profile.name === "browser" ? emitBrowserText(program, options) : profile.emitText(program, options);
+  return profile.emitText(program, options);
 }
 

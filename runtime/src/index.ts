@@ -49,7 +49,7 @@ export {
   getWasmProfile,
   mcuProfile,
 } from "./profile";
-export { PUSH_BLOCK_REFS, TICK_BLOCK_REFS } from "./sets";
+export { PUSH_BLOCK_REFS, TICK_BLOCK_REFS, RegistryBlockPredicateView, type IBlockPredicate } from "./sets";
 export {
   MEMORY_INITIAL_PAGES,
   MEMORY_MAX_PAGES,

@@ -50,6 +50,7 @@ export class Diagram implements IDiagram {
   private readonly blocks = new Map<string, DiagramBlock>();
   private readonly connections = new Map<string, Connection>();
   private readonly nextBlockSeq = new Map<string, number>();
+  private _typeInference?: TypeInference;
 
   constructor(
     public id: string,
@@ -57,16 +58,12 @@ export class Diagram implements IDiagram {
     readonly palette: Palette = Library.getBaseSync()?.palette ?? new Palette(new TypeSystem()),
   ) {}
 
-  private _typeInference?: TypeInference;
   get typeSystem(): TypeSystem {
     return this.palette.typeSystem;
   }
 
   get typeInference(): TypeInference {
-    if (!this._typeInference) {
-      this._typeInference = new TypeInference(this.typeSystem);
-    }
-    return this._typeInference;
+    return (this._typeInference ??= new TypeInference(this.typeSystem));
   }
 
   // --- Block Operations ---
@@ -116,7 +113,7 @@ export class Diagram implements IDiagram {
   }
 
   getBlocks(): DiagramBlock[] {
-    return [...this.blocks.values()];
+    return this.blocks.values().toArray();
   }
 
   moveBlock(blockId: string, x: number, y: number): void {
@@ -178,7 +175,7 @@ export class Diagram implements IDiagram {
   }
 
   getConnections(): Connection[] {
-    return [...this.connections.values()];
+    return this.connections.values().toArray();
   }
 
   getConnectionsForBlock(blockId: string): Connection[] {
@@ -192,8 +189,8 @@ export class Diagram implements IDiagram {
       $schema: this.schema,
       id: this.id,
       title: this.title,
-      blocks: Object.fromEntries([...this.blocks].map(([id, b]) => [id, b.toJSON()])),
-      connections: Object.fromEntries([...this.connections].map(([id, c]) => [id, c.toJSON()])),
+      blocks: Object.fromEntries(this.blocks.entries().map(([id, b]) => [id, b.toJSON()])),
+      connections: Object.fromEntries(this.connections.entries().map(([id, c]) => [id, c.toJSON()])),
     };
   }
 

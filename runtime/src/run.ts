@@ -1,5 +1,7 @@
-import { attachWorker } from "./workerHost.ts";
+import { attachWorker, createHostPinNotifier } from "./workerHost.ts";
 import type { RunRequest, WorkerResponse } from "./messages.ts";
+
+export { createHostPinNotifier };
 
 /** Host `env` imports used by the browser wasm profile. */
 export type EnvBindings = {
@@ -14,6 +16,13 @@ export function defaultEnvBindings(): EnvBindings {
     sendPinF32() {},
     cos: Math.cos,
     sin: Math.sin,
+  };
+}
+
+export function hostPinEnvBindings(): EnvBindings {
+  return {
+    ...defaultEnvBindings(),
+    sendPinF32: createHostPinNotifier(),
   };
 }
 

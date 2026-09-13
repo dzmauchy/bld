@@ -84,8 +84,7 @@ export class TypeInference {
    * Checks if a type is a push stream (pss).
    */
   isStreamType(type: DataType): boolean {
-    const inner = this.unwrapArray(type);
-    return inner instanceof ParameterizedType && inner.raw === "pss";
+    return this.inferPayloadType(type) !== undefined;
   }
 
   /**

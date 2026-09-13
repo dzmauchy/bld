@@ -46,7 +46,7 @@ export class CompilerContextRegistry {
   }
 
   names(): string[] {
-    return [...this.contexts.keys()];
+    return this.contexts.keys().toArray();
   }
 }
 

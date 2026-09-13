@@ -228,7 +228,7 @@ export class ManifestCompileHarness extends DiagramExecutionHarness {
       profile: "browser",
       fetchText: async (url) => {
         if (url.includes("base.json")) return this.manifestContent;
-        throw new Error(`Unknown URL: ${url}`);
+        throw new Error(`Unexpected fetchText URL: ${url}`);
       },
       importModule: async () => importAssembly(this.bundleUrl),
     });

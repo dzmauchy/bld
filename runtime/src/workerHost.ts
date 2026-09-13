@@ -12,7 +12,7 @@ type BrowserWorkerScope = {
   postMessage: (message: unknown) => void;
 };
 
-function nodeParentPort(): ParentPort | null {
+export function nodeParentPort(): ParentPort | null {
   const processRef = (
     globalThis as {
       process?: { getBuiltinModule?: (id: string) => { parentPort?: ParentPort | null } };
@@ -20,6 +20,22 @@ function nodeParentPort(): ParentPort | null {
   ).process;
   const threads = processRef?.getBuiltinModule?.("worker_threads");
   return threads?.parentPort ?? null;
+}
+
+export function postToHost(message: unknown): void {
+  const parentPort = nodeParentPort();
+  if (parentPort) {
+    parentPort.postMessage(message);
+    return;
+  }
+  const scope = globalThis as unknown as { postMessage?: (msg: unknown) => void };
+  scope.postMessage?.(message);
+}
+
+export function createHostPinNotifier(): (blockId: number, pin: number, value: number) => void {
+  return (blockId: number, pin: number, value: number) => {
+    postToHost({ type: "pin", blockId, pin, value });
+  };
 }
 
 async function dispatch(

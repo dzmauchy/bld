@@ -132,7 +132,7 @@ export class RiExecutionContext implements ExecutionContext {
   start(): void {
     if (this.closed || this.started) return;
     this.started = true;
-    for (const callback of [...this.onStartCallbacks]) {
+    for (const callback of this.onStartCallbacks) {
       callback();
     }
   }
@@ -140,7 +140,7 @@ export class RiExecutionContext implements ExecutionContext {
   close(): void {
     if (this.closed) return;
     this.closed = true;
-    for (const callback of [...this.onCloseCallbacks]) {
+    for (const callback of this.onCloseCallbacks) {
       callback();
     }
     this.intervals.clear();
@@ -160,7 +160,7 @@ export class RiExecutionContext implements ExecutionContext {
     if (advanceMs > 0) {
       this.currentTime += BigInt(advanceMs);
     }
-    const currentIntervals = [...this.intervals.values()];
+    const currentIntervals = this.intervals.values().toArray();
     for (const interval of currentIntervals) {
       if (!this.intervals.has(interval.id)) continue;
       interval.callback();
@@ -175,7 +175,7 @@ export class RiExecutionContext implements ExecutionContext {
 
   emitGpio(port: number, pin: number, value: boolean): void {
     if (this.closed) return;
-    for (const listener of [...this.gpioListeners.values()]) {
+    for (const listener of this.gpioListeners.values()) {
       if (listener.port === port) {
         listener.callback(pin, value);
       }
@@ -212,7 +212,7 @@ export class RiExecutionContext implements ExecutionContext {
   }
 
   intervalPeriodAt(index: number): number {
-    const list = [...this.intervals.values()];
+    const list = this.intervals.values().toArray();
     return list[index]?.period ?? 0;
   }
 

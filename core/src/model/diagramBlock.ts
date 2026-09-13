@@ -10,8 +10,11 @@ export interface RawBlockJson {
   conf?: Record<string, unknown>;
 }
 
-const isEqual = (a: unknown, b: unknown): boolean =>
-  a === b || (typeof a === "object" && typeof b === "object" && JSON.stringify(a) === JSON.stringify(b));
+const isEqual = (a: unknown, b: unknown): boolean => {
+  if (a === b) return true;
+  if (a === null || b === null || typeof a !== "object" || typeof b !== "object") return false;
+  return JSON.stringify(a) === JSON.stringify(b);
+};
 
 export abstract class DiagramElement {
   constructor(readonly id: string) {}
@@ -19,17 +22,25 @@ export abstract class DiagramElement {
 }
 
 export class DiagramBlock extends DiagramElement {
-  private readonly confValues = new Map<string, unknown>();
+  private readonly confValues: Map<string, unknown>;
 
   constructor(
     id: string,
     readonly definition: BlockDefinition,
-    public x: number,
-    public y: number,
+    private _x: number,
+    private _y: number,
     initialConf: Record<string, unknown> = {},
   ) {
     super(id);
-    Object.entries(initialConf).forEach(([k, v]) => this.confValues.set(k, v));
+    this.confValues = new Map(Object.entries(initialConf));
+  }
+
+  get x(): number {
+    return this._x;
+  }
+
+  get y(): number {
+    return this._y;
   }
 
   get ref(): string {
@@ -37,8 +48,8 @@ export class DiagramBlock extends DiagramElement {
   }
 
   setPosition(x: number, y: number): void {
-    this.x = x;
-    this.y = y;
+    this._x = x;
+    this._y = y;
   }
 
   setConf(key: string, value: unknown): void {
@@ -69,11 +80,11 @@ export class DiagramBlock extends DiagramElement {
   }
 
   getInputPorts(): PortDefinition[] {
-    return [...this.definition.inputs.values()];
+    return this.definition.inputs.values().toArray();
   }
 
   getOutputPorts(): PortDefinition[] {
-    return [...this.definition.outputs.values()];
+    return this.definition.outputs.values().toArray();
   }
 
   override toJSON(): RawBlockJson {

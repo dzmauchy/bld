@@ -11,9 +11,9 @@ export type LibraryAssemblyModule = {
 export type ImportModule = (url: string) => Promise<LibraryAssemblyModule>;
 
 export class AssemblyUrlResolver {
-  private static readonly _shared = new AssemblyUrlResolver();
+  private static readonly defaultInstance = new AssemblyUrlResolver();
   static get shared(): AssemblyUrlResolver {
-    return this._shared;
+    return this.defaultInstance;
   }
 
   private readonly assemblyAliases = new Map<string, string>();
@@ -56,9 +56,9 @@ export class AssemblyUrlResolver {
 }
 
 export class LibraryAssemblyLoader {
-  private static readonly _shared = new LibraryAssemblyLoader();
+  private static readonly defaultInstance = new LibraryAssemblyLoader();
   static get shared(): LibraryAssemblyLoader {
-    return this._shared;
+    return this.defaultInstance;
   }
 
   constructor(private readonly resolver: AssemblyUrlResolver = AssemblyUrlResolver.shared) {}

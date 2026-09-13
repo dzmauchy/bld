@@ -1,6 +1,8 @@
 /**
  * @title App Assets
  */
+import { defaultFetchText, resolveUrl as runtimeResolveUrl } from "runtime";
+
 export type AssetResolver = (path: string) => Promise<string | undefined>;
 
 export interface IAssetResolver {
@@ -16,9 +18,9 @@ export abstract class AbstractAssetStore {
 }
 
 export class AppAssetStore extends AbstractAssetStore {
-  private static readonly _shared = new AppAssetStore();
+  private static readonly defaultInstance = new AppAssetStore();
   static get shared(): AppAssetStore {
-    return this._shared;
+    return this.defaultInstance;
   }
 
   private readonly assets = new Map<string, string>();
@@ -29,11 +31,7 @@ export class AppAssetStore extends AbstractAssetStore {
   }
 
   static async fetchText(url: string): Promise<string> {
-    const response = await fetch(url);
-    if (!response.ok) {
-      throw new Error(`Failed to fetch ${url}: ${response.status} ${response.statusText}`);
-    }
-    return response.text();
+    return defaultFetchText(url);
   }
 
   override register(path: string, content: string): void {
@@ -77,8 +75,7 @@ export class AppAssetStore extends AbstractAssetStore {
 }
 
 export const normalizeAssetPath = (path: string): string => AppAssetStore.normalizePath(path);
-export const resolveUrl = (url: string, baseUrl?: string): string =>
-  URL.canParse(url) ? url : baseUrl ? new URL(url, baseUrl).href : url;
+export const resolveUrl = (url: string, baseUrl?: string): string => runtimeResolveUrl(url, baseUrl);
 export const registerAppAsset = (path: string, content: string): void => AppAssetStore.shared.register(path, content);
 export const registerAppAssets = (assets: Record<string, string>): void => AppAssetStore.shared.registerAll(assets);
 export const getRegisteredAppAsset = (path: string): string | undefined => AppAssetStore.shared.get(path);

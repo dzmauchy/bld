@@ -2,7 +2,9 @@
  * @title Diagram Compiler
  */
 import type { Diagram } from "./diagram";
+import { normalizeAssetPath } from "./appAssets";
 import {
+  BlockRegistry,
   browserProfile,
   defaultRegistry,
   getWasmProfile,
@@ -63,7 +65,7 @@ export interface CompilerOptions {
 
 export class CompilationModel {
   protected profile: WasmProfile;
-  private files = new Map<string, string>();
+  private readonly files = new Map<string, string>();
 
   constructor(
     profileOrOptions?: WasmProfile | string | CompilerOptions | Record<string, string>,
@@ -118,7 +120,7 @@ export class CompilationModel {
   }
 
   addFile(name: string, content: string): void {
-    const clean = name.replace(/\\/g, "/").replace(/^\.\//, "");
+    const clean = normalizeAssetPath(name);
     this.files.set(clean, content);
     const slash = clean.lastIndexOf("/");
     if (slash !== -1) {
@@ -132,7 +134,7 @@ export class CompilationModel {
   }
 
   getFile(name: string): string | undefined {
-    const clean = name.replace(/\\/g, "/").replace(/^\.\//, "");
+    const clean = normalizeAssetPath(name);
     return this.files.get(clean);
   }
 
@@ -146,7 +148,7 @@ export interface IDiagramPlanner {
 }
 
 export class DefaultDiagramPlanner implements IDiagramPlanner {
-  constructor(private readonly registry = defaultRegistry) {}
+  constructor(private readonly registry: BlockRegistry = defaultRegistry) {}
 
   plan(diagram: Diagram): WasmProgram {
     return planProgram(
@@ -165,15 +167,12 @@ export class DefaultDiagramPlanner implements IDiagramPlanner {
 export const planDiagram = (diagram: Diagram): WasmProgram => new DefaultDiagramPlanner().plan(diagram);
 
 export class DiagramCompiler extends CompilationModel {
-  private readonly planner: IDiagramPlanner;
-
   constructor(
     profileOrOptions?: WasmProfile | string | CompilerOptions | Record<string, string>,
     initialFiles?: Record<string, string>,
-    planner: IDiagramPlanner = new DefaultDiagramPlanner(),
+    private readonly planner: IDiagramPlanner = new DefaultDiagramPlanner(),
   ) {
     super(profileOrOptions, initialFiles);
-    this.planner = planner;
   }
 
   plan(diagram: Diagram): WasmProgram {

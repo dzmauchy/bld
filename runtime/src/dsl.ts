@@ -200,22 +200,21 @@ abstract class FnEmitter {
     );
   }
 
-  product(): Expr {
+  reduceArray(initial: Expr, op: (acc: Expr, item: Expr) => Expr): Expr {
     const acc = this.alloc(binaryen.f32);
-    this.set(acc, this.f32(1));
+    this.set(acc, initial);
     this.forRange(this.arrayLen(), (index) => {
-      this.set(acc, this.mul(this.loc(acc, binaryen.f32), this.arrayGet(index())));
+      this.set(acc, op(this.loc(acc, binaryen.f32), this.arrayGet(index())));
     });
     return this.loc(acc, binaryen.f32);
   }
 
+  product(): Expr {
+    return this.reduceArray(this.f32(1), (acc, item) => this.mul(acc, item));
+  }
+
   sum(): Expr {
-    const acc = this.alloc(binaryen.f32);
-    this.set(acc, this.f32(0));
-    this.forRange(this.arrayLen(), (index) => {
-      this.set(acc, this.addF32(this.loc(acc, binaryen.f32), this.arrayGet(index())));
-    });
-    return this.loc(acc, binaryen.f32);
+    return this.reduceArray(this.f32(0), (acc, item) => this.addF32(acc, item));
   }
 
   protected capture(fn: () => void): Expr[] {
@@ -229,6 +228,10 @@ abstract class FnEmitter {
 
   protected finishBody(): { locals: binaryen.Type[]; body: Expr[] } {
     return { locals: this.extraLocals, body: this.stmts };
+  }
+
+  build(): { locals: binaryen.Type[]; body: Expr[] } {
+    return this.finishBody();
   }
 }
 
@@ -263,10 +266,6 @@ export class PushEmitter extends FnEmitter {
     this.recordPin(pinExpr, out());
     this.forward(out());
   }
-
-  build(): { locals: binaryen.Type[]; body: Expr[] } {
-    return this.finishBody();
-  }
 }
 
 export class TickEmitter extends FnEmitter {
@@ -291,10 +290,6 @@ export class TickEmitter extends FnEmitter {
       this.f32(1),
       this.f32(0),
     );
-  }
-
-  build(): { locals: binaryen.Type[]; body: Expr[] } {
-    return this.finishBody();
   }
 }
 
@@ -333,10 +328,6 @@ export class GpioEmitter extends FnEmitter {
 
   forwardPins(): void {
     this.eachPin((_pin, consumers) => this.forward(this.highIfTrue(), consumers));
-  }
-
-  build(): { locals: binaryen.Type[]; body: Expr[] } {
-    return this.finishBody();
   }
 }
 

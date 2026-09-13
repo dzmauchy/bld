@@ -37,7 +37,7 @@ export class Palette implements IPalette {
   }
 
   getBlocks(): BlockDefinition[] {
-    return [...this.blocks.values()];
+    return this.blocks.values().toArray();
   }
 
   getBlocksByCategory(category: string): BlockDefinition[] {

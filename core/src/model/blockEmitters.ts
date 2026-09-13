@@ -1,12 +1,13 @@
 /**
  * @title Block Emitters
  */
-import { defaultRegistry, PUSH_BLOCK_REFS, TICK_BLOCK_REFS } from "runtime";
+import {
+  defaultRegistry,
+  PUSH_BLOCK_REFS,
+  TICK_BLOCK_REFS,
+  RegistryBlockPredicateView,
+} from "runtime";
 
-export { PUSH_BLOCK_REFS, TICK_BLOCK_REFS };
+export { PUSH_BLOCK_REFS, TICK_BLOCK_REFS, RegistryBlockPredicateView };
 
-export const defaultBlockEmitters = {
-  has(ref: string): boolean {
-    return defaultRegistry.has(ref);
-  },
-};
+export const defaultBlockEmitters = new RegistryBlockPredicateView(defaultRegistry);

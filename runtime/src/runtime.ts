@@ -64,13 +64,13 @@ function isWorkerResponse(message: unknown): message is WorkerResponse {
 
 class WorkerClient {
   private nextId = 1;
-  private pending = new Map<number, { resolve: (value: WorkerResponse) => void; reject: (error: Error) => void }>();
+  private readonly pending = new Map<number, { resolve: (value: WorkerResponse) => void; reject: (error: Error) => void }>();
 
   constructor(
     private readonly thread: Thread,
     onHostMessage?: HostMessageHandler,
   ) {
-    thread.onMessage((message) => {
+    this.thread.onMessage((message) => {
       if (!isWorkerResponse(message)) {
         onHostMessage?.(message);
         return;
@@ -83,7 +83,7 @@ class WorkerClient {
       this.pending.delete(message.id);
       pending.resolve(message);
     });
-    thread.onError((error) => {
+    this.thread.onError((error) => {
       for (const [, pending] of this.pending) pending.reject(error);
       this.pending.clear();
     });
@@ -93,10 +93,10 @@ class WorkerClient {
     payload: Omit<RunInstantiateRequest, "id"> | Omit<RunInvokeRequest, "id">,
   ): Promise<WorkerOk> {
     const id = this.nextId++;
-    const response = await new Promise<WorkerResponse>((resolve, reject) => {
-      this.pending.set(id, { resolve, reject });
-      this.thread.postMessage({ ...payload, id });
-    });
+    const { promise, resolve, reject } = Promise.withResolvers<WorkerResponse>();
+    this.pending.set(id, { resolve, reject });
+    this.thread.postMessage({ ...payload, id });
+    const response = await promise;
     if (response.type === "error") {
       throw new Error(response.message);
     }
