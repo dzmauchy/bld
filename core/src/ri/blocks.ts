@@ -1,4 +1,4 @@
-import { Block, ExecutionContext, f32, pss, u16, u32, u8, VectorizedInput, VectorizedOutput } from "./context";
+import type { Block, ExecutionContext, f32, pss, u16, u32, u8, VectorizedInput, VectorizedOutput } from "./context";
 
 export const TWO_PI = 2 * 3.1415926;
 
