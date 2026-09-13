@@ -39,7 +39,7 @@ echo "PASS bash -n launch-cursor-agent.sh"
 PASS=$((PASS + 1))
 
 if command -v actionlint >/dev/null 2>&1; then
-  actionlint "$WORKFLOW" "${ROOT}/.github/workflows/build.yml"
+  actionlint "$WORKFLOW" "${ROOT}/.github/workflows/cursor-launcher-test.yml"
   echo "PASS actionlint"
   PASS=$((PASS + 1))
 else

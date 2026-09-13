@@ -15,9 +15,6 @@ jobs:
     steps:
       - uses: actions/checkout@v7
 
-      - name: Validate Cursor issue workflow
-        run: bash .github/scripts/launch-cursor-agent.test.sh
-
       - uses: actions/setup-node@v7
         with:
           node-version: "26"

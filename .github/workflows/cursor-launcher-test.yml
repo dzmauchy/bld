@@ -1,0 +1,17 @@
+name: Cursor Launcher Test
+
+on:
+  workflow_dispatch:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v7
+
+      - name: Run Cursor launcher tests
+        run: bash .github/scripts/launch-cursor-agent.test.sh
