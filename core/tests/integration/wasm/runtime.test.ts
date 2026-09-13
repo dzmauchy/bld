@@ -1,13 +1,11 @@
 import { expect, test } from "vitest";
 import { BrowserCompiler, Diagram, Library, PortEndpoint } from "../../../src";
-import { WasmRuntime } from "runtime/runtime.ts";
-import { nodeThread } from "runtime/runtime.node.ts";
+import { createNodeWasmRuntime } from "runtime/tests/runtime.node.ts";
 
 test("run worker forwards UI env bindings to the host thread", async () => {
   await Library.load("base.json");
   const pins: unknown[] = [];
-  const runtime = new WasmRuntime({
-    runThread: nodeThread("host.run.worker.ts"),
+  const runtime = createNodeWasmRuntime({
     onHostMessage(message) {
       pins.push(message);
     },
