@@ -48,6 +48,7 @@ Technology stack:
   - **Inheritance**: Model shared concepts and polymorphic behavior through class hierarchies, base classes, and specialized subclasses (e.g., diagram elements, endpoints, property definitions, threads, compilers, contexts, and emitters).
   - **Encapsulation**: Maintain strict information hiding. Protect internal state using `private` or `protected` members, and expose intent-revealing public methods and getters rather than exposing mutable internals.
   - **Abstractions**: Define explicit interfaces and abstract classes representing system contracts, capabilities, and extension points (e.g., abstract compiler profiles, thread runners, asset loaders, program planners, and typed elements).
+- The project uses workspaces to manage multiple projects within a single repository. See .npmrc.
 
 # Agent permissions
 

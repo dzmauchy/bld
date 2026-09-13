@@ -1,12 +1,6 @@
 {
   "extends": "./tsconfig.json",
   "compilerOptions": {
-    "composite": false,
-    "noEmit": true,
-    "declaration": false,
-    "declarationMap": false,
-    "allowImportingTsExtensions": true,
-    "rootDir": ".",
     "types": [
       "@rsbuild/core/types",
       "node"
