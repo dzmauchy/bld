@@ -6,7 +6,7 @@ import { loadAsset, resolveUrl } from "./appAssets";
 import type { RawBlockCatalogEntry } from "./blockDefinition";
 import { CompilationModel } from "./compiler";
 import { Palette } from "./palette";
-import { defaultRegistry, importAssembly, installAssembly, resolveAssemblyUrl, type ImportModule } from "runtime";
+import { defaultRegistry, importAssembly, installAssembly, resolveAssemblyUrl, type BlockRegistry, type ImportModule } from "runtime";
 
 export {
   AbstractAssetStore,
@@ -36,13 +36,15 @@ export interface PackageManifest {
 
 export interface LibraryLoadOptions {
   importModule?: ImportModule;
+  registry?: BlockRegistry;
 }
 
 export interface LibrarySources {
   types?: Record<string, TypeCatalogEntry>;
   namespaces?: Record<string, unknown>;
   blocks?: Record<string, RawBlockCatalogEntry>;
-  assemblyFiles?: Record<string, string>;
+  assembly?: string | undefined;
+  compilationModel?: CompilationModel | undefined;
 }
 
 export class Library {
@@ -56,7 +58,7 @@ export class Library {
     readonly types: Record<string, TypeCatalogEntry> = {},
     readonly namespaces: Record<string, unknown> = {},
     readonly blocks: Record<string, RawBlockCatalogEntry> = {},
-    readonly assemblyFiles: Record<string, string> = {},
+    readonly assembly: string | undefined = manifest.assembly,
   ) {}
 
   get id(): string {
@@ -75,10 +77,10 @@ export class Library {
     const types = sources.types ?? {};
     const namespaces = sources.namespaces ?? {};
     const blocks = sources.blocks ?? {};
-    const assemblyFiles = sources.assemblyFiles ?? {};
+    const assembly = sources.assembly ?? manifest.assembly;
 
     const palette = Palette.fromCatalog(blocks, types, namespaces);
-    const compilationModel = new CompilationModel(assemblyFiles);
+    const compilationModel = sources.compilationModel ?? new CompilationModel();
 
     const lib = new Library(
       manifest,
@@ -88,7 +90,7 @@ export class Library {
       types,
       namespaces,
       blocks,
-      assemblyFiles,
+      assembly,
     );
 
     if (manifest.id === "base") Library.base = lib;
@@ -119,23 +121,24 @@ export class Library {
     const allTypes = await loadCatalog<TypeCatalogEntry>(manifest.types);
     const allNamespaces = await loadCatalog<unknown>(manifest.namespaces);
     const allBlocks = await loadCatalog<RawBlockCatalogEntry>(manifest.blocks);
-    const allAssemblyFiles: Record<string, string> = {};
 
+    let resolvedAssembly: string | undefined;
     if (manifest.assembly) {
       const url = baseUrl ? resolveUrl(manifest.assembly, baseUrl) : manifest.assembly;
       const specifier = resolveAssemblyUrl(url, baseUrl);
-      allAssemblyFiles[manifest.assembly] = specifier;
-      const slash = manifest.assembly.lastIndexOf("/");
-      const baseName = slash === -1 ? manifest.assembly : manifest.assembly.slice(slash + 1);
-      allAssemblyFiles[baseName] = specifier;
-      await installAssembly(specifier, defaultRegistry, options.importModule ?? importAssembly);
+      resolvedAssembly = specifier;
+      await installAssembly(
+        specifier,
+        options.registry ?? defaultRegistry,
+        options.importModule ?? importAssembly,
+      );
     }
 
     return Library.fromManifest(manifest, {
       types: allTypes,
       namespaces: allNamespaces,
       blocks: allBlocks,
-      assemblyFiles: allAssemblyFiles,
+      assembly: resolvedAssembly ?? manifest.assembly,
     });
   }
 

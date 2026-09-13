@@ -65,8 +65,8 @@ describe("Library and Asset Loader", () => {
 
     // In-memory CompilationModel populated
     expect(lib.compilationModel).toBeInstanceOf(CompilationModel);
-    expect(lib.compilationModel.getFile("assembly.js")).toBeDefined();
-    expect(URL.canParse(lib.compilationModel.getFile("assembly.js")!)).toBe(true);
+    expect(lib.assembly).toBeDefined();
+    expect(URL.canParse(lib.assembly!)).toBe(true);
 
     // Base library is cached
     expect(Library.getBaseSync()).toBe(lib);
@@ -140,7 +140,7 @@ describe("Library and Asset Loader", () => {
       expect(lib.name).toBe("Remote Plugin");
       expect(lib.typeSystem.getPrimitive("custom_t")).toBeDefined();
       expect(lib.palette.getBlock("custom_block")).toBeDefined();
-      expect(lib.compilationModel.getFile("plugin.ts")).toBe("https://my-plugin.org/dsp/plugin.ts");
+      expect(lib.assembly).toBe("https://my-plugin.org/dsp/plugin.ts");
       expect(imported).toEqual(["https://my-plugin.org/dsp/plugin.ts"]);
 
       // Verify fetch was invoked for JSON assets, not the assembly module.
@@ -223,4 +223,39 @@ describe("Library and Asset Loader", () => {
     expect(palette.hasBlock("scope_f32")).toBe(true);
     expect(palette.getBlock("scope_f32")?.title).toBe("Scope");
   });
+
+  test("loads assembly via dynamic import and installs block emitters into registry", async () => {
+    const { BlockRegistry } = await import("runtime");
+    const registry = new BlockRegistry();
+    const importedUrls: string[] = [];
+
+    const lib = await Library.load(
+      {
+        id: "dynamic_math",
+        name: "Dynamic Math",
+        assembly: "math_assembly.js",
+      },
+      {
+        registry,
+        importModule: async (url) => {
+          importedUrls.push(url);
+          return {
+            install: (api) => {
+              api.define("dynamic_scale", (block) => {
+                block.onPush((push) => {
+                  push.forward(push.f32(42));
+                });
+              });
+            },
+          };
+        },
+      },
+    );
+
+    expect(lib.id).toBe("dynamic_math");
+    expect(lib.assembly).toBe("math_assembly.js");
+    expect(importedUrls).toEqual(["math_assembly.js"]);
+    expect(registry.has("dynamic_scale")).toBe(true);
+  });
 });
+

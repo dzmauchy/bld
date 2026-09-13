@@ -52,6 +52,7 @@ export interface WasmSessionLike {
 export interface CompileOptionsLike {
   debug?: boolean;
   optimizeLevel?: number;
+  registry?: BlockRegistry;
 }
 
 export interface WasmRuntimeLike<TSession extends WasmSessionLike = WasmSessionLike> {
@@ -148,7 +149,7 @@ export interface IDiagramPlanner {
 }
 
 export class DefaultDiagramPlanner implements IDiagramPlanner {
-  constructor(private readonly registry: BlockRegistry = defaultRegistry) {}
+  constructor(readonly registry: BlockRegistry = defaultRegistry) {}
 
   plan(diagram: Diagram): WasmProgram {
     return planProgram(
@@ -167,12 +168,16 @@ export class DefaultDiagramPlanner implements IDiagramPlanner {
 export const planDiagram = (diagram: Diagram): WasmProgram => new DefaultDiagramPlanner().plan(diagram);
 
 export class DiagramCompiler extends CompilationModel {
+  readonly registry: BlockRegistry;
+
   constructor(
     profileOrOptions?: WasmProfile | string | CompilerOptions | Record<string, string>,
     initialFiles?: Record<string, string>,
     private readonly planner: IDiagramPlanner = new DefaultDiagramPlanner(),
+    registry?: BlockRegistry,
   ) {
     super(profileOrOptions, initialFiles);
+    this.registry = registry ?? (planner instanceof DefaultDiagramPlanner ? planner.registry : defaultRegistry);
   }
 
   plan(diagram: Diagram): WasmProgram {
@@ -180,12 +185,12 @@ export class DiagramCompiler extends CompilationModel {
   }
 
   emitText(diagram: Diagram, options?: CompileOptionsLike): string {
-    return this.profile.emitText(this.plan(diagram), options);
+    return this.profile.emitText(this.plan(diagram), { registry: this.registry, ...options });
   }
 
   /** Compile through the runtime wasm profile (browser via Binaryen; MCU unimplemented). */
   compile(diagram: Diagram, options?: CompileOptionsLike): Uint8Array {
-    return this.profile.compile(this.plan(diagram), options);
+    return this.profile.compile(this.plan(diagram), { registry: this.registry, ...options });
   }
 
   /** Compile with the runtime, then instantiate the module on the given wasm runtime. */
