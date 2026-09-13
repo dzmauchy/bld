@@ -2,28 +2,93 @@ name: Cursor Issue Resolver
 
 on:
   issues:
-    types: [ labeled ]
+    types: [labeled]
+
+concurrency:
+  group: cursor-issue-${{ github.event.issue.number }}
+  cancel-in-progress: false
 
 jobs:
   cursor-agent:
     if: github.event.label.name == 'cursor'
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     permissions:
-      contents: write
       issues: write
-      pull-requests: write
+      contents: read
     steps:
-      - name: Checkout repository
-        uses: actions/checkout@v7
-      - name: Install Cursor CLI
-        run: |
-          curl https://cursor.com/install -fsS | bash
-          echo "$HOME/.cursor/bin" >> $GITHUB_PATH
-      - name: Run Cursor Agent
+      - name: Launch Cursor cloud agent
         env:
           CURSOR_API_KEY: ${{ secrets.CURSOR_API_KEY }}
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_TOKEN: ${{ github.token }}
+          ISSUE_NUMBER: ${{ github.event.issue.number }}
+          ISSUE_TITLE: ${{ github.event.issue.title }}
+          ISSUE_BODY: ${{ github.event.issue.body }}
+          ISSUE_URL: ${{ github.event.issue.html_url }}
+          REPO_URL: ${{ github.event.repository.html_url }}
+          DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
         run: |
-          agent -p "Resolve GitHub Issue #${{ github.event.issue.number }}: ${{ github.event.issue.title }}. \
-          Description: ${{ github.event.issue.body }}. \
-          Create a new branch, implement the requested changes, run existing tests, and submit a pull request."
+          set -euo pipefail
+
+          comment() {
+            gh issue comment "$ISSUE_NUMBER" --body "$1" \
+              || echo "::warning::Failed to comment on issue #${ISSUE_NUMBER}"
+          }
+
+          if [ -z "${CURSOR_API_KEY}" ]; then
+            comment "$(cat <<'EOF'
+          Cannot start a Cursor agent: repository secret `CURSOR_API_KEY` is not configured.
+
+          Create an API key at https://cursor.com/dashboard/integrations and add it as a GitHub Actions repository secret named `CURSOR_API_KEY`.
+          EOF
+          )"
+            echo "::error::Repository secret CURSOR_API_KEY is not set."
+            exit 1
+          fi
+
+          PAYLOAD="$(jq -n \
+            --arg title "${ISSUE_TITLE}" \
+            --arg number "${ISSUE_NUMBER}" \
+            --arg body "${ISSUE_BODY:-}" \
+            --arg issueUrl "${ISSUE_URL}" \
+            --arg repo "${REPO_URL}" \
+            --arg ref "${DEFAULT_BRANCH}" \
+            '{
+              prompt: {
+                text: (
+                  "Resolve GitHub Issue #\($number): \($title)\n\n" +
+                  "Issue URL: \($issueUrl)\n\n" +
+                  "Description:\n\($body)\n\n" +
+                  "Create a new branch from the default branch, implement the requested changes, run existing tests, and submit a pull request that closes this issue.\n" +
+                  "Follow the repository AGENTS.md conventions."
+                )
+              },
+              name: (("Issue #\($number): \($title)")[0:100]),
+              repos: [{ url: $repo, startingRef: $ref }],
+              autoCreatePR: true
+            }')"
+
+          HTTP_CODE="$(curl -sS -o /tmp/cursor-agent-response.json -w "%{http_code}" \
+            -H "Authorization: Bearer ${CURSOR_API_KEY}" \
+            -H "Content-Type: application/json" \
+            -X POST "https://api.cursor.com/v1/agents" \
+            --data "${PAYLOAD}")"
+
+          cat /tmp/cursor-agent-response.json
+          echo
+          echo "Cursor API HTTP status: ${HTTP_CODE}"
+
+          if [ "${HTTP_CODE}" -lt 200 ] || [ "${HTTP_CODE}" -ge 300 ]; then
+            comment "Failed to start a Cursor agent (HTTP ${HTTP_CODE}). Check the [workflow run](${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}) and that \`CURSOR_API_KEY\` is valid."
+            echo "::error::Cursor API returned HTTP ${HTTP_CODE}"
+            exit 1
+          fi
+
+          AGENT_URL="$(jq -r '.agent.url // empty' /tmp/cursor-agent-response.json)"
+          if [ -z "${AGENT_URL}" ]; then
+            comment "Cursor API accepted the request but did not return an agent URL. Check the [workflow run](${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID})."
+            echo "::error::Cursor API response did not include agent.url"
+            exit 1
+          fi
+
+          comment "Started a Cursor cloud agent for this issue: ${AGENT_URL}"
