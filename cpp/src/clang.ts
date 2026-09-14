@@ -18,7 +18,7 @@ export class ClangFrontend extends EmscriptenTool {
     const sources = [...files.keys()].filter((name) => isCppSource(name));
     if (sources.length === 0) throw new Error("no C or C++ source files to compile");
 
-    this.resetWork();
+    this.prepareWork();
     for (const [name, text] of files) this.writeText(workPath(name), text);
 
     const objects: ObjectFile[] = [];

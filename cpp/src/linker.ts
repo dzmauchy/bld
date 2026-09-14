@@ -12,7 +12,7 @@ export class WasmLinker extends EmscriptenTool {
 
   async link(objects: ObjectFile[], outputPath = "/work/a.wasm"): Promise<Uint8Array> {
     if (objects.length === 0) throw new Error("no object files to link");
-    this.resetWork();
+    this.prepareWork();
     for (const object of objects) this.writeBytes(object.path, object.bytes);
     await this.runMainAsync(this.args.build(objects.map((object) => object.path), outputPath));
     return this.readCopy(outputPath);

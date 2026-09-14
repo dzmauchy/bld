@@ -1,4 +1,8 @@
+import path from "node:path";
+import { fileURLToPath } from "node:url";
 import { defineConfig } from "@playwright/test";
+
+const root = path.dirname(fileURLToPath(import.meta.url));
 
 export default defineConfig({
   testDir: "./e2e",
@@ -22,7 +26,8 @@ export default defineConfig({
     },
   },
   webServer: {
-    command: "rsbuild build && rsbuild preview --port 3002",
+    command: `npx rsbuild build --root "${root}" && npx rsbuild preview --root "${root}" --port 3002`,
+    cwd: root,
     url: "http://localhost:3002",
     reuseExistingServer: !process.env.CI,
     timeout: 180_000,

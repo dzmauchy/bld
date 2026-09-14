@@ -71,10 +71,14 @@ export abstract class EmscriptenTool {
     return installed.resourceDir;
   }
 
-  resetWork(): void {
+  /**
+   * Leaves leftover files in place. Recreating `/work` after `chdir("/work")`
+   * leaves Emscripten cwd pointing at a destroyed MEMFS node, so later
+   * compiles cannot see newly written sources.
+   */
+  prepareWork(): void {
     const fs = this.requireFs();
     fs.chdir("/");
-    fs.removeTree("/work");
     fs.mkdirTree("/work");
   }
 
@@ -120,7 +124,7 @@ export abstract class EmscriptenTool {
     const runtime = this.requireRuntime();
     this.stdout = [];
     this.stderr = [];
-    this.requireFs().chdir("/work");
+    this.requireFs().chdir("/");
     const code = this.callMain(runtime, [...args]);
     if (code !== 0) {
       const details = [this.logs.stderr, this.logs.stdout].filter(Boolean).join("\n");
