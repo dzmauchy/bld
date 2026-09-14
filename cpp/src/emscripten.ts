@@ -95,13 +95,7 @@ export abstract class EmscriptenTool {
   }
 
   async runMainAsync(args: string[]): Promise<void> {
-    try {
-      this.executeMain(args);
-    } catch (error) {
-      if (!isAbortError(error) || !this.wasmUrl) throw error;
-      await this.recoverFromAbort();
-      this.executeMain(args);
-    }
+    this.executeMain(args);
   }
 
   get logs(): { stdout: string; stderr: string } {
@@ -111,7 +105,15 @@ export abstract class EmscriptenTool {
     };
   }
 
-  protected onSysrootInstalled(_resourceDir: string): void {}
+  protected async runJob<T>(job: () => Promise<T>): Promise<T> {
+    try {
+      return await job();
+    } catch (error) {
+      if (!isAbortError(error) || !this.wasmUrl) throw error;
+      await this.recoverFromAbort();
+      return job();
+    }
+  }
 
   private async recoverFromAbort(): Promise<void> {
     await this.boot(this.wasmUrl);
