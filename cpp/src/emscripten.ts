@@ -105,14 +105,22 @@ export abstract class EmscriptenTool {
     };
   }
 
+  protected onSysrootInstalled(_resourceDir: string): void {}
+
   protected async runJob<T>(job: () => Promise<T>): Promise<T> {
     try {
       return await job();
     } catch (error) {
-      if (!isAbortError(error) || !this.wasmUrl) throw error;
+      if (!this.canRecover(error) || !this.wasmUrl) throw error;
       await this.recoverFromAbort();
       return job();
     }
+  }
+
+  private canRecover(error: unknown): boolean {
+    if (isAbortError(error)) return true;
+    const message = error instanceof Error ? error.message : formatUnknownError(error);
+    return /no such file or directory/i.test(message);
   }
 
   private async recoverFromAbort(): Promise<void> {
