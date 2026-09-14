@@ -1,14 +1,7 @@
 import { ToolchainAssets } from "../assets.ts";
+import { WorkerCppWasmCompiler } from "../compiler.ts";
 import { WasmExecutor } from "../executor.ts";
-import { WorkerPool } from "../pool.ts";
-import { CppWasmProducer } from "../producer.ts";
 import { wrapEventTargetWorker } from "../thread.ts";
-
-export type BrowserCppRuntime = {
-  producer: CppWasmProducer;
-  executor: WasmExecutor;
-  pool: WorkerPool;
-};
 
 export type CppPageApi = {
   warmup(): Promise<void>;
@@ -18,8 +11,24 @@ export type CppPageApi = {
   workerCreateCount(): number;
 };
 
-export function createToolWorker(): Worker {
-  return new Worker(new URL("../workers/tool.worker.ts", import.meta.url), { type: "module" });
+export class BrowserCppRuntime {
+  readonly compiler: WorkerCppWasmCompiler;
+  readonly executor: WasmExecutor;
+  readonly workerCreateCount: number;
+
+  constructor(assets = ToolchainAssets.fromBase("/toolchain")) {
+    this.compiler = new WorkerCppWasmCompiler(wrapEventTargetWorker(createCompilerWorker()), assets);
+    this.executor = new WasmExecutor(wrapEventTargetWorker(createExecutorWorker()));
+    this.workerCreateCount = 2;
+  }
+
+  async warmup(): Promise<void> {
+    await Promise.all([this.compiler.warmup(), this.executor.warmup()]);
+  }
+}
+
+export function createCompilerWorker(): Worker {
+  return new Worker(new URL("../workers/compiler.worker.ts", import.meta.url), { type: "module" });
 }
 
 export function createExecutorWorker(): Worker {
@@ -27,16 +36,5 @@ export function createExecutorWorker(): Worker {
 }
 
 export function createBrowserCppRuntime(assets = ToolchainAssets.fromBase("/toolchain")): BrowserCppRuntime {
-  const pool = new WorkerPool();
-  const producer = new CppWasmProducer({
-    pool,
-    assets,
-    clang: () => wrapEventTargetWorker(createToolWorker()),
-    lld: () => wrapEventTargetWorker(createToolWorker()),
-  });
-  const executor = new WasmExecutor({
-    pool,
-    run: () => wrapEventTargetWorker(createExecutorWorker()),
-  });
-  return { producer, executor, pool };
+  return new BrowserCppRuntime(assets);
 }

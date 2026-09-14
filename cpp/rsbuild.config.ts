@@ -1,9 +1,17 @@
+import path from "node:path";
+import { fileURLToPath } from "node:url";
 import { defineConfig } from "@rsbuild/core";
+
+const root = path.dirname(fileURLToPath(import.meta.url));
 
 export default defineConfig({
   source: {
     entry: {
       index: "./src/browser/index.ts",
+    },
+    alias: {
+      "clang-emscripten": path.join(root, "vendor/clang.js"),
+      "lld-emscripten": path.join(root, "vendor/lld.js"),
     },
   },
   html: {
@@ -12,6 +20,9 @@ export default defineConfig({
   output: {
     distPath: {
       root: "dist/web",
+    },
+    dataUriLimit: {
+      wasm: 0,
     },
     copy: [{ from: "vendor", to: "toolchain" }],
   },

@@ -65,7 +65,7 @@ test("compiles freestanding C++ and executes the wasm export", async () => {
     return window.cpp.compileAndInvoke({ "add.cpp": source }, "add", [2, 3]);
   }, ADD_CPP);
   expect(result).toBe(5);
-  expect(await page.evaluate(() => window.cpp.workerCreateCount())).toBe(3);
+  expect(await page.evaluate(() => window.cpp.workerCreateCount())).toBe(2);
 });
 
 test("compiles a header plus source map without creating new workers", async () => {
@@ -74,7 +74,7 @@ test("compiles a header plus source map without creating new workers", async () 
     return { value, workers: window.cpp.workerCreateCount() };
   }, { header: HEADER, source: SCALE_CPP });
   expect(result.value).toBe(21);
-  expect(result.workers).toBe(3);
+  expect(result.workers).toBe(2);
 });
 
 test("compiles against sysroot headers", async () => {
@@ -91,7 +91,7 @@ test("executes wasm with host env bindings", async () => {
   expect(result).toBe(42);
 });
 
-test("reuses clang and lld workers across different programs", async () => {
+test("reuses the single clang/lld worker across different programs", async () => {
   const result = await page.evaluate(async ({ add, mul }) => {
     const sum = await window.cpp.compileAndInvoke({ "add.cpp": add }, "add", [4, 5]);
     const product = await window.cpp.compileAndInvoke({ "mul.cpp": mul }, "mul", [4, 5]);
@@ -99,7 +99,7 @@ test("reuses clang and lld workers across different programs", async () => {
   }, { add: ADD_CPP, mul: SECOND_CPP });
   expect(result.sum).toBe(9);
   expect(result.product).toBe(20);
-  expect(result.workers).toBe(3);
+  expect(result.workers).toBe(2);
 });
 
 test("surfaces clang diagnostics for invalid C++", async () => {
@@ -113,5 +113,5 @@ test("surfaces clang diagnostics for invalid C++", async () => {
   });
   expect(message.length).toBeGreaterThan(0);
   expect(message).toMatch(/error:|exited with/i);
-  expect(await page.evaluate(() => window.cpp.workerCreateCount())).toBe(3);
+  expect(await page.evaluate(() => window.cpp.workerCreateCount())).toBe(2);
 });

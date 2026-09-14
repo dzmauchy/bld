@@ -20,15 +20,14 @@ function appendLog(text: string): void {
 const api: CppPageApi = {
   async warmup() {
     setStatus("warming toolchain");
-    appendLog("loading clang, lld, and executor workers");
-    await runtime.producer.warmup();
-    await runtime.executor.warmup();
+    appendLog("loading clang/lld compiler worker and executor worker");
+    await runtime.warmup();
     setStatus("ready");
-    appendLog(`workers created: ${runtime.pool.createCount}`);
+    appendLog(`workers created: ${runtime.workerCreateCount}`);
   },
   async compile(files) {
     setStatus("compiling");
-    const wasm = await runtime.producer.compile(new Map(Object.entries(files)));
+    const wasm = await runtime.compiler.compile(new Map(Object.entries(files)));
     session = await runtime.executor.instantiate(wasm);
     setStatus("ready");
     appendLog(`compiled ${wasm.byteLength} bytes`);
@@ -45,7 +44,7 @@ const api: CppPageApi = {
     return api.invoke(name, args);
   },
   workerCreateCount() {
-    return runtime.pool.createCount;
+    return runtime.workerCreateCount;
   },
 };
 

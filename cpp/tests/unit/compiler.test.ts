@@ -1,0 +1,132 @@
+import { describe, expect, test } from "vitest";
+import { ClangFrontend } from "../../src/clang.ts";
+import { CppWasmCompiler, WorkerCppWasmCompiler } from "../../src/compiler.ts";
+import type { EmscriptenModuleFactory, EmscriptenRuntime } from "../../src/emscripten.ts";
+import type { EmscriptenFsApi } from "../../src/filesystem.ts";
+import { MemoryFileSystem } from "../../src/filesystem.ts";
+import { WasmLinker } from "../../src/linker.ts";
+import type { WorkerResponse } from "../../src/messages.ts";
+import { ToolchainAssets } from "../../src/assets.ts";
+import { Thread } from "../../src/thread.ts";
+
+function emscriptenApi(fs: MemoryFileSystem): EmscriptenFsApi {
+  return {
+    mkdir: (path) => fs.mkdirTree(path),
+    mkdirTree: (path) => fs.mkdirTree(path),
+    writeFile: (path, data) => fs.writeFile(path, data),
+    readFile: (path) => fs.readFile(path),
+    readdir: (path) => fs.list(path),
+    unlink: (path) => fs.unlink(path),
+    rmdir: (path) => fs.rmdir(path),
+    chdir: (path) => fs.chdir(path),
+    analyzePath: (path) => ({ exists: fs.exists(path) }),
+    stat: (path) => ({ mode: fs.isDirectory(path) ? 0o040000 : 0o100000 }),
+    isDir: (mode) => (mode & 0o170000) === 0o040000,
+  };
+}
+
+class ScriptedModuleFactory {
+  readonly runs: string[][] = [];
+
+  constructor(
+    private readonly fs: MemoryFileSystem,
+    private readonly writeOutput: (args: string[], fs: MemoryFileSystem) => void,
+  ) {}
+
+  readonly create: EmscriptenModuleFactory = async (): Promise<EmscriptenRuntime> => ({
+    FS: emscriptenApi(this.fs),
+    callMain: (args) => {
+      this.runs.push(args);
+      this.writeOutput(args, this.fs);
+      return 0;
+    },
+  });
+}
+
+class ScriptedThread extends Thread {
+  private handler: ((data: unknown) => void) | undefined;
+  readonly posted: Record<string, unknown>[] = [];
+
+  constructor(private readonly onRequest: (data: Record<string, unknown>) => WorkerResponse) {
+    super();
+  }
+
+  override postMessage(data: unknown): void {
+    const request = data as Record<string, unknown>;
+    this.posted.push(request);
+    const response = this.onRequest(request);
+    queueMicrotask(() => this.handler?.(response));
+  }
+
+  override onMessage(handler: (data: unknown) => void): void {
+    this.handler = handler;
+  }
+
+  override onError(): void {}
+
+  override terminate(): Promise<unknown> {
+    return Promise.resolve();
+  }
+}
+
+describe("CppWasmCompiler", () => {
+  test("compiles sources with clang then links objects with lld", async () => {
+    const clangFs = new MemoryFileSystem();
+    const lldFs = new MemoryFileSystem();
+    const objectBytes = new Uint8Array([1, 2, 3, 4]);
+    const wasmBytes = new Uint8Array([0, 97, 115, 109, 1]);
+    const clang = new ScriptedModuleFactory(clangFs, (args, fs) => {
+      fs.writeTree(args.at(-1) ?? "", objectBytes);
+    });
+    const lld = new ScriptedModuleFactory(lldFs, (args, fs) => {
+      fs.writeTree(args.at(-1) ?? "", wasmBytes);
+    });
+
+    const frontend = new ClangFrontend(clang.create);
+    const linker = new WasmLinker(lld.create);
+    await frontend.boot("/toolchain/clang.wasm");
+    await linker.boot("/toolchain/lld.wasm");
+    const compiler = new CppWasmCompiler(frontend, linker);
+
+    const wasm = await compiler.compile(new Map([
+      ["add.h", "int add(int, int);"],
+      ["add.cpp", "int add(int a, int b) { return a + b; }"],
+    ]));
+
+    expect(wasm).toEqual(wasmBytes);
+    expect(clang.runs).toHaveLength(1);
+    expect(clang.runs[0]).toContain("/work/add.cpp");
+    expect(clang.runs[0]?.at(-1)).toBe("/work/add.o");
+    expect(lld.runs).toHaveLength(1);
+    expect(lld.runs[0]).toContain("/work/add.o");
+    expect(lldFs.exists("/work/add.o")).toBe(true);
+  });
+});
+
+describe("WorkerCppWasmCompiler", () => {
+  test("sends each compilation to a single clang/lld worker", async () => {
+    const wasmBytes = new Uint8Array([0, 97, 115, 109, 1]);
+    const thread = new ScriptedThread((request) => {
+      if (request.type === "init") return { id: request.id as number, type: "ok" };
+      expect(request.type).toBe("compile");
+      const files = request.files as Record<string, string>;
+      expect(files["add.cpp"]).toContain("return a + b");
+      return { id: request.id as number, type: "ok", files: { "/work/a.wasm": wasmBytes } };
+    });
+
+    const compiler = new WorkerCppWasmCompiler(thread, ToolchainAssets.fromBase("/toolchain"));
+    const first = await compiler.compile(new Map([["add.cpp", "int add(int a, int b) { return a + b; }"]]));
+    const second = await compiler.compile(new Map([["add.cpp", "extern \"C\" int add(int a, int b) { return a + b; }"]]));
+
+    expect(first).toEqual(wasmBytes);
+    expect(second).toEqual(wasmBytes);
+    expect(thread.posted.filter((message) => message.type === "init")).toHaveLength(1);
+    expect(thread.posted.filter((message) => message.type === "compile")).toHaveLength(2);
+    expect(thread.posted[0]).toMatchObject({
+      type: "init",
+      clangWasmUrl: "/toolchain/clang.wasm",
+      lldWasmUrl: "/toolchain/lld.wasm",
+      sysrootUrl: "/toolchain/sysroot.tgz",
+    });
+  });
+});

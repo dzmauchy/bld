@@ -26,26 +26,21 @@ export type FilePayload = {
   bytes?: Uint8Array;
 };
 
-export type ToolInitRequest = {
+export type CompilerInitRequest = {
   type: "init";
   id: number;
-  moduleUrl: string;
-  wasmUrl: string;
+  clangWasmUrl: string;
+  lldWasmUrl: string;
   sysrootUrl: string;
-  thisProgram: string;
-  sysrootKind: SysrootInstallKind;
 };
 
-export type ToolRunRequest = {
-  type: "run";
+export type CompilerCompileRequest = {
+  type: "compile";
   id: number;
-  files: FilePayload[];
-  args: string[];
-  read: string[];
-  resetWork: boolean;
+  files: Record<string, string>;
 };
 
-export type ToolRequest = ToolInitRequest | ToolRunRequest;
+export type CompilerRequest = CompilerInitRequest | CompilerCompileRequest;
 
 export type ExecutorInstantiateRequest = {
   type: "instantiate";

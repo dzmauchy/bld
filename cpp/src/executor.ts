@@ -1,5 +1,4 @@
-import { WorkerPool } from "./pool.ts";
-import type { RpcClient } from "./rpc.ts";
+import { RpcClient } from "./rpc.ts";
 import type { Thread } from "./thread.ts";
 
 export class ExecutedWasm {
@@ -11,42 +10,21 @@ export class ExecutedWasm {
   }
 }
 
-export type WasmExecutorOptions = {
-  pool?: WorkerPool;
-  run: Thread | (() => Thread);
-};
-
 export class WasmExecutor {
-  private readonly pool: WorkerPool;
-  private readonly factory: () => Thread;
-  private ready: Promise<RpcClient> | undefined;
+  private readonly client: RpcClient;
 
-  constructor(options: WasmExecutorOptions) {
-    this.pool = options.pool ?? new WorkerPool();
-    this.factory = typeof options.run === "function" ? options.run : () => options.run as Thread;
+  constructor(thread: Thread) {
+    this.client = new RpcClient(thread);
   }
 
-  get workerCreateCount(): number {
-    return this.pool.createCount;
-  }
-
-  async warmup(): Promise<void> {
-    await this.ensureWorker();
-  }
+  async warmup(): Promise<void> {}
 
   async instantiate(wasm: Uint8Array): Promise<ExecutedWasm> {
-    const client = await this.ensureWorker();
-    await client.request({ type: "instantiate", wasm });
-    return new ExecutedWasm(client);
+    await this.client.request({ type: "instantiate", wasm });
+    return new ExecutedWasm(this.client);
   }
 
   async close(): Promise<void> {
-    this.ready = undefined;
-    await this.pool.close();
-  }
-
-  private ensureWorker(): Promise<RpcClient> {
-    this.ready ??= Promise.resolve(this.pool.acquire("executor", this.factory));
-    return this.ready;
+    await this.client.terminate();
   }
 }
