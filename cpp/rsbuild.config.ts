@@ -26,6 +26,16 @@ export default defineConfig({
     },
     copy: [{ from: "vendor", to: "toolchain" }],
   },
+  tools: {
+    rspack: {
+      resolve: {
+        alias: {
+          "clang-emscripten": path.join(root, "vendor/clang.js"),
+          "lld-emscripten": path.join(root, "vendor/lld.js"),
+        },
+      },
+    },
+  },
   server: {
     port: 3002,
   },
