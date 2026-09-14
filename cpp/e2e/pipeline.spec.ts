@@ -15,7 +15,7 @@ extern "C" int add(int a, int b) {
 }
 `;
 
-const HEADER = `int scale(int value);`;
+const HEADER = `extern "C" int scale(int value);`;
 
 const SCALE_CPP = `
 #include "scale.h"

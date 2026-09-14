@@ -1,10 +1,11 @@
 import { EmscriptenFileSystem, type EmscriptenFsApi } from "../filesystem.ts";
 import type { FilePayload, ToolInitRequest, ToolRunRequest, WorkerResponse } from "../messages.ts";
 import { SysrootInstaller } from "../sysroot.ts";
-import { attachWorker } from "./host.ts";
+import { attachWorker, formatUnknownError } from "./host.ts";
 
 type CreateModule = (options: {
   noInitialRun?: boolean;
+  noExitRuntime?: boolean;
   thisProgram?: string;
   locateFile?: (path: string, prefix: string) => string;
   print?: (text: string) => void;
@@ -38,13 +39,18 @@ export class EmscriptenToolSession {
   private stdout: string[] = [];
   private stderr: string[] = [];
   private resourceDir = "/sysroot/lib/clang/23";
+  private programName = "tool";
+  private lastInit: ToolInitRequest | undefined;
 
   async init(request: ToolInitRequest): Promise<{ resourceDir: string }> {
+    this.lastInit = request;
     const createModule = await this.loadCreateModule(request.moduleUrl);
+    this.programName = request.thisProgram;
     this.stdout = [];
     this.stderr = [];
     this.module = await createModule({
       noInitialRun: true,
+      noExitRuntime: true,
       thisProgram: request.thisProgram,
       locateFile: (path, prefix) => (path.endsWith(".wasm") ? request.wasmUrl : `${prefix}${path}`),
       print: (text) => {
@@ -66,29 +72,40 @@ export class EmscriptenToolSession {
     return { resourceDir: this.resourceDir };
   }
 
-  run(request: ToolRunRequest): { files: Record<string, Uint8Array>; stdout: string; stderr: string } {
+  async run(request: ToolRunRequest): Promise<{ files: Record<string, Uint8Array>; stdout: string; stderr: string }> {
+    try {
+      return this.execute(request);
+    } catch (error) {
+      if (!isAbortError(error) || !this.lastInit) throw error;
+      await this.init(this.lastInit);
+      return this.execute(request);
+    }
+  }
+
+  private execute(request: ToolRunRequest): { files: Record<string, Uint8Array>; stdout: string; stderr: string } {
     const module = this.requireModule();
     const fs = this.requireFs();
     this.stdout = [];
     this.stderr = [];
     if (request.resetWork) {
+      fs.chdir("/");
       fs.removeTree("/work");
       fs.mkdirTree("/work");
     }
     for (const file of request.files) this.writePayload(fs, file);
     fs.chdir("/work");
-    const code = this.callMain(module, request.args);
+    const code = this.callMain(module, [...request.args]);
     const logs = {
       stdout: this.stdout.join("\n"),
       stderr: this.stderr.join("\n"),
     };
     if (code !== 0) {
       const details = [logs.stderr, logs.stdout].filter(Boolean).join("\n");
-      throw new Error(`${request.args[0] ?? "tool"} exited with ${code}${details ? `\n${details}` : ""}`);
+      throw new Error(`${this.programName} exited with ${code}${details ? `\n${details}` : ""}`);
     }
     const files: Record<string, Uint8Array> = {};
     for (const path of request.read) {
-      files[path] = fs.readFile(path);
+      files[path] = copyOut(fs.readFile(path));
     }
     return { files, ...logs };
   }
@@ -114,7 +131,7 @@ export class EmscriptenToolSession {
     } catch (error) {
       const status = exitStatus(error);
       if (status !== undefined) return status;
-      throw error;
+      throw new Error(formatUnknownError(error));
     }
   }
 
@@ -137,6 +154,17 @@ export class EmscriptenToolSession {
   }
 }
 
+function copyOut(bytes: Uint8Array): Uint8Array {
+  const copy = new Uint8Array(bytes.byteLength);
+  copy.set(bytes);
+  return copy;
+}
+
+function isAbortError(error: unknown): boolean {
+  const message = error instanceof Error ? error.message : formatUnknownError(error);
+  return /aborted/i.test(message);
+}
+
 const session = new EmscriptenToolSession();
 
 attachWorker(async (data): Promise<WorkerResponse> => {
@@ -145,7 +173,7 @@ attachWorker(async (data): Promise<WorkerResponse> => {
     return { id: data.id, type: "ok", resourceDir: result.resourceDir };
   }
   if (isToolRun(data)) {
-    const result = session.run(data);
+    const result = await session.run(data);
     return {
       id: data.id,
       type: "ok",

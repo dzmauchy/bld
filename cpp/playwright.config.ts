@@ -2,6 +2,7 @@ import { defineConfig } from "@playwright/test";
 
 export default defineConfig({
   testDir: "./e2e",
+  testMatch: /.*\.spec\.ts/,
   fullyParallel: false,
   workers: 1,
   forbidOnly: !!process.env.CI,
@@ -13,6 +14,12 @@ export default defineConfig({
   use: {
     baseURL: "http://localhost:3002",
     trace: "on-first-retry",
+    launchOptions: {
+      args: [
+        "--enable-experimental-webassembly-features",
+        "--js-flags=--wasm-custom-descriptors,--wasm-compact-imports,--experimental-wasm-compact-imports,--wasm-staging",
+      ],
+    },
   },
   webServer: {
     command: "rsbuild build && rsbuild preview --port 3002",
