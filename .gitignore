@@ -11,6 +11,9 @@ dist/
 *.tsbuildinfo
 core/assets/assembly/build/
 
+# C++ toolchain release assets (downloaded from GitHub Releases)
+cpp/vendor/
+
 # Optional npm cache
 .npm
 

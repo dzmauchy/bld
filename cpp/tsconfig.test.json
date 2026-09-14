@@ -1,0 +1,17 @@
+{
+  "extends": [
+    "./tsconfig.json",
+    "../tsconfig.test.base.json"
+  ],
+  "compilerOptions": {
+    "lib": [
+      "ESNext",
+      "DOM",
+      "DOM.Iterable",
+      "WebWorker"
+    ],
+    "types": [
+      "node"
+    ]
+  }
+}
