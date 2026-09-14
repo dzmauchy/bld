@@ -1,4 +1,4 @@
-name: Build and Release Clang WASM
+name: Build and Release Clang and LLD WASM
 
 on:
   push:
@@ -13,7 +13,7 @@ on:
       release_tag:
         description: 'Release tag name (for manual runs)'
         required: false
-        default: 'clang-23-wasm-latest'
+        default: 'clang-lld-23-wasm-latest'
 
 permissions:
   contents: write
@@ -21,12 +21,11 @@ permissions:
 jobs:
   build-wasm:
     runs-on: ubuntu-latest
-    timeout-minutes: 180
+    timeout-minutes: 60
 
     steps:
       - name: Free Disk Space with apt-get & Configure Swap
         run: |
-          # Purge heavy preinstalled software suites via apt-get
           sudo apt-get update
           sudo apt-get remove --purge -y \
             azure-cli \
@@ -43,10 +42,8 @@ jobs:
           sudo apt-get autoremove --purge -y
           sudo apt-get clean
 
-          # Prune remaining tool caches and dangling runtime directories
           sudo rm -rf /usr/local/lib/android /usr/share/dotnet /opt/ghc "$AGENT_TOOLSDIRECTORY" || true
 
-          # 13 GB swap: LTO-free LLVM still peaks near runner RAM during tablegen and linking
           sudo swapoff -a || true
           sudo rm -f /swapfile || true
           sudo fallocate -l 13G /swapfile
@@ -91,22 +88,19 @@ jobs:
             -DLLVM_USE_LINKER=lld \
             -DLLVM_ENABLE_BINDINGS=OFF
 
-          # LLVM 19+ requires llvm-min-tblgen alongside llvm-tblgen and clang-tblgen
-          # Ubuntu ninja 1.13.2 has no --status flag; NINJA_STATUS is the supported API.
           export NINJA_STATUS="[%f/%t %e] "
           ninja -C build-native -j 2 llvm-tblgen clang-tblgen llvm-min-tblgen || ninja -C build-native -j 2 llvm-tblgen clang-tblgen
 
-      - name: Stage 2 - Build Clang to WebAssembly (Ultra-Minimized & No Objective-C)
+      - name: Stage 2 - Build Clang and LLD to WebAssembly
         run: |
           cd llvm-project
           NATIVE_BIN="$(pwd)/build-native/bin"
 
-          # 1. -Os instead of -Oz, no -flto to prevent runner OOM.
-          # 2. Disable Objective-C rewriter, HLSL, analyzer, and bindings.
-          # 3. Maximum memory set to 2GB to adhere to wasm32 limits.
+          # 1. Enabled projects: "clang;lld"
+          # 2. Changed EXPORT_NAME to generic 'createModule' so ES6 imports work seamlessly for both
           emcmake cmake -G Ninja -B build-wasm -S llvm \
             -DCMAKE_BUILD_TYPE=MinSizeRel \
-            -DLLVM_ENABLE_PROJECTS="clang" \
+            -DLLVM_ENABLE_PROJECTS="clang;lld" \
             -DLLVM_TARGETS_TO_BUILD="WebAssembly" \
             -DLLVM_DEFAULT_TARGET_TRIPLE="wasm32-unknown-emscripten" \
             -DLLVM_NATIVE_TOOL_DIR="$NATIVE_BIN" \
@@ -130,41 +124,36 @@ jobs:
             -DCLANG_ENABLE_HLSL=OFF \
             -DCLANG_BUILD_TOOLS=ON \
             -DCMAKE_CXX_FLAGS="-Os -ffunction-sections -fdata-sections -fno-exceptions -fno-rtti -mbulk-memory -mextended-const -mtail-call -mmultivalue -msign-ext -mnontrapping-fptoint -mreference-types" \
-            -DCMAKE_EXE_LINKER_FLAGS="-Os -Wl,--gc-sections -mbulk-memory -mextended-const -mtail-call -mmultivalue -msign-ext -mnontrapping-fptoint -mreference-types -sMALLOC=emmalloc -sEVAL_CTORS=1 -sALLOW_MEMORY_GROWTH=1 -sINITIAL_MEMORY=256MB -sMAXIMUM_MEMORY=2GB -sFORCE_FILESYSTEM=1 -sDISABLE_EXCEPTION_CATCHING=1 -sWASM_BIGINT=1 -sTEXTDECODER=2 -sEXPORTED_RUNTIME_METHODS=FS,callMain -sEXPORT_NAME=createClangModule -sMODULARIZE=1 -sEXPORT_ES6=1"
+            -DCMAKE_EXE_LINKER_FLAGS="-Os -Wl,--gc-sections -mbulk-memory -mextended-const -mtail-call -mmultivalue -msign-ext -mnontrapping-fptoint -mreference-types -sMALLOC=emmalloc -sEVAL_CTORS=1 -sALLOW_MEMORY_GROWTH=1 -sINITIAL_MEMORY=256MB -sMAXIMUM_MEMORY=2GB -sFORCE_FILESYSTEM=1 -sDISABLE_EXCEPTION_CATCHING=1 -sWASM_BIGINT=1 -sTEXTDECODER=2 -sEXPORTED_RUNTIME_METHODS=FS,callMain -sEXPORT_NAME=createModule -sMODULARIZE=1 -sEXPORT_ES6=1"
+          
           export NINJA_STATUS="[%f/%t %e] "
-          ninja -C build-wasm -j 2 clang
+          ninja -C build-wasm -j 2 clang lld
 
-      - name: Stage 3 - Optimize with Binaryen and Compress
+      - name: Stage 3 - Optimize with Binaryen and Compress Both Binaries
         run: |
           mkdir -p dist
           SRC_DIR="llvm-project/build-wasm/bin"
 
-          if [ ! -f "$SRC_DIR/clang.wasm" ]; then
-            echo "Error: $SRC_DIR/clang.wasm not found!"
-            ls -la "$SRC_DIR" || true
-            find llvm-project/build-wasm -name "clang*.wasm" || true
-            exit 1
-          fi
+          for tool in clang lld; do
+            if [ ! -f "$SRC_DIR/$tool.wasm" ]; then
+              echo "Error: $SRC_DIR/$tool.wasm not found!"
+              ls -la "$SRC_DIR" || true
+              exit 1
+            fi
+          done
 
-          # setup-emsdk puts emcc on PATH, but wasm-opt lives in upstream/bin.
-          # Ubuntu's binaryen 108 rejects Emscripten output (bulk-memory disabled).
           WASM_OPT="${EMSDK}/upstream/bin/wasm-opt"
           if [ ! -x "$WASM_OPT" ]; then
             echo "Error: wasm-opt not found at $WASM_OPT"
-            ls -la "${EMSDK}/upstream/bin" || true
             exit 1
           fi
-          "$WASM_OPT" --version
-          "$WASM_OPT" -Oz --converge --strip-debug --strip-producers --strip-target-features --reorder-functions -all "$SRC_DIR/clang.wasm" -o dist/clang.wasm
 
-          cp "$SRC_DIR/clang.js" dist/clang.js
-
-          # Generate pre-compressed Brotli artifacts
-          brotli -9 -k -f dist/clang.wasm
-          brotli -9 -k -f dist/clang.js
-
-          tar -czvf dist/clang-wasm.tar.gz -C dist clang.js clang.wasm clang.js.br clang.wasm.br
-          ls -lh dist
+          # Optimize both wasm binaries
+          for tool in clang lld; do
+            echo "Optimizing $tool.wasm with wasm-opt..."
+            "$WASM_OPT" -Oz --converge --strip-debug --strip-producers --strip-target-features --reorder-functions -all "$SRC_DIR/$tool.wasm" -o "dist/$tool.wasm"
+            cp "$SRC_DIR/$tool.js" "dist/$tool.js"
+          done
 
       - name: Determine Release Tag
         id: release_meta
@@ -187,6 +176,5 @@ jobs:
           files: |
             dist/clang.wasm
             dist/clang.js
-            dist/clang.wasm.br
-            dist/clang.js.br
-            dist/clang-wasm.tar.gz
+            dist/lld.wasm
+            dist/lld.js
