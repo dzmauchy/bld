@@ -29,9 +29,6 @@ export type FilePayload = {
 export type CompilerInitRequest = {
   type: "init";
   id: number;
-  clangWasmUrl: string;
-  lldWasmUrl: string;
-  sysrootUrl: string;
 };
 
 export type CompilerCompileRequest = {

@@ -19,12 +19,12 @@
     "@rsbuild/core": "^2.2.5"
   },
   "scripts": {
-    "fetch-assets": "node scripts/fetch-assets.mjs",
-    "dev": "npm run fetch-assets && rsbuild",
+    "sync-assets": "node scripts/sync-assets.mjs",
+    "dev": "rsbuild",
     "build": "tsc -b && tsc -b tsconfig.test.json",
-    "preview": "npm run fetch-assets && rsbuild build && rsbuild preview --port 3002",
+    "preview": "rsbuild build && rsbuild preview --port 3002",
     "test": "tsc -b && tsc -b tsconfig.test.json && vitest run tests",
-    "test:e2e": "npm run fetch-assets && tsc -b tsconfig.test.json && playwright test",
+    "test:e2e": "tsc -b tsconfig.test.json && playwright test",
     "clean": "tsc -b --clean"
   }
 }

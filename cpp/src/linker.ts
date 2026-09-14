@@ -5,9 +5,10 @@ import type { ObjectFile } from "./object-file.ts";
 export class WasmLinker extends EmscriptenTool {
   constructor(
     createModule: EmscriptenModuleFactory,
+    wasmUrl: string,
     private readonly args: LldArgumentBuilder = new LldArgumentBuilder(),
   ) {
-    super(createModule, "wasm-ld");
+    super(createModule, "wasm-ld", wasmUrl);
   }
 
   async link(objects: ObjectFile[], outputPath = "/work/a.wasm"): Promise<Uint8Array> {

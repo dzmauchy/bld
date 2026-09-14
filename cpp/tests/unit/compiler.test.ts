@@ -6,7 +6,6 @@ import type { EmscriptenFsApi } from "../../src/filesystem.ts";
 import { MemoryFileSystem } from "../../src/filesystem.ts";
 import { WasmLinker } from "../../src/linker.ts";
 import type { WorkerResponse } from "../../src/messages.ts";
-import { ToolchainAssets } from "../../src/assets.ts";
 import { Thread } from "../../src/thread.ts";
 
 function emscriptenApi(fs: MemoryFileSystem): EmscriptenFsApi {
@@ -82,11 +81,11 @@ describe("CppWasmCompiler", () => {
       fs.writeTree(args.at(-1) ?? "", wasmBytes);
     });
 
-    const frontend = new ClangFrontend(clang.create);
-    const linker = new WasmLinker(lld.create);
-    await frontend.boot("/toolchain/clang.wasm");
-    await linker.boot("/toolchain/lld.wasm");
-    const compiler = new CppWasmCompiler(frontend, linker);
+    const frontend = new ClangFrontend(clang.create, "clang.wasm");
+    const linker = new WasmLinker(lld.create, "lld.wasm");
+    await frontend.boot();
+    await linker.boot();
+    const compiler = new CppWasmCompiler(frontend, linker, "sysroot.tgz");
 
     const wasm = await compiler.compile(new Map([
       ["add.h", "int add(int, int);"],
@@ -114,7 +113,7 @@ describe("WorkerCppWasmCompiler", () => {
       return { id: request.id as number, type: "ok", files: { "/work/a.wasm": wasmBytes } };
     });
 
-    const compiler = new WorkerCppWasmCompiler(thread, ToolchainAssets.fromBase("/toolchain"));
+    const compiler = new WorkerCppWasmCompiler(thread);
     const first = await compiler.compile(new Map([["add.cpp", "int add(int a, int b) { return a + b; }"]]));
     const second = await compiler.compile(new Map([["add.cpp", "extern \"C\" int add(int a, int b) { return a + b; }"]]));
 
@@ -122,11 +121,6 @@ describe("WorkerCppWasmCompiler", () => {
     expect(second).toEqual(wasmBytes);
     expect(thread.posted.filter((message) => message.type === "init")).toHaveLength(1);
     expect(thread.posted.filter((message) => message.type === "compile")).toHaveLength(2);
-    expect(thread.posted[0]).toMatchObject({
-      type: "init",
-      clangWasmUrl: "/toolchain/clang.wasm",
-      lldWasmUrl: "/toolchain/lld.wasm",
-      sysrootUrl: "/toolchain/sysroot.tgz",
-    });
+    expect(thread.posted[0]).toMatchObject({ type: "init" });
   });
 });

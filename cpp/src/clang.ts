@@ -8,9 +8,10 @@ export class ClangFrontend extends EmscriptenTool {
 
   constructor(
     createModule: EmscriptenModuleFactory,
+    wasmUrl: string,
     args: ClangArgumentBuilder = new ClangArgumentBuilder(),
   ) {
-    super(createModule, "clang++");
+    super(createModule, "clang++", wasmUrl);
     this.args = args;
   }
 

@@ -31,7 +31,6 @@ export function copyOut(bytes: Uint8Array): Uint8Array {
 export abstract class EmscriptenTool {
   private runtime: EmscriptenRuntime | undefined;
   private fs: EmscriptenFileSystem | undefined;
-  private wasmUrl = "";
   private sysrootArchive: ArrayBuffer | undefined;
   private sysrootKind: SysrootInstallKind | undefined;
   private stdout: string[] = [];
@@ -40,17 +39,17 @@ export abstract class EmscriptenTool {
   protected constructor(
     private readonly createModule: EmscriptenModuleFactory,
     private readonly programName: string,
+    private readonly wasmUrl: string,
   ) {}
 
-  async boot(wasmUrl: string): Promise<void> {
-    this.wasmUrl = wasmUrl;
+  async boot(): Promise<void> {
     this.stdout = [];
     this.stderr = [];
     this.runtime = await this.createModule({
       noInitialRun: true,
       noExitRuntime: true,
       thisProgram: this.programName,
-      locateFile: (path, prefix) => (path.endsWith(".wasm") ? wasmUrl : `${prefix}${path}`),
+      locateFile: (path, prefix) => (path.endsWith(".wasm") ? this.wasmUrl : `${prefix}${path}`),
       print: (text) => {
         this.stdout.push(text);
       },
@@ -124,7 +123,7 @@ export abstract class EmscriptenTool {
   }
 
   private async recoverFromAbort(): Promise<void> {
-    await this.boot(this.wasmUrl);
+    await this.boot();
     if (this.sysrootArchive && this.sysrootKind) {
       await this.installSysroot(this.sysrootArchive, this.sysrootKind);
     }

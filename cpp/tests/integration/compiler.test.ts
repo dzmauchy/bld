@@ -39,8 +39,8 @@ describe("clang frontend and wasm linker", () => {
     const clang = new ClangFrontend(factory(fs, (args) => {
       compiled = args.at(-3) ?? "";
       fs.writeTree(args.at(-1) ?? "", new Uint8Array([9, 8, 7]));
-    }));
-    await clang.boot("/toolchain/clang.wasm");
+    }), "clang.wasm");
+    await clang.boot();
     const objects = await clang.compile(new Map([
       ["scale.h", "int scale(int);"],
       ["scale.cpp", "#include \"scale.h\"\nint scale(int value) { return value * 3; }"],
@@ -58,8 +58,8 @@ describe("clang frontend and wasm linker", () => {
     const linker = new WasmLinker(factory(fs, (args) => {
       seen.push(...args);
       fs.writeTree(args.at(-1) ?? "", new Uint8Array([0, 97, 115, 109]));
-    }));
-    await linker.boot("/toolchain/lld.wasm");
+    }), "lld.wasm");
+    await linker.boot();
     const wasm = await linker.link([new ObjectFile("/work/scale.o", new Uint8Array([9, 8, 7]))]);
     expect(fs.exists("/work/scale.o")).toBe(true);
     expect(seen).toContain("/work/scale.o");

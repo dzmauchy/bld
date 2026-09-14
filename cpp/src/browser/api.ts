@@ -1,4 +1,3 @@
-import { ToolchainAssets } from "../assets.ts";
 import { WorkerCppWasmCompiler } from "../compiler.ts";
 import { WasmExecutor } from "../executor.ts";
 import { wrapEventTargetWorker } from "../thread.ts";
@@ -16,8 +15,8 @@ export class BrowserCppRuntime {
   readonly executor: WasmExecutor;
   readonly workerCreateCount: number;
 
-  constructor(assets = ToolchainAssets.fromBase("/toolchain")) {
-    this.compiler = new WorkerCppWasmCompiler(wrapEventTargetWorker(createCompilerWorker()), assets);
+  constructor() {
+    this.compiler = new WorkerCppWasmCompiler(wrapEventTargetWorker(createCompilerWorker()));
     this.executor = new WasmExecutor(wrapEventTargetWorker(createExecutorWorker()));
     this.workerCreateCount = 2;
   }
@@ -35,6 +34,6 @@ export function createExecutorWorker(): Worker {
   return new Worker(new URL("../workers/executor.worker.ts", import.meta.url), { type: "module" });
 }
 
-export function createBrowserCppRuntime(assets = ToolchainAssets.fromBase("/toolchain")): BrowserCppRuntime {
-  return new BrowserCppRuntime(assets);
+export function createBrowserCppRuntime(): BrowserCppRuntime {
+  return new BrowserCppRuntime();
 }

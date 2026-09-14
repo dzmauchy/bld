@@ -1,29 +1,23 @@
-import type { ToolchainAssets } from "./assets.ts";
 import { ClangFrontend } from "./clang.ts";
 import { WasmLinker } from "./linker.ts";
 import { RpcClient } from "./rpc.ts";
 import type { Thread } from "./thread.ts";
 
-export type ToolchainUrls = {
-  clangWasm: string;
-  lldWasm: string;
-  sysroot: string;
-};
-
 /**
  * Compiles a Map of C++ sources/headers to a wasm module by running clang
  * then wasm-ld. Instantiated inside the single compiler worker with tools
- * backed by the imported clang.js and lld.js modules.
+ * backed by the imported clang.js / lld.js modules and static wasm/sysroot assets.
  */
 export class CppWasmCompiler {
   constructor(
     private readonly clang: ClangFrontend,
     private readonly linker: WasmLinker,
+    private readonly sysrootUrl: string,
   ) {}
 
-  async initialize(urls: ToolchainUrls): Promise<void> {
-    await Promise.all([this.clang.boot(urls.clangWasm), this.linker.boot(urls.lldWasm)]);
-    const archive = await this.fetchSysroot(urls.sysroot);
+  async initialize(): Promise<void> {
+    await Promise.all([this.clang.boot(), this.linker.boot()]);
+    const archive = await this.fetchSysroot();
     await this.clang.installSysroot(archive, "headers");
     await this.linker.installSysroot(archive, "libraries");
   }
@@ -33,8 +27,8 @@ export class CppWasmCompiler {
     return this.linker.link(objects);
   }
 
-  private async fetchSysroot(url: string): Promise<ArrayBuffer> {
-    const response = await fetch(url);
+  private async fetchSysroot(): Promise<ArrayBuffer> {
+    const response = await fetch(this.sysrootUrl);
     if (!response.ok) {
       throw new Error(`failed to fetch sysroot: ${response.status} ${response.statusText}`);
     }
@@ -49,10 +43,7 @@ export class WorkerCppWasmCompiler {
   private readonly client: RpcClient;
   private ready: Promise<void> | undefined;
 
-  constructor(
-    thread: Thread,
-    private readonly assets: ToolchainAssets,
-  ) {
+  constructor(thread: Thread) {
     this.client = new RpcClient(thread);
   }
 
@@ -78,11 +69,6 @@ export class WorkerCppWasmCompiler {
   }
 
   private async init(): Promise<void> {
-    await this.client.request({
-      type: "init",
-      clangWasmUrl: this.assets.clangWasm,
-      lldWasmUrl: this.assets.lldWasm,
-      sysrootUrl: this.assets.sysroot,
-    });
+    await this.client.request({ type: "init" });
   }
 }

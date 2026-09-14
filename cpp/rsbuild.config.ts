@@ -10,8 +10,8 @@ export default defineConfig({
       index: "./src/browser/index.ts",
     },
     alias: {
-      "clang-emscripten": path.join(root, "vendor/clang.js"),
-      "lld-emscripten": path.join(root, "vendor/lld.js"),
+      "clang-emscripten": path.join(root, "assets/clang.js"),
+      "lld-emscripten": path.join(root, "assets/lld.js"),
     },
   },
   html: {
@@ -24,15 +24,22 @@ export default defineConfig({
     dataUriLimit: {
       wasm: 0,
     },
-    copy: [{ from: "vendor", to: "toolchain" }],
   },
   tools: {
     rspack: {
       resolve: {
         alias: {
-          "clang-emscripten": path.join(root, "vendor/clang.js"),
-          "lld-emscripten": path.join(root, "vendor/lld.js"),
+          "clang-emscripten": path.join(root, "assets/clang.js"),
+          "lld-emscripten": path.join(root, "assets/lld.js"),
         },
+      },
+      module: {
+        rules: [
+          {
+            test: /\.tgz$/,
+            type: "asset/resource",
+          },
+        ],
       },
     },
   },

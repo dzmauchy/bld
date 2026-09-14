@@ -11,8 +11,7 @@ dist/
 *.tsbuildinfo
 core/assets/assembly/build/
 
-# C++ toolchain release assets (downloaded from GitHub Releases)
-cpp/vendor/
+# C++ toolchain release assets are committed under cpp/assets/ and synced with `npm run sync-assets -w cpp`.
 
 # Optional npm cache
 .npm
