@@ -8,6 +8,8 @@ node_modules/
 
 # Build output
 dist/
+cmake-build-*/
+build/
 *.tsbuildinfo
 core/assets/assembly/build/
 
