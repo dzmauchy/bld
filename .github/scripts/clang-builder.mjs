@@ -125,7 +125,7 @@ const exeLinkerFlags = cleanFlags(`
   -msign-ext
   -mnontrapping-fptoint
   -mreference-types
-  -sEVAL_CTORS=1
+  -sEVAL_CTORS=2
   -sALLOW_MEMORY_GROWTH=1
   -sINITIAL_MEMORY=256MB
   -sMAXIMUM_MEMORY=2GB
@@ -170,7 +170,6 @@ run(`
     -DCLANG_ENABLE_OBJC_REWRITER=OFF
     -DCLANG_TOOL_C_INDEX_TEST_BUILD=OFF
     -DCLANG_ENABLE_HLSL=OFF
-    -DCLANG_ENABLE_ARCMT=OFF
     -DCLANG_BUILD_TOOLS=ON
     -DDEFAULT_SYSROOT="/sysroot"
     -DCLANG_DEFAULT_CXX_STDLIB="libc++"
