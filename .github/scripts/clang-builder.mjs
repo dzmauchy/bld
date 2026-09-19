@@ -125,7 +125,7 @@ const exeLinkerFlags = cleanFlags(`
   -msign-ext
   -mnontrapping-fptoint
   -mreference-types
-  -sEVAL_CTORS=2
+  -sEVAL_CTORS=1
   -sALLOW_MEMORY_GROWTH=1
   -sINITIAL_MEMORY=256MB
   -sMAXIMUM_MEMORY=2GB
@@ -217,6 +217,9 @@ for (const tool of ["clang", "lld"]) {
     ${wasmOpt}
       -Oz
       --converge
+      --duplicate-function-elimination
+      --dce
+      --vacuum
       --strip-debug
       --strip-producers
       --strip-target-features
