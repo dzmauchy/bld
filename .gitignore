@@ -10,6 +10,7 @@ node_modules/
 dist/
 cmake-build-*/
 build/
+buildDir/
 *.tsbuildinfo
 core/assets/assembly/build/
 

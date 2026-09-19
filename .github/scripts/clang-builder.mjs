@@ -94,6 +94,8 @@ const cxxFlags = cleanFlags(`
   -ffunction-sections
   -fdata-sections
   -fno-exceptions
+  -fno-unwind-tables
+  -fno-asynchronous-unwind-tables
   -fno-rtti
   -mbulk-memory
   -mextended-const
@@ -104,9 +106,18 @@ const cxxFlags = cleanFlags(`
   -mreference-types
 `);
 
+const cFlags = cleanFlags(`
+  -Oz
+  -ffunction-sections
+  -fdata-sections
+  -fno-unwind-tables
+  -fno-asynchronous-unwind-tables
+`);
+
 const exeLinkerFlags = cleanFlags(`
   -Oz
   -Wl,--gc-sections
+  -Wl,--compress-relocations
   -mbulk-memory
   -mextended-const
   -mtail-call
@@ -166,6 +177,7 @@ run(`
     -DCLANG_DEFAULT_RTLIB="compiler-rt"
     -DCLANG_DEFAULT_LINKER="lld"
     -DCMAKE_CXX_FLAGS="${cxxFlags}"
+    -DCMAKE_C_FLAGS="${cFlags}"
     -DCMAKE_EXE_LINKER_FLAGS="${exeLinkerFlags}"
 `, LLVM_DIR);
 

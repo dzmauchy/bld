@@ -2,10 +2,11 @@
 #include <stdexcept>
 #include <string>
 #include <vector>
+#include <bld.hpp>
 
 // Example helper function (replace with your project code/headers)
 int add(int a, int b) {
-    return a + b;
+    return a + b + BLD_C;
 }
 
 // TEST_SUITE and TEST_CASE
