@@ -97,9 +97,11 @@ class NativeBlock : public Block {
 
 namespace push::f32 {
 
-inline constexpr f32 kTwoPi = 2.f * 3.1415926f;
+using F32 = ::f32;
 
-inline f32 wrapTwoPi(f32 angle) {
+inline constexpr F32 kTwoPi = 2.f * 3.1415926f;
+
+inline F32 wrapTwoPi(F32 angle) {
   angle = std::fmod(angle, kTwoPi);
   if (angle < 0) {
     angle += kTwoPi;
@@ -111,31 +113,31 @@ class UnaryTransformerF32 : public NativeBlock {
  public:
   ~UnaryTransformerF32() override = default;
 
-  [[nodiscard]] Pss<f32> apply(VectorizedInput<Pss<f32>> downstream) {
-    return [this, sinks = std::move(downstream)](f32 value) { pushTo(sinks, transform(value)); };
+  [[nodiscard]] Pss<F32> apply(VectorizedInput<Pss<F32>> downstream) {
+    return [this, sinks = std::move(downstream)](F32 value) { pushTo(sinks, transform(value)); };
   }
 
  protected:
   using NativeBlock::NativeBlock;
-  [[nodiscard]] virtual f32 transform(f32 value) const = 0;
+  [[nodiscard]] virtual F32 transform(F32 value) const = 0;
 };
 
 class AggregateF32 : public NativeBlock {
  public:
   ~AggregateF32() override = default;
 
-  [[nodiscard]] VectorizedOutput<Pss<f32>> apply(VectorizedInput<Pss<f32>> downstream) {
+  [[nodiscard]] VectorizedOutput<Pss<F32>> apply(VectorizedInput<Pss<F32>> downstream) {
     downstream_ = std::move(downstream);
     return [this](u8 n) {
-      values_.assign(n, std::numeric_limits<f32>::quiet_NaN());
+      values_.assign(n, std::numeric_limits<F32>::quiet_NaN());
       onStart([this] {
         const u32 timer = setInterval(precision_, [this] { emitIfFinite(); });
         onClose([timer] { clearInterval(timer); });
       });
-      std::vector<Pss<f32>> inputs;
+      std::vector<Pss<F32>> inputs;
       inputs.reserve(n);
       for (u8 i = 0; i < n; ++i) {
-        inputs.push_back([this, i](f32 value) { values_[i] = value; });
+        inputs.push_back([this, i](F32 value) { values_[i] = value; });
       }
       return inputs;
     };
@@ -145,16 +147,16 @@ class AggregateF32 : public NativeBlock {
 
  protected:
   explicit AggregateF32(u32 blockId, u32 precision = 10) : NativeBlock(blockId), precision_(precision) {}
-  [[nodiscard]] virtual f32 combine(f32 acc, f32 value) const = 0;
+  [[nodiscard]] virtual F32 combine(F32 acc, F32 value) const = 0;
 
  private:
   void emitIfFinite() const {
-    f32 acc = std::numeric_limits<f32>::quiet_NaN();
-    for (const f32 value : values_) {
+    F32 acc = std::numeric_limits<F32>::quiet_NaN();
+    for (const F32 value : values_) {
       if (std::isfinite(value)) {
         acc = std::isfinite(acc) ? combine(acc, value) : value;
       } else {
-        acc = std::numeric_limits<f32>::quiet_NaN();
+        acc = std::numeric_limits<F32>::quiet_NaN();
         break;
       }
     }
@@ -164,15 +166,15 @@ class AggregateF32 : public NativeBlock {
   }
 
   u32 precision_;
-  VectorizedInput<Pss<f32>> downstream_{};
-  std::vector<f32> values_{};
+  VectorizedInput<Pss<F32>> downstream_{};
+  std::vector<F32> values_{};
 };
 
 class PeriodicSourceF32 : public NativeBlock {
  public:
   ~PeriodicSourceF32() override = default;
 
-  void apply(VectorizedInput<Pss<f32>> downstream) {
+  void apply(VectorizedInput<Pss<F32>> downstream) {
     downstream_ = std::move(downstream);
     onStart([this] {
       onStarted();
@@ -184,9 +186,9 @@ class PeriodicSourceF32 : public NativeBlock {
  protected:
   PeriodicSourceF32(u32 blockId, u32 intervalMs) : NativeBlock(blockId), intervalMs_(intervalMs) {}
   virtual void onStarted() {}
-  [[nodiscard]] virtual f32 sample() = 0;
+  [[nodiscard]] virtual F32 sample() = 0;
 
-  VectorizedInput<Pss<f32>> downstream_{};
+  VectorizedInput<Pss<F32>> downstream_{};
   u32 intervalMs_;
 };
 
@@ -195,28 +197,28 @@ class WaveGenF32 : public PeriodicSourceF32 {
   ~WaveGenF32() override = default;
 
   [[nodiscard]] u32 precision() const { return intervalMs_; }
-  [[nodiscard]] f32 frequency() const { return frequency_; }
-  [[nodiscard]] f32 amplitude() const { return amplitude_; }
-  [[nodiscard]] f32 phase() const { return phase_; }
+  [[nodiscard]] F32 frequency() const { return frequency_; }
+  [[nodiscard]] F32 amplitude() const { return amplitude_; }
+  [[nodiscard]] F32 phase() const { return phase_; }
 
  protected:
-  WaveGenF32(u32 blockId, u32 precision, f32 frequency, f32 amplitude, f32 phase)
+  WaveGenF32(u32 blockId, u32 precision, F32 frequency, F32 amplitude, F32 phase)
       : PeriodicSourceF32(blockId, precision), frequency_(frequency), amplitude_(amplitude), phase_(phase) {}
 
   void onStarted() override { t0_ = get_time(); }
 
-  [[nodiscard]] f32 sample() override {
-    const f32 elapsedSec = static_cast<f32>(static_cast<f64>(get_time() - t0_) * 0.001);
-    const f32 angle = wrapTwoPi(elapsedSec * frequency_ * kTwoPi + phase_);
+  [[nodiscard]] F32 sample() override {
+    const F32 elapsedSec = static_cast<F32>(static_cast<f64>(get_time() - t0_) * 0.001);
+    const F32 angle = wrapTwoPi(elapsedSec * frequency_ * kTwoPi + phase_);
     return amplitude_ * wave(angle);
   }
 
-  [[nodiscard]] virtual f32 wave(f32 angle) const = 0;
+  [[nodiscard]] virtual F32 wave(F32 angle) const = 0;
 
  private:
-  f32 frequency_;
-  f32 amplitude_;
-  f32 phase_;
+  F32 frequency_;
+  F32 amplitude_;
+  F32 phase_;
   u64 t0_{0};
 };
 
@@ -227,7 +229,7 @@ class CosF32 : public UnaryTransformerF32 {
   explicit CosF32(u32 blockId) : UnaryTransformerF32(blockId) {}
 
  protected:
-  [[nodiscard]] f32 transform(f32 value) const override { return ::cos_f32(value); }
+  [[nodiscard]] F32 transform(F32 value) const override { return ::cos_f32(value); }
 };
 
 class SinF32 : public UnaryTransformerF32 {
@@ -235,7 +237,7 @@ class SinF32 : public UnaryTransformerF32 {
   explicit SinF32(u32 blockId) : UnaryTransformerF32(blockId) {}
 
  protected:
-  [[nodiscard]] f32 transform(f32 value) const override { return ::sin_f32(value); }
+  [[nodiscard]] F32 transform(F32 value) const override { return ::sin_f32(value); }
 };
 
 class ProductF32 : public AggregateF32 {
@@ -243,7 +245,7 @@ class ProductF32 : public AggregateF32 {
   explicit ProductF32(u32 blockId, u32 precision = 10) : AggregateF32(blockId, precision) {}
 
  protected:
-  [[nodiscard]] f32 combine(f32 acc, f32 value) const override { return acc * value; }
+  [[nodiscard]] F32 combine(F32 acc, F32 value) const override { return acc * value; }
 };
 
 class SumF32 : public AggregateF32 {
@@ -251,7 +253,7 @@ class SumF32 : public AggregateF32 {
   explicit SumF32(u32 blockId, u32 precision = 10) : AggregateF32(blockId, precision) {}
 
  protected:
-  [[nodiscard]] f32 combine(f32 acc, f32 value) const override { return acc + value; }
+  [[nodiscard]] F32 combine(F32 acc, F32 value) const override { return acc + value; }
 };
 
 }  // namespace transformers
@@ -262,12 +264,12 @@ class ScopeF32 : public NativeBlock {
  public:
   explicit ScopeF32(u32 blockId, u32 period = 60, u32 precision = 10) : NativeBlock(blockId), period_(period), precision_(precision) {}
 
-  [[nodiscard]] VectorizedOutput<Pss<f32>> apply() {
+  [[nodiscard]] VectorizedOutput<Pss<F32>> apply() {
     return [this](u8 n) {
-      std::vector<Pss<f32>> sinks;
+      std::vector<Pss<F32>> sinks;
       sinks.reserve(n);
       for (u8 i = 0; i < n; ++i) {
-        sinks.push_back([this, i](f32 value) { sendF32(i, value); });
+        sinks.push_back([this, i](F32 value) { sendF32(i, value); });
       }
       return sinks;
     };
@@ -289,7 +291,7 @@ class GpioInF32 : public NativeBlock {
  public:
   explicit GpioInF32(u32 blockId, u16 port = 0, std::vector<u8> pins = {0}) : NativeBlock(blockId), port_(port), pins_(std::move(pins)) {}
 
-  void apply(std::vector<VectorizedInput<Pss<f32>>> pin) {
+  void apply(std::vector<VectorizedInput<Pss<F32>>> pin) {
     pinConsumers_ = std::move(pin);
     onStart([this] {
       std::vector<u32> handles;
@@ -331,86 +333,86 @@ class GpioInF32 : public NativeBlock {
     if (idx < 0 || static_cast<u32>(idx) >= pinConsumers_.size()) {
       return;
     }
-    const f32 value = read_gpio(port_, pinNumber) ? 1.f : 0.f;
+    const F32 value = read_gpio(port_, pinNumber) ? 1.f : 0.f;
     pushTo(pinConsumers_[static_cast<u32>(idx)], value);
   }
 
   u16 port_;
   std::vector<u8> pins_;
-  std::vector<VectorizedInput<Pss<f32>>> pinConsumers_{};
+  std::vector<VectorizedInput<Pss<F32>>> pinConsumers_{};
 };
 
 class ConstF32 : public NativeBlock {
  public:
-  explicit ConstF32(u32 blockId, f32 v = 1) : NativeBlock(blockId), v_(v) {}
+  explicit ConstF32(u32 blockId, F32 v = 1) : NativeBlock(blockId), v_(v) {}
 
-  void apply(VectorizedInput<Pss<f32>> downstream) {
+  void apply(VectorizedInput<Pss<F32>> downstream) {
     onStart([this, sinks = std::move(downstream)] { pushTo(sinks, v_); });
   }
 
-  [[nodiscard]] f32 value() const { return v_; }
+  [[nodiscard]] F32 value() const { return v_; }
 
  private:
-  f32 v_;
+  F32 v_;
 };
 
 class CosGenF32 : public WaveGenF32 {
  public:
-  explicit CosGenF32(u32 blockId, u32 precision = 10, f32 frequency = 1, f32 amplitude = 1, f32 phase = 0)
+  explicit CosGenF32(u32 blockId, u32 precision = 10, F32 frequency = 1, F32 amplitude = 1, F32 phase = 0)
       : WaveGenF32(blockId, precision, frequency, amplitude, phase) {}
 
  protected:
-  [[nodiscard]] f32 wave(f32 angle) const override { return ::cos_f32(angle); }
+  [[nodiscard]] F32 wave(F32 angle) const override { return ::cos_f32(angle); }
 };
 
 class SinGenF32 : public WaveGenF32 {
  public:
-  explicit SinGenF32(u32 blockId, u32 precision = 10, f32 frequency = 1, f32 amplitude = 1, f32 phase = 0)
+  explicit SinGenF32(u32 blockId, u32 precision = 10, F32 frequency = 1, F32 amplitude = 1, F32 phase = 0)
       : WaveGenF32(blockId, precision, frequency, amplitude, phase) {}
 
  protected:
-  [[nodiscard]] f32 wave(f32 angle) const override { return ::sin_f32(angle); }
+  [[nodiscard]] F32 wave(F32 angle) const override { return ::sin_f32(angle); }
 };
 
 class RandGenF32 : public PeriodicSourceF32 {
  public:
-  explicit RandGenF32(u32 blockId, u32 precision = 10, f32 amplitude = 1) : PeriodicSourceF32(blockId, precision), amplitude_(amplitude) {}
+  explicit RandGenF32(u32 blockId, u32 precision = 10, F32 amplitude = 1) : PeriodicSourceF32(blockId, precision), amplitude_(amplitude) {}
 
   [[nodiscard]] u32 precision() const { return intervalMs_; }
-  [[nodiscard]] f32 amplitude() const { return amplitude_; }
+  [[nodiscard]] F32 amplitude() const { return amplitude_; }
 
  protected:
-  [[nodiscard]] f32 sample() override { return random_f32() * amplitude_; }
+  [[nodiscard]] F32 sample() override { return random_f32() * amplitude_; }
 
  private:
-  f32 amplitude_;
+  F32 amplitude_;
 };
 
 class PulseGenF32 : public PeriodicSourceF32 {
  public:
-  explicit PulseGenF32(u32 blockId, f32 dutyCycle = 0.5f, f32 amplitude = 1, f32 frequency = 1, f32 phase = 0)
+  explicit PulseGenF32(u32 blockId, F32 dutyCycle = 0.5f, F32 amplitude = 1, F32 frequency = 1, F32 phase = 0)
       : PeriodicSourceF32(blockId, 1), dutyCycle_(dutyCycle), amplitude_(amplitude), frequency_(frequency), phase_(phase) {}
 
-  [[nodiscard]] f32 dutyCycle() const { return dutyCycle_; }
-  [[nodiscard]] f32 amplitude() const { return amplitude_; }
-  [[nodiscard]] f32 frequency() const { return frequency_; }
-  [[nodiscard]] f32 phase() const { return phase_; }
+  [[nodiscard]] F32 dutyCycle() const { return dutyCycle_; }
+  [[nodiscard]] F32 amplitude() const { return amplitude_; }
+  [[nodiscard]] F32 frequency() const { return frequency_; }
+  [[nodiscard]] F32 phase() const { return phase_; }
 
  protected:
   void onStarted() override { t0_ = get_time(); }
 
-  [[nodiscard]] f32 sample() override {
-    const f32 elapsedSec = static_cast<f32>(static_cast<f64>(get_time() - t0_) * 0.001);
-    const f32 angle = wrapTwoPi(elapsedSec * frequency_ * kTwoPi + phase_);
-    const f32 progress = angle / kTwoPi;
+  [[nodiscard]] F32 sample() override {
+    const F32 elapsedSec = static_cast<F32>(static_cast<f64>(get_time() - t0_) * 0.001);
+    const F32 angle = wrapTwoPi(elapsedSec * frequency_ * kTwoPi + phase_);
+    const F32 progress = angle / kTwoPi;
     return progress < dutyCycle_ ? amplitude_ : 0.f;
   }
 
  private:
-  f32 dutyCycle_;
-  f32 amplitude_;
-  f32 frequency_;
-  f32 phase_;
+  F32 dutyCycle_;
+  F32 amplitude_;
+  F32 frequency_;
+  F32 phase_;
   u64 t0_{0};
 };
 

@@ -431,6 +431,7 @@ TEST_SUITE("CompositeDiagrams") {
     MockRuntime::start();
     MockRuntime::setNow(250);
     MockRuntime::tick();
+    MockRuntime::tick();
 
     CHECK(MockRuntime::lastF32(0, 0) == doctest::Approx(0.f).epsilon(1e-4f));
   }
