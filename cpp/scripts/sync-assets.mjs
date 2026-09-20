@@ -7,12 +7,14 @@ import { fileURLToPath, pathToFileURL } from "node:url";
 
 /**
  * Downloads in-browser clang/lld wasm glue from the llvm-project GitHub release.
+ * llvm-project publishes `clang-lld-wasm-<sha>` on the `bld` branch; pin the
+ * GitHub "latest" tag so committed assets match a known toolchain build.
  * https://github.com/dzmauchy/llvm-project/releases
  */
 export class LlvmProjectReleaseAssets {
   static owner = "dzmauchy";
   static repo = "llvm-project";
-  static tag = "clang-lld-wasm-latest";
+  static tag = "clang-lld-wasm-1f395433cc1c176653e66189b38f5aa520c45ba6";
   static files = Object.freeze(["clang.js", "clang.wasm", "lld.js", "lld.wasm", "sysroot.tgz"]);
 
   /**

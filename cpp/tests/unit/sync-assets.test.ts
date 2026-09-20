@@ -10,7 +10,9 @@ describe("llvm-project release asset sync", () => {
   test("points at the llvm-project GitHub release for wasm and js glue", () => {
     expect(LlvmProjectReleaseAssets.owner).toBe("dzmauchy");
     expect(LlvmProjectReleaseAssets.repo).toBe("llvm-project");
-    expect(LlvmProjectReleaseAssets.tag).toBe("clang-lld-wasm-latest");
+    expect(LlvmProjectReleaseAssets.tag).toBe(
+      "clang-lld-wasm-1f395433cc1c176653e66189b38f5aa520c45ba6",
+    );
     expect([...LlvmProjectReleaseAssets.files]).toEqual([
       "clang.js",
       "clang.wasm",
@@ -22,10 +24,10 @@ describe("llvm-project release asset sync", () => {
     const client = new LlvmProjectReleaseAssets("/tmp");
     expect(client.releasePageUrl).toBe("https://github.com/dzmauchy/llvm-project/releases");
     expect(client.assetUrl("clang.wasm")).toBe(
-      "https://github.com/dzmauchy/llvm-project/releases/download/clang-lld-wasm-latest/clang.wasm",
+      "https://github.com/dzmauchy/llvm-project/releases/download/clang-lld-wasm-1f395433cc1c176653e66189b38f5aa520c45ba6/clang.wasm",
     );
     expect(client.assetUrl("lld.js")).toBe(
-      "https://github.com/dzmauchy/llvm-project/releases/download/clang-lld-wasm-latest/lld.js",
+      "https://github.com/dzmauchy/llvm-project/releases/download/clang-lld-wasm-1f395433cc1c176653e66189b38f5aa520c45ba6/lld.js",
     );
   });
 
