@@ -2,8 +2,6 @@
 
 #define BLD_C 0
 
-#include <functional>
-
 using u8 = unsigned char;
 using i8 = signed char;
 using u16 = unsigned short;
@@ -14,27 +12,39 @@ using u64 = unsigned long long;
 using i64 = long long;
 using f32 = float;
 using f64 = double;
-using Callback = void (*)();
 
 template <typename... Args>
-using Consumer = std::function<void(Args...)>;
+class Consumer {
+ public:
+  virtual ~Consumer() = default;
+  virtual void operator()(Args... args) = 0;
+};
 
 template <typename R, typename... Args>
-using Function = std::function<R(Args...)>;
+class Function {
+ public:
+  virtual ~Function() = default;
+  virtual R operator()(Args... args) = 0;
+};
+
+class Callback : public Consumer<> {
+ public:
+  ~Callback() override = default;
+};
 
 extern "C" {
 /* life-cycle callbacks */
-void on_close(Callback cbk);
-void on_start(Callback cbk);
-void on_stop(Callback cbk);
+void on_close(Callback* cbk);
+void on_start(Callback* cbk);
+void on_stop(Callback* cbk);
 
 /* interval management */
-[[nodiscard]] u32 set_interval(u32 milliseconds, Callback cbk);
+[[nodiscard]] u32 set_interval(u32 milliseconds, Callback* cbk);
 void clear_interval(u32 intervalId);
 
 /* gpio handling */
 [[nodiscard]] bool read_gpio(u32 port, u8 pin);
-[[nodiscard]] u32 set_gpio(u32 port, u8 pin, Callback cbk);
+[[nodiscard]] u32 set_gpio(u32 port, u8 pin, Callback* cbk);
 void clear_gpio(u32 gpio_id);
 void send_gpio(u32 port, u8 pin, bool value);
 

@@ -22,10 +22,7 @@ using push::f32::transformers::SumF32;
 namespace {
 
 struct BlocksFixture {
-  BlocksFixture() {
-    CallbackBinder::reset();
-    MockRuntime::reset();
-  }
+  BlocksFixture() { MockRuntime::reset(); }
 };
 
 constexpr f32 kEps = 1e-5f;
@@ -434,5 +431,25 @@ TEST_SUITE("CompositeDiagrams") {
     MockRuntime::tick();
 
     CHECK(MockRuntime::lastF32(0, 0) == doctest::Approx(0.f).epsilon(1e-4f));
+  }
+
+  TEST_CASE_FIXTURE(BlocksFixture, "EachBlockOwnsItsCapturedCallbacks") {
+    constexpr u8 kCount = 70;
+    ScopeF32 scope(0);
+    auto sinks = scope.apply()(kCount);
+    std::vector<ConstF32> constants;
+    constants.reserve(kCount);
+    for (u8 i = 0; i < kCount; ++i) {
+      constants.emplace_back(static_cast<u32>(i) + 1, static_cast<f32>(i));
+    }
+    for (u8 i = 0; i < kCount; ++i) {
+      constants[i].apply({sinks[i]});
+    }
+
+    MockRuntime::start();
+
+    for (u8 i = 0; i < kCount; ++i) {
+      CHECK_EQ(MockRuntime::lastF32(0, i), static_cast<f32>(i));
+    }
   }
 }

@@ -22,13 +22,13 @@ class MockRuntime {
   static u32 activeGpioCount();
   static u32 intervalPeriodAt(u32 index);
 
-  void handleOnStart(Callback callback);
-  void handleOnClose(Callback callback);
-  void handleOnStop(Callback callback);
-  u32 handleSetInterval(u32 milliseconds, Callback callback);
+  void handleOnStart(Callback* callback);
+  void handleOnClose(Callback* callback);
+  void handleOnStop(Callback* callback);
+  u32 handleSetInterval(u32 milliseconds, Callback* callback);
   void handleClearInterval(u32 intervalId);
   bool handleReadGpio(u32 port, u8 pin) const;
-  u32 handleSetGpio(u32 port, u8 pin, Callback callback);
+  u32 handleSetGpio(u32 port, u8 pin, Callback* callback);
   void handleClearGpio(u32 gpioId);
   void handleSendGpio(u32 port, u8 pin, bool value);
   void handleSendF32(u32 blockId, u8 inputId, f32 value);
@@ -41,7 +41,7 @@ class MockRuntime {
   struct Interval {
     u32 id;
     u32 period;
-    Callback callback;
+    Callback* callback;
     bool active;
   };
 
@@ -49,15 +49,15 @@ class MockRuntime {
     u32 id;
     u32 port;
     u8 pin;
-    Callback callback;
+    Callback* callback;
     bool active;
   };
 
   void fireGpio(u32 port, u8 pin);
 
-  std::vector<Callback> start_{};
-  std::vector<Callback> close_{};
-  std::vector<Callback> stop_{};
+  std::vector<Callback*> start_{};
+  std::vector<Callback*> close_{};
+  std::vector<Callback*> stop_{};
   std::vector<Interval> intervals_{};
   std::vector<GpioListener> gpio_{};
   std::map<std::pair<u32, u8>, bool> gpioValues_{};

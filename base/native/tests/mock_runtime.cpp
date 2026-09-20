@@ -3,6 +3,16 @@
 #include <cmath>
 #include <limits>
 
+namespace {
+
+void invoke(Callback* callback) {
+  if (callback) {
+    (*callback)();
+  }
+}
+
+}  // namespace
+
 MockRuntime& MockRuntime::instance() {
   static MockRuntime runtime;
   return runtime;
@@ -13,20 +23,16 @@ void MockRuntime::reset() { instance() = MockRuntime(); }
 void MockRuntime::start() {
   auto& runtime = instance();
   const auto callbacks = runtime.start_;
-  for (const Callback callback : callbacks) {
-    if (callback) {
-      callback();
-    }
+  for (Callback* callback : callbacks) {
+    invoke(callback);
   }
 }
 
 void MockRuntime::close() {
   auto& runtime = instance();
   const auto callbacks = runtime.close_;
-  for (const Callback callback : callbacks) {
-    if (callback) {
-      callback();
-    }
+  for (Callback* callback : callbacks) {
+    invoke(callback);
   }
 }
 
@@ -34,8 +40,8 @@ void MockRuntime::tick() {
   auto& runtime = instance();
   const auto intervals = runtime.intervals_;
   for (const Interval& interval : intervals) {
-    if (interval.active && interval.callback) {
-      interval.callback();
+    if (interval.active) {
+      invoke(interval.callback);
     }
   }
 }
@@ -91,13 +97,13 @@ u32 MockRuntime::intervalPeriodAt(u32 index) {
   return 0;
 }
 
-void MockRuntime::handleOnStart(Callback callback) { start_.push_back(callback); }
+void MockRuntime::handleOnStart(Callback* callback) { start_.push_back(callback); }
 
-void MockRuntime::handleOnClose(Callback callback) { close_.push_back(callback); }
+void MockRuntime::handleOnClose(Callback* callback) { close_.push_back(callback); }
 
-void MockRuntime::handleOnStop(Callback callback) { stop_.push_back(callback); }
+void MockRuntime::handleOnStop(Callback* callback) { stop_.push_back(callback); }
 
-u32 MockRuntime::handleSetInterval(u32 milliseconds, Callback callback) {
+u32 MockRuntime::handleSetInterval(u32 milliseconds, Callback* callback) {
   const u32 id = nextIntervalId_++;
   intervals_.push_back(Interval{id, milliseconds, callback, true});
   return id;
@@ -116,7 +122,7 @@ bool MockRuntime::handleReadGpio(u32 port, u8 pin) const {
   return it != gpioValues_.end() && it->second;
 }
 
-u32 MockRuntime::handleSetGpio(u32 port, u8 pin, Callback callback) {
+u32 MockRuntime::handleSetGpio(u32 port, u8 pin, Callback* callback) {
   const u32 id = nextGpioId_++;
   gpio_.push_back(GpioListener{id, port, pin, callback, true});
   return id;
@@ -148,23 +154,23 @@ u64 MockRuntime::handleGetTime() const { return now_; }
 void MockRuntime::fireGpio(u32 port, u8 pin) {
   const auto listeners = gpio_;
   for (const GpioListener& listener : listeners) {
-    if (listener.active && listener.port == port && listener.pin == pin && listener.callback) {
-      listener.callback();
+    if (listener.active && listener.port == port && listener.pin == pin) {
+      invoke(listener.callback);
     }
   }
 }
 
 extern "C" {
 
-void on_close(Callback cbk) { MockRuntime::instance().handleOnClose(cbk); }
-void on_start(Callback cbk) { MockRuntime::instance().handleOnStart(cbk); }
-void on_stop(Callback cbk) { MockRuntime::instance().handleOnStop(cbk); }
+void on_close(Callback* cbk) { MockRuntime::instance().handleOnClose(cbk); }
+void on_start(Callback* cbk) { MockRuntime::instance().handleOnStart(cbk); }
+void on_stop(Callback* cbk) { MockRuntime::instance().handleOnStop(cbk); }
 
-u32 set_interval(u32 milliseconds, Callback cbk) { return MockRuntime::instance().handleSetInterval(milliseconds, cbk); }
+u32 set_interval(u32 milliseconds, Callback* cbk) { return MockRuntime::instance().handleSetInterval(milliseconds, cbk); }
 void clear_interval(u32 intervalId) { MockRuntime::instance().handleClearInterval(intervalId); }
 
 bool read_gpio(u32 port, u8 pin) { return MockRuntime::instance().handleReadGpio(port, pin); }
-u32 set_gpio(u32 port, u8 pin, Callback cbk) { return MockRuntime::instance().handleSetGpio(port, pin, cbk); }
+u32 set_gpio(u32 port, u8 pin, Callback* cbk) { return MockRuntime::instance().handleSetGpio(port, pin, cbk); }
 void clear_gpio(u32 gpio_id) { MockRuntime::instance().handleClearGpio(gpio_id); }
 void send_gpio(u32 port, u8 pin, bool value) { MockRuntime::instance().handleSendGpio(port, pin, value); }
 
