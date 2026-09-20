@@ -1,48 +1,43 @@
 #include "mock_runtime.hpp"
 
+#include <algorithm>
 #include <cmath>
 #include <limits>
+#include <ranges>
 
 namespace {
 
-void invoke(Callback* callback) {
+constexpr auto invoke = [](auto* callback) {
   if (callback) {
     (*callback)();
   }
-}
+};
+
+constexpr auto isActive = [](const auto& item) { return item.active; };
 
 }  // namespace
 
-MockRuntime& MockRuntime::instance() {
-  static MockRuntime runtime;
+auto& MockRuntime::instance() {
+  static auto runtime = MockRuntime{};
   return runtime;
 }
 
 void MockRuntime::reset() { instance() = MockRuntime(); }
 
 void MockRuntime::start() {
-  auto& runtime = instance();
-  const auto callbacks = runtime.start_;
-  for (Callback* callback : callbacks) {
-    invoke(callback);
-  }
+  auto callbacks = instance().start_;
+  std::ranges::for_each(callbacks, invoke);
 }
 
 void MockRuntime::close() {
-  auto& runtime = instance();
-  const auto callbacks = runtime.close_;
-  for (Callback* callback : callbacks) {
-    invoke(callback);
-  }
+  auto callbacks = instance().close_;
+  std::ranges::for_each(callbacks, invoke);
 }
 
 void MockRuntime::tick() {
-  auto& runtime = instance();
-  const auto intervals = runtime.intervals_;
-  for (const Interval& interval : intervals) {
-    if (interval.active) {
-      invoke(interval.callback);
-    }
+  auto intervals = instance().intervals_;
+  for (const auto& interval : intervals | std::views::filter(isActive)) {
+    invoke(interval.callback);
   }
 }
 
@@ -52,47 +47,24 @@ void MockRuntime::setRandom(f32 value) { instance().random_ = value; }
 
 void MockRuntime::emitGpio(u32 port, u8 pin, bool value) { instance().handleSendGpio(port, pin, value); }
 
-bool MockRuntime::hasF32(u32 blockId, u8 channel) { return instance().valuesF32_.contains({blockId, channel}); }
+auto MockRuntime::hasF32(u32 blockId, u8 channel) -> bool { return instance().valuesF32_.contains({blockId, channel}); }
 
-f32 MockRuntime::lastF32(u32 blockId, u8 channel) {
-  const auto& values = instance().valuesF32_;
-  const auto it = values.find({blockId, channel});
-  if (it == values.end()) {
-    return std::numeric_limits<f32>::quiet_NaN();
+auto MockRuntime::lastF32(u32 blockId, u8 channel) -> f32 {
+  auto& values = instance().valuesF32_;
+  if (auto it = values.find({blockId, channel}); it != values.end()) {
+    return it->second;
   }
-  return it->second;
+  return std::numeric_limits<f32>::quiet_NaN();
 }
 
-u32 MockRuntime::activeIntervalCount() {
-  u32 count = 0;
-  for (const Interval& interval : instance().intervals_) {
-    if (interval.active) {
-      ++count;
-    }
-  }
-  return count;
-}
+auto MockRuntime::activeIntervalCount() -> u32 { return static_cast<u32>(std::ranges::count_if(instance().intervals_, isActive)); }
 
-u32 MockRuntime::activeGpioCount() {
-  u32 count = 0;
-  for (const GpioListener& listener : instance().gpio_) {
-    if (listener.active) {
-      ++count;
-    }
-  }
-  return count;
-}
+auto MockRuntime::activeGpioCount() -> u32 { return static_cast<u32>(std::ranges::count_if(instance().gpio_, isActive)); }
 
-u32 MockRuntime::intervalPeriodAt(u32 index) {
-  u32 seen = 0;
-  for (const Interval& interval : instance().intervals_) {
-    if (!interval.active) {
-      continue;
-    }
-    if (seen == index) {
-      return interval.period;
-    }
-    ++seen;
+auto MockRuntime::intervalPeriodAt(u32 index) -> u32 {
+  auto active = instance().intervals_ | std::views::filter(isActive) | std::views::drop(index);
+  if (auto it = std::ranges::begin(active); it != std::ranges::end(active)) {
+    return it->period;
   }
   return 0;
 }
@@ -103,37 +75,39 @@ void MockRuntime::handleOnClose(Callback* callback) { close_.push_back(callback)
 
 void MockRuntime::handleOnStop(Callback* callback) { stop_.push_back(callback); }
 
-u32 MockRuntime::handleSetInterval(u32 milliseconds, Callback* callback) {
-  const u32 id = nextIntervalId_++;
-  intervals_.push_back(Interval{id, milliseconds, callback, true});
+auto MockRuntime::handleSetInterval(u32 milliseconds, Callback* callback) -> u32 {
+  auto id = nextIntervalId_++;
+  intervals_.push_back({.id = id, .period = milliseconds, .callback = callback, .active = true});
   return id;
 }
 
 void MockRuntime::handleClearInterval(u32 intervalId) {
-  for (Interval& interval : intervals_) {
+  std::ranges::for_each(intervals_, [intervalId](auto& interval) {
     if (interval.id == intervalId) {
       interval.active = false;
     }
+  });
+}
+
+auto MockRuntime::handleReadGpio(u32 port, u8 pin) const -> bool {
+  if (auto it = gpioValues_.find({port, pin}); it != gpioValues_.end()) {
+    return it->second;
   }
+  return false;
 }
 
-bool MockRuntime::handleReadGpio(u32 port, u8 pin) const {
-  const auto it = gpioValues_.find({port, pin});
-  return it != gpioValues_.end() && it->second;
-}
-
-u32 MockRuntime::handleSetGpio(u32 port, u8 pin, Callback* callback) {
-  const u32 id = nextGpioId_++;
-  gpio_.push_back(GpioListener{id, port, pin, callback, true});
+auto MockRuntime::handleSetGpio(u32 port, u8 pin, Callback* callback) -> u32 {
+  auto id = nextGpioId_++;
+  gpio_.push_back({.id = id, .port = port, .pin = pin, .callback = callback, .active = true});
   return id;
 }
 
 void MockRuntime::handleClearGpio(u32 gpioId) {
-  for (GpioListener& listener : gpio_) {
+  std::ranges::for_each(gpio_, [gpioId](auto& listener) {
     if (listener.id == gpioId) {
       listener.active = false;
     }
-  }
+  });
 }
 
 void MockRuntime::handleSendGpio(u32 port, u8 pin, bool value) {
@@ -145,16 +119,16 @@ void MockRuntime::handleSendF32(u32 blockId, u8 inputId, f32 value) { valuesF32_
 
 void MockRuntime::handleSendF64(u32 blockId, u8 inputId, f64 value) { valuesF64_[{blockId, inputId}] = value; }
 
-f32 MockRuntime::handleRandomF32() const { return random_; }
+auto MockRuntime::handleRandomF32() const -> f32 { return random_; }
 
-f64 MockRuntime::handleRandomF64() const { return static_cast<f64>(random_); }
+auto MockRuntime::handleRandomF64() const -> f64 { return static_cast<f64>(random_); }
 
-u64 MockRuntime::handleGetTime() const { return now_; }
+auto MockRuntime::handleGetTime() const -> u64 { return now_; }
 
 void MockRuntime::fireGpio(u32 port, u8 pin) {
-  const auto listeners = gpio_;
-  for (const GpioListener& listener : listeners) {
-    if (listener.active && listener.port == port && listener.pin == pin) {
+  auto listeners = gpio_;
+  for (const auto& listener : listeners | std::views::filter(isActive)) {
+    if (listener.port == port && listener.pin == pin) {
       invoke(listener.callback);
     }
   }

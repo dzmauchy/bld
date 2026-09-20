@@ -7,7 +7,7 @@
 
 class MockRuntime {
  public:
-  static MockRuntime& instance();
+  static auto& instance();
 
   static void reset();
   static void start();
@@ -16,26 +16,26 @@ class MockRuntime {
   static void setNow(u64 milliseconds);
   static void setRandom(f32 value);
   static void emitGpio(u32 port, u8 pin, bool value);
-  static bool hasF32(u32 blockId, u8 channel);
-  static f32 lastF32(u32 blockId, u8 channel);
-  static u32 activeIntervalCount();
-  static u32 activeGpioCount();
-  static u32 intervalPeriodAt(u32 index);
+  static auto hasF32(u32 blockId, u8 channel) -> bool;
+  static auto lastF32(u32 blockId, u8 channel) -> f32;
+  static auto activeIntervalCount() -> u32;
+  static auto activeGpioCount() -> u32;
+  static auto intervalPeriodAt(u32 index) -> u32;
 
   void handleOnStart(Callback* callback);
   void handleOnClose(Callback* callback);
   void handleOnStop(Callback* callback);
-  u32 handleSetInterval(u32 milliseconds, Callback* callback);
+  auto handleSetInterval(u32 milliseconds, Callback* callback) -> u32;
   void handleClearInterval(u32 intervalId);
-  bool handleReadGpio(u32 port, u8 pin) const;
-  u32 handleSetGpio(u32 port, u8 pin, Callback* callback);
+  auto handleReadGpio(u32 port, u8 pin) const -> bool;
+  auto handleSetGpio(u32 port, u8 pin, Callback* callback) -> u32;
   void handleClearGpio(u32 gpioId);
   void handleSendGpio(u32 port, u8 pin, bool value);
   void handleSendF32(u32 blockId, u8 inputId, f32 value);
   void handleSendF64(u32 blockId, u8 inputId, f64 value);
-  f32 handleRandomF32() const;
-  f64 handleRandomF64() const;
-  u64 handleGetTime() const;
+  auto handleRandomF32() const -> f32;
+  auto handleRandomF64() const -> f64;
+  auto handleGetTime() const -> u64;
 
  private:
   struct Interval {

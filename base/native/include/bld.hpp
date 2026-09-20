@@ -99,7 +99,7 @@ class Block {
   explicit Block(const u32 blockId) : blockId(blockId) {}
   virtual ~Block() = default;
 
-  [[nodiscard]] u32 id() const { return blockId; }
+  [[nodiscard]] auto id() const { return blockId; }
 
  protected:
   u32 blockId;
