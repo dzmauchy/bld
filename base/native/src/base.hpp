@@ -1,70 +1,21 @@
 #pragma once
 
-#include <array>
+#include <algorithm>
 #include <bld.hpp>
 #include <cmath>
-#include <functional>
 #include <limits>
-#include <utility>
+#include <optional>
+#include <ranges>
 #include <vector>
 
 template <typename T>
 using Pss = Consumer<T>;
 
 template <typename T>
-using VectorizedInput = std::vector<T>;
+using VectorizedInput = std::vector<T*>;
 
 template <typename T>
-using VectorizedOutput = Function<std::vector<T>, u8>;
-
-/**
- * Adapts capturing C++ callbacks to the host C function-pointer ABI by storing
- * std::function objects in a fixed table of trampolines.
- */
-class CallbackBinder {
- public:
-  static constexpr u32 kCapacity = 64;
-
-  [[nodiscard]] static Callback bind(std::function<void()> callback) { return thunks()[allocate(std::move(callback))]; }
-
-  static void reset() { slots().fill(nullptr); }
-
- private:
-  static std::array<std::function<void()>, kCapacity>& slots() {
-    static std::array<std::function<void()>, kCapacity> stored{};
-    return stored;
-  }
-
-  static u32 allocate(std::function<void()> callback) {
-    auto& stored = slots();
-    for (u32 i = 0; i < kCapacity; ++i) {
-      if (!stored[i]) {
-        stored[i] = std::move(callback);
-        return i;
-      }
-    }
-    stored[0] = std::move(callback);
-    return 0;
-  }
-
-  template <u32 I>
-  static void invoke() {
-    auto& callback = slots()[I];
-    if (callback) {
-      callback();
-    }
-  }
-
-  template <u32... Is>
-  static std::array<Callback, kCapacity> makeThunks(std::integer_sequence<u32, Is...>) {
-    return {&invoke<Is>...};
-  }
-
-  static const std::array<Callback, kCapacity>& thunks() {
-    static const auto table = makeThunks(std::make_integer_sequence<u32, kCapacity>{});
-    return table;
-  }
-};
+using VectorizedOutput = Function<VectorizedInput<T>, u8>;
 
 class NativeBlock : public Block {
  public:
@@ -72,26 +23,59 @@ class NativeBlock : public Block {
   ~NativeBlock() override = default;
 
  protected:
-  void onStart(std::function<void()> callback) { on_start(CallbackBinder::bind(std::move(callback))); }
+  class ClearIntervalCallback final : public Callback {
+   public:
+    explicit ClearIntervalCallback(u32 timer) : timer_(timer) {}
+    void operator()() override { clearInterval(timer_); }
 
-  void onClose(std::function<void()> callback) { on_close(CallbackBinder::bind(std::move(callback))); }
+   private:
+    u32 timer_;
+  };
 
-  [[nodiscard]] u32 setInterval(u32 milliseconds, std::function<void()> callback) {
-    return set_interval(milliseconds, CallbackBinder::bind(std::move(callback)));
+  class ClearGpioHandlesCallback final : public Callback {
+   public:
+    explicit ClearGpioHandlesCallback(std::vector<u32> handles) : handles_(std::move(handles)) {}
+    void operator()() override { std::ranges::for_each(handles_, [](auto handle) { clearGpio(handle); }); }
+
+   private:
+    std::vector<u32> handles_;
+  };
+
+  void onStart(auto& callback) { on_start(&callback); }
+
+  void onClose(auto& callback) { on_close(&callback); }
+
+  [[nodiscard]] auto setInterval(auto milliseconds, auto& callback) { return set_interval(milliseconds, &callback); }
+
+  static void clearInterval(auto intervalId) { clear_interval(intervalId); }
+
+  [[nodiscard]] auto setGpio(auto port, auto pin, auto& callback) { return set_gpio(port, pin, &callback); }
+
+  static void clearGpio(auto gpioId) { clear_gpio(gpioId); }
+
+  void armInterval(auto milliseconds, auto& tick, auto& closeSlot) {
+    auto timer = setInterval(milliseconds, tick);
+    closeSlot.emplace(timer);
+    onClose(*closeSlot);
   }
 
-  static void clearInterval(u32 intervalId) { clear_interval(intervalId); }
+  void sendF32(auto channel, auto value) const { send_value_f32(blockId, channel, value); }
 
-  [[nodiscard]] u32 setGpio(u32 port, u8 pin, std::function<void()> callback) { return set_gpio(port, pin, CallbackBinder::bind(std::move(callback))); }
-
-  static void clearGpio(u32 gpioId) { clear_gpio(gpioId); }
-
-  void sendF32(u8 channel, f32 value) const { send_value_f32(blockId, channel, value); }
-
-  static void pushTo(const VectorizedInput<Pss<f32>>& sinks, f32 value) {
-    for (const auto& sink : sinks) {
-      sink(value);
+  static void pushTo(const auto& sinks, auto value) {
+    for (auto* sink : sinks) {
+      if (sink) {
+        (*sink)(value);
+      }
     }
+  }
+
+  [[nodiscard]] static auto pointersOf(auto& items) {
+    auto result = VectorizedInput<Pss<f32>>{};
+    result.reserve(std::ranges::size(items));
+    for (auto& item : items) {
+      result.push_back(&item);
+    }
+    return result;
   }
 };
 
@@ -99,9 +83,9 @@ namespace push::f32 {
 
 using F32 = ::f32;
 
-inline constexpr F32 kTwoPi = 2.f * 3.1415926f;
+inline constexpr auto kTwoPi = 2.f * 3.1415926f;
 
-inline F32 wrapTwoPi(F32 angle) {
+[[nodiscard]] inline auto wrapTwoPi(auto angle) {
   angle = std::fmod(angle, kTwoPi);
   if (angle < 0) {
     angle += kTwoPi;
@@ -113,61 +97,117 @@ class UnaryTransformerF32 : public NativeBlock {
  public:
   ~UnaryTransformerF32() override = default;
 
-  [[nodiscard]] Pss<F32> apply(VectorizedInput<Pss<F32>> downstream) {
-    return [this, sinks = std::move(downstream)](F32 value) { pushTo(sinks, transform(value)); };
+  [[nodiscard]] auto apply(VectorizedInput<Pss<F32>> downstream) {
+    push_.emplace(*this, std::move(downstream));
+    return &*push_;
   }
 
  protected:
   using NativeBlock::NativeBlock;
   [[nodiscard]] virtual F32 transform(F32 value) const = 0;
+
+ private:
+  class Push final : public Pss<F32> {
+   public:
+    Push(UnaryTransformerF32& transformer, VectorizedInput<Pss<F32>> downstream)
+        : transformer_(&transformer), downstream_(std::move(downstream)) {}
+
+    void operator()(F32 value) override { NativeBlock::pushTo(downstream_, transformer_->transform(value)); }
+
+   private:
+    UnaryTransformerF32* transformer_;
+    VectorizedInput<Pss<F32>> downstream_;
+  };
+
+  std::optional<Push> push_{};
 };
 
 class AggregateF32 : public NativeBlock {
  public:
   ~AggregateF32() override = default;
 
-  [[nodiscard]] VectorizedOutput<Pss<F32>> apply(VectorizedInput<Pss<F32>> downstream) {
+  class Apply final : public VectorizedOutput<Pss<F32>> {
+   public:
+    explicit Apply(AggregateF32& aggregate) : aggregate_(&aggregate) {}
+
+    VectorizedInput<Pss<F32>> operator()(u8 n) override { return aggregate_->bindInputs(n); }
+
+   private:
+    AggregateF32* aggregate_;
+  };
+
+  [[nodiscard]] auto apply(VectorizedInput<Pss<F32>> downstream) {
     downstream_ = std::move(downstream);
-    return [this](u8 n) {
-      values_.assign(n, std::numeric_limits<F32>::quiet_NaN());
-      onStart([this] {
-        const u32 timer = setInterval(precision_, [this] { emitIfFinite(); });
-        onClose([timer] { clearInterval(timer); });
-      });
-      std::vector<Pss<F32>> inputs;
-      inputs.reserve(n);
-      for (u8 i = 0; i < n; ++i) {
-        inputs.push_back([this, i](F32 value) { values_[i] = value; });
-      }
-      return inputs;
-    };
+    return Apply(*this);
   }
 
-  [[nodiscard]] u32 precision() const { return precision_; }
+  [[nodiscard]] auto precision() const { return precision_; }
 
  protected:
   explicit AggregateF32(u32 blockId, u32 precision = 10) : NativeBlock(blockId), precision_(precision) {}
   [[nodiscard]] virtual F32 combine(F32 acc, F32 value) const = 0;
 
  private:
-  void emitIfFinite() const {
-    F32 acc = std::numeric_limits<F32>::quiet_NaN();
-    for (const F32 value : values_) {
-      if (std::isfinite(value)) {
-        acc = std::isfinite(acc) ? combine(acc, value) : value;
-      } else {
-        acc = std::numeric_limits<F32>::quiet_NaN();
-        break;
-      }
+  class ChannelInput final : public Pss<F32> {
+   public:
+    ChannelInput(AggregateF32& aggregate, u8 index) : aggregate_(&aggregate), index_(index) {}
+
+    void operator()(F32 value) override { aggregate_->values_[index_] = value; }
+
+   private:
+    AggregateF32* aggregate_;
+    u8 index_;
+  };
+
+  class Tick final : public Callback {
+   public:
+    explicit Tick(AggregateF32& aggregate) : aggregate_(&aggregate) {}
+    void operator()() override { aggregate_->emitIfFinite(); }
+
+   private:
+    AggregateF32* aggregate_;
+  };
+
+  class Start final : public Callback {
+   public:
+    explicit Start(AggregateF32& aggregate) : aggregate_(&aggregate) {}
+    void operator()() override { aggregate_->armInterval(aggregate_->precision_, *aggregate_->tick_, aggregate_->close_); }
+
+   private:
+    AggregateF32* aggregate_;
+  };
+
+  [[nodiscard]] auto bindInputs(auto n) -> VectorizedInput<Pss<F32>> {
+    values_.assign(n, std::numeric_limits<F32>::quiet_NaN());
+    inputs_.clear();
+    inputs_.reserve(n);
+    for (auto i : std::views::iota(u8{}, n)) {
+      inputs_.emplace_back(*this, i);
     }
-    if (std::isfinite(acc)) {
-      pushTo(downstream_, acc);
+    auto result = pointersOf(inputs_);
+    tick_.emplace(*this);
+    start_.emplace(*this);
+    onStart(*start_);
+    return result;
+  }
+
+  void emitIfFinite() const {
+    if (!std::ranges::all_of(values_, [](auto value) { return std::isfinite(value); })) {
+      return;
+    }
+    if (auto acc = std::ranges::fold_left_first(values_, [this](auto left, auto right) { return combine(left, right); });
+        acc && std::isfinite(*acc)) {
+      pushTo(downstream_, *acc);
     }
   }
 
   u32 precision_;
   VectorizedInput<Pss<F32>> downstream_{};
   std::vector<F32> values_{};
+  std::vector<ChannelInput> inputs_{};
+  std::optional<Tick> tick_{};
+  std::optional<Start> start_{};
+  std::optional<ClearIntervalCallback> close_{};
 };
 
 class PeriodicSourceF32 : public NativeBlock {
@@ -176,11 +216,9 @@ class PeriodicSourceF32 : public NativeBlock {
 
   void apply(VectorizedInput<Pss<F32>> downstream) {
     downstream_ = std::move(downstream);
-    onStart([this] {
-      onStarted();
-      const u32 timer = setInterval(intervalMs_, [this] { pushTo(downstream_, sample()); });
-      onClose([timer] { clearInterval(timer); });
-    });
+    tick_.emplace(*this);
+    start_.emplace(*this);
+    onStart(*start_);
   }
 
  protected:
@@ -190,16 +228,42 @@ class PeriodicSourceF32 : public NativeBlock {
 
   VectorizedInput<Pss<F32>> downstream_{};
   u32 intervalMs_;
+
+ private:
+  class Tick final : public Callback {
+   public:
+    explicit Tick(PeriodicSourceF32& source) : source_(&source) {}
+    void operator()() override { NativeBlock::pushTo(source_->downstream_, source_->sample()); }
+
+   private:
+    PeriodicSourceF32* source_;
+  };
+
+  class Start final : public Callback {
+   public:
+    explicit Start(PeriodicSourceF32& source) : source_(&source) {}
+    void operator()() override {
+      source_->onStarted();
+      source_->armInterval(source_->intervalMs_, *source_->tick_, source_->close_);
+    }
+
+   private:
+    PeriodicSourceF32* source_;
+  };
+
+  std::optional<Tick> tick_{};
+  std::optional<Start> start_{};
+  std::optional<ClearIntervalCallback> close_{};
 };
 
 class WaveGenF32 : public PeriodicSourceF32 {
  public:
   ~WaveGenF32() override = default;
 
-  [[nodiscard]] u32 precision() const { return intervalMs_; }
-  [[nodiscard]] F32 frequency() const { return frequency_; }
-  [[nodiscard]] F32 amplitude() const { return amplitude_; }
-  [[nodiscard]] F32 phase() const { return phase_; }
+  [[nodiscard]] auto precision() const { return intervalMs_; }
+  [[nodiscard]] auto frequency() const { return frequency_; }
+  [[nodiscard]] auto amplitude() const { return amplitude_; }
+  [[nodiscard]] auto phase() const { return phase_; }
 
  protected:
   WaveGenF32(u32 blockId, u32 precision, F32 frequency, F32 amplitude, F32 phase)
@@ -208,8 +272,8 @@ class WaveGenF32 : public PeriodicSourceF32 {
   void onStarted() override { t0_ = get_time(); }
 
   [[nodiscard]] F32 sample() override {
-    const F32 elapsedSec = static_cast<F32>(static_cast<f64>(get_time() - t0_) * 0.001);
-    const F32 angle = wrapTwoPi(elapsedSec * frequency_ * kTwoPi + phase_);
+    const auto elapsedSec = static_cast<F32>(static_cast<f64>(get_time() - t0_) * 0.001);
+    const auto angle = wrapTwoPi(elapsedSec * frequency_ * kTwoPi + phase_);
     return amplitude_ * wave(angle);
   }
 
@@ -264,23 +328,45 @@ class ScopeF32 : public NativeBlock {
  public:
   explicit ScopeF32(u32 blockId, u32 period = 60, u32 precision = 10) : NativeBlock(blockId), period_(period), precision_(precision) {}
 
-  [[nodiscard]] VectorizedOutput<Pss<F32>> apply() {
-    return [this](u8 n) {
-      std::vector<Pss<F32>> sinks;
-      sinks.reserve(n);
-      for (u8 i = 0; i < n; ++i) {
-        sinks.push_back([this, i](F32 value) { sendF32(i, value); });
-      }
-      return sinks;
-    };
-  }
+  class Apply final : public VectorizedOutput<Pss<F32>> {
+   public:
+    explicit Apply(ScopeF32& scope) : scope_(&scope) {}
 
-  [[nodiscard]] u32 period() const { return period_; }
-  [[nodiscard]] u32 precision() const { return precision_; }
+    VectorizedInput<Pss<F32>> operator()(u8 n) override { return scope_->makeChannels(n); }
+
+   private:
+    ScopeF32* scope_;
+  };
+
+  [[nodiscard]] auto apply() { return Apply(*this); }
+
+  [[nodiscard]] auto period() const { return period_; }
+  [[nodiscard]] auto precision() const { return precision_; }
 
  private:
+  class ChannelSink final : public Pss<F32> {
+   public:
+    ChannelSink(ScopeF32& scope, u8 channel) : scope_(&scope), channel_(channel) {}
+
+    void operator()(F32 value) override { scope_->sendF32(channel_, value); }
+
+   private:
+    ScopeF32* scope_;
+    u8 channel_;
+  };
+
+  [[nodiscard]] auto makeChannels(auto n) -> VectorizedInput<Pss<F32>> {
+    channels_.clear();
+    channels_.reserve(n);
+    for (auto i : std::views::iota(u8{}, n)) {
+      channels_.emplace_back(*this, i);
+    }
+    return pointersOf(channels_);
+  }
+
   u32 period_;
   u32 precision_;
+  std::vector<ChannelSink> channels_{};
 };
 
 }  // namespace sinks
@@ -293,53 +379,67 @@ class GpioInF32 : public NativeBlock {
 
   void apply(std::vector<VectorizedInput<Pss<F32>>> pin) {
     pinConsumers_ = std::move(pin);
-    onStart([this] {
-      std::vector<u32> handles;
-      handles.reserve(pins_.size());
-      for (const u8 pinNumber : pins_) {
-        handles.push_back(setGpio(port_, pinNumber, [this, pinNumber] { emitPin(pinNumber); }));
-      }
-      onClose([handles] {
-        for (const u32 handle : handles) {
-          clearGpio(handle);
-        }
-      });
-    });
+    handlers_.clear();
+    handlers_.reserve(pins_.size());
+    for (auto pinNumber : pins_) {
+      handlers_.emplace_back(*this, pinNumber);
+    }
+    start_.emplace(*this);
+    onStart(*start_);
   }
 
-  [[nodiscard]] u16 port() const { return port_; }
-  [[nodiscard]] const std::vector<u8>& pins() const { return pins_; }
+  [[nodiscard]] auto port() const { return port_; }
+  [[nodiscard]] auto pins() const -> const std::vector<u8>& { return pins_; }
 
  private:
-  [[nodiscard]] i32 searchPin(u8 pin) const {
-    i32 left = 0;
-    i32 right = static_cast<i32>(pins_.size()) - 1;
-    while (left <= right) {
-      const i32 mid = (left + right) >> 1;
-      const u8 value = pins_[static_cast<u32>(mid)];
-      if (value < pin) {
-        left = mid + 1;
-      } else if (value > pin) {
-        right = mid - 1;
-      } else {
-        return mid;
+  class PinHandler final : public Callback {
+   public:
+    PinHandler(GpioInF32& gpio, u8 pinNumber) : gpio_(&gpio), pinNumber_(pinNumber) {}
+    void operator()() override { gpio_->emitPin(pinNumber_); }
+
+   private:
+    GpioInF32* gpio_;
+    u8 pinNumber_;
+  };
+
+  class Start final : public Callback {
+   public:
+    explicit Start(GpioInF32& gpio) : gpio_(&gpio) {}
+    void operator()() override {
+      auto handles = std::vector<u32>{};
+      handles.reserve(gpio_->handlers_.size());
+      for (auto&& [i, handler] : std::views::enumerate(gpio_->handlers_)) {
+        handles.push_back(gpio_->setGpio(gpio_->port_, gpio_->pins_[i], handler));
       }
+      gpio_->close_.emplace(std::move(handles));
+      gpio_->onClose(*gpio_->close_);
     }
-    return -1;
+
+   private:
+    GpioInF32* gpio_;
+  };
+
+  [[nodiscard]] auto searchPin(auto pin) const -> std::optional<u32> {
+    auto it = std::ranges::lower_bound(pins_, pin);
+    if (it == pins_.end() || *it != pin) {
+      return std::nullopt;
+    }
+    return static_cast<u32>(it - pins_.begin());
   }
 
-  void emitPin(u8 pinNumber) const {
-    const i32 idx = searchPin(pinNumber);
-    if (idx < 0 || static_cast<u32>(idx) >= pinConsumers_.size()) {
-      return;
+  void emitPin(auto pinNumber) const {
+    if (auto idx = searchPin(pinNumber); idx && *idx < pinConsumers_.size()) {
+      auto value = read_gpio(port_, pinNumber) ? 1.f : 0.f;
+      pushTo(pinConsumers_[*idx], value);
     }
-    const F32 value = read_gpio(port_, pinNumber) ? 1.f : 0.f;
-    pushTo(pinConsumers_[static_cast<u32>(idx)], value);
   }
 
   u16 port_;
   std::vector<u8> pins_;
   std::vector<VectorizedInput<Pss<F32>>> pinConsumers_{};
+  std::vector<PinHandler> handlers_{};
+  std::optional<Start> start_{};
+  std::optional<ClearGpioHandlesCallback> close_{};
 };
 
 class ConstF32 : public NativeBlock {
@@ -347,13 +447,25 @@ class ConstF32 : public NativeBlock {
   explicit ConstF32(u32 blockId, F32 v = 1) : NativeBlock(blockId), v_(v) {}
 
   void apply(VectorizedInput<Pss<F32>> downstream) {
-    onStart([this, sinks = std::move(downstream)] { pushTo(sinks, v_); });
+    start_.emplace(*this, std::move(downstream));
+    onStart(*start_);
   }
 
-  [[nodiscard]] F32 value() const { return v_; }
+  [[nodiscard]] auto value() const { return v_; }
 
  private:
+  class Start final : public Callback {
+   public:
+    Start(ConstF32& constant, VectorizedInput<Pss<F32>> sinks) : constant_(&constant), sinks_(std::move(sinks)) {}
+    void operator()() override { NativeBlock::pushTo(sinks_, constant_->v_); }
+
+   private:
+    ConstF32* constant_;
+    VectorizedInput<Pss<F32>> sinks_;
+  };
+
   F32 v_;
+  std::optional<Start> start_{};
 };
 
 class CosGenF32 : public WaveGenF32 {
@@ -378,8 +490,8 @@ class RandGenF32 : public PeriodicSourceF32 {
  public:
   explicit RandGenF32(u32 blockId, u32 precision = 10, F32 amplitude = 1) : PeriodicSourceF32(blockId, precision), amplitude_(amplitude) {}
 
-  [[nodiscard]] u32 precision() const { return intervalMs_; }
-  [[nodiscard]] F32 amplitude() const { return amplitude_; }
+  [[nodiscard]] auto precision() const { return intervalMs_; }
+  [[nodiscard]] auto amplitude() const { return amplitude_; }
 
  protected:
   [[nodiscard]] F32 sample() override { return random_f32() * amplitude_; }
@@ -393,18 +505,18 @@ class PulseGenF32 : public PeriodicSourceF32 {
   explicit PulseGenF32(u32 blockId, F32 dutyCycle = 0.5f, F32 amplitude = 1, F32 frequency = 1, F32 phase = 0)
       : PeriodicSourceF32(blockId, 1), dutyCycle_(dutyCycle), amplitude_(amplitude), frequency_(frequency), phase_(phase) {}
 
-  [[nodiscard]] F32 dutyCycle() const { return dutyCycle_; }
-  [[nodiscard]] F32 amplitude() const { return amplitude_; }
-  [[nodiscard]] F32 frequency() const { return frequency_; }
-  [[nodiscard]] F32 phase() const { return phase_; }
+  [[nodiscard]] auto dutyCycle() const { return dutyCycle_; }
+  [[nodiscard]] auto amplitude() const { return amplitude_; }
+  [[nodiscard]] auto frequency() const { return frequency_; }
+  [[nodiscard]] auto phase() const { return phase_; }
 
  protected:
   void onStarted() override { t0_ = get_time(); }
 
   [[nodiscard]] F32 sample() override {
-    const F32 elapsedSec = static_cast<F32>(static_cast<f64>(get_time() - t0_) * 0.001);
-    const F32 angle = wrapTwoPi(elapsedSec * frequency_ * kTwoPi + phase_);
-    const F32 progress = angle / kTwoPi;
+    const auto elapsedSec = static_cast<F32>(static_cast<f64>(get_time() - t0_) * 0.001);
+    const auto angle = wrapTwoPi(elapsedSec * frequency_ * kTwoPi + phase_);
+    const auto progress = angle / kTwoPi;
     return progress < dutyCycle_ ? amplitude_ : 0.f;
   }
 
