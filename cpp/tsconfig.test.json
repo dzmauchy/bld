@@ -4,6 +4,7 @@
     "../tsconfig.test.base.json"
   ],
   "compilerOptions": {
+    "allowJs": true,
     "lib": [
       "ESNext",
       "DOM",
