@@ -23,7 +23,10 @@ if get_option('tests')
 
   base_tests = executable(
     'base_tests',
-    'tests/test_basic.cpp',
+    [
+      'tests/mock_runtime.cpp',
+      'tests/unit/test_blocks.cpp',
+    ],
     include_directories: base_inc,
     dependencies: [base_dep, doctest_dep],
     cpp_args: ['-DDOCTEST_CONFIG_IMPLEMENT_WITH_MAIN'],

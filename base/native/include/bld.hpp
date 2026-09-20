@@ -16,10 +16,10 @@ using f32 = float;
 using f64 = double;
 using Callback = void (*)();
 
-template <typename ...Args>
+template <typename... Args>
 using Consumer = std::function<void(Args...)>;
 
-template <typename R, typename ... Args>
+template <typename R, typename... Args>
 using Function = std::function<R(Args...)>;
 
 extern "C" {
@@ -87,6 +87,9 @@ void send_value_f64(u32 blockId, u8 inputId, f64 value);
 class Block {
  public:
   explicit Block(const u32 blockId) : blockId(blockId) {}
+  virtual ~Block() = default;
+
+  [[nodiscard]] u32 id() const { return blockId; }
 
  protected:
   u32 blockId;
