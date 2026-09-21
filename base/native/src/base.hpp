@@ -362,13 +362,17 @@ class GpioInF32 : public NativeBlock {
  public:
   explicit GpioInF32(u32 blockId, u16 port = 0, Array<u8> pins = {0}) : NativeBlock(blockId), port_(static_cast<u16>(port)), pins_(static_cast<Array<u8>&&>(pins)) {}
 
-  void apply(Array<VectorizedInput<Pss<F32>>> pin) {
-    pinConsumers_ = static_cast<Array<VectorizedInput<Pss<F32>>>&&>(pin);
-    handlers_.clear();
-    handlers_.reserve(pins_.size());
-    for (auto pinNumber : pins_) {
-      handlers_.emplace_back(*this, pinNumber);
+  void connectPin(u8 pinIndex, VectorizedInput<Pss<F32>> sinks) {
+    if (pinIndex >= kMaxPins) {
+      return;
     }
+    pinConsumers_[pinIndex] = static_cast<VectorizedInput<Pss<F32>>&&>(sinks);
+    if (pinIndex + 1 > connected_) {
+      connected_ = static_cast<u8>(pinIndex + 1);
+    }
+  }
+
+  void apply() {
     start_.emplace(*this);
     onStart(*start_);
   }
@@ -377,6 +381,8 @@ class GpioInF32 : public NativeBlock {
   [[nodiscard]] auto pins() const -> const Array<u8>& { return pins_; }
 
  private:
+  static constexpr u8 kMaxPins = 8;
+
   class PinHandler final : public Callback {
    public:
     PinHandler(GpioInF32& gpio, u8 pinNumber) : gpio_(&gpio), pinNumber_(pinNumber) {}
@@ -392,9 +398,10 @@ class GpioInF32 : public NativeBlock {
     explicit Start(GpioInF32& gpio) : gpio_(&gpio) {}
     void operator()() override {
       auto handles = Array<u32>{};
-      handles.reserve(gpio_->handlers_.size());
-      for (u32 i = 0; i < gpio_->handlers_.size(); ++i) {
-        handles.push_back(gpio_->setGpio(gpio_->port_, gpio_->pins_[i], gpio_->handlers_[i]));
+      handles.reserve(gpio_->pins_.size());
+      for (u32 i = 0; i < gpio_->pins_.size() && i < kMaxPins; ++i) {
+        gpio_->handlers_[i] = new PinHandler(*gpio_, gpio_->pins_[i]);
+        handles.push_back(gpio_->setGpio(gpio_->port_, gpio_->pins_[i], *gpio_->handlers_[i]));
       }
       gpio_->close_.emplace(static_cast<Array<u32>&&>(handles));
       gpio_->onClose(*gpio_->close_);
@@ -415,16 +422,16 @@ class GpioInF32 : public NativeBlock {
 
   void emitPin(u8 pinNumber) const {
     const auto idx = searchPin(pinNumber);
-    if (idx < pinConsumers_.size()) {
-      auto value = read_gpio(port_, pinNumber) ? 1.f : 0.f;
-      pushTo(pinConsumers_[idx], value);
+    if (idx < connected_) {
+      pushTo(pinConsumers_[idx], read_gpio(port_, pinNumber) ? 1.f : 0.f);
     }
   }
 
   u16 port_;
   Array<u8> pins_;
-  Array<VectorizedInput<Pss<F32>>> pinConsumers_{};
-  Array<PinHandler> handlers_{};
+  VectorizedInput<Pss<F32>> pinConsumers_[kMaxPins]{};
+  PinHandler* handlers_[kMaxPins]{};
+  u8 connected_{0};
   Maybe<Start> start_{};
   Maybe<ClearGpioHandlesCallback> close_{};
 };

@@ -159,15 +159,13 @@ export class CppDiagramBuilder extends DiagramSourceBuilder {
         const port = numberConf(conf, "port", 0);
         const pins = pinsConf(conf);
         const lines: string[] = [];
-        const bag = `${item.ident}_dn`;
-        lines.push(`auto ${bag} = Array<${SINKS}>{};`);
         pinGroups.forEach((group, index) => {
           const pin = `${item.ident}_p${index}`;
           lines.push(...emitPushArray(pin, SINKS, group));
-          lines.push(`${bag}.push_back(${moveExpr(SINKS, pin)});`);
+          lines.push(`${item.ident}->connectPin(${u8Lit(index)}, ${moveExpr(SINKS, pin)});`);
         });
         const hw = `${item.ident}_hw`;
-        lines.push(`${item.ident}->apply(${moveExpr(`Array<${SINKS}>`, bag)});`);
+        lines.push(`${item.ident}->apply();`);
         lines.push(...emitPushArray(hw, "Array<u8>", pins.map((pin) => String(pin))));
         lines.push(`register_gpio_block(${u32Lit(item.numericId)}, ${u16Lit(port)}, ${hw});`);
         return lines;

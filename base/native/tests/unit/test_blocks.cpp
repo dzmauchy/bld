@@ -353,7 +353,8 @@ TEST_SUITE("GpioInF32") {
     auto scope = ScopeF32(0);
     auto sinks = scope.apply(1);
     auto gpio = GpioInF32(1, 0, {0});
-    gpio.apply({sinks});
+    gpio.connectPin(0, sinks);
+    gpio.apply();
 
     MockRuntime::start();
     MockRuntime::emitGpio(0, 0, true);
@@ -365,7 +366,8 @@ TEST_SUITE("GpioInF32") {
     auto scope = ScopeF32(0);
     auto sinks = scope.apply(1);
     auto gpio = GpioInF32(1);
-    gpio.apply({sinks});
+    gpio.connectPin(0, sinks);
+    gpio.apply();
 
     MockRuntime::start();
     MockRuntime::emitGpio(0, 0, false);
@@ -377,7 +379,9 @@ TEST_SUITE("GpioInF32") {
     auto scope = ScopeF32(0);
     auto sinks = scope.apply(1);
     auto gpio = GpioInF32(1, 0, {2, 4});
-    gpio.apply({sinks, {}});
+    gpio.connectPin(0, sinks);
+    gpio.connectPin(1, {});
+    gpio.apply();
 
     MockRuntime::start();
     MockRuntime::emitGpio(0, 0, true);
@@ -389,7 +393,9 @@ TEST_SUITE("GpioInF32") {
     auto scope = ScopeF32(0);
     auto sinks = scope.apply(2);
     auto gpio = GpioInF32(1, 7, {1, 3});
-    gpio.apply({{sinks[0]}, {sinks[1]}});
+    gpio.connectPin(0, {sinks[0]});
+    gpio.connectPin(1, {sinks[1]});
+    gpio.apply();
 
     MockRuntime::start();
     MockRuntime::emitGpio(7, 1, true);
@@ -403,7 +409,8 @@ TEST_SUITE("GpioInF32") {
     auto scope = ScopeF32(0);
     auto sinks = scope.apply(1);
     auto gpio = GpioInF32(1);
-    gpio.apply({sinks});
+    gpio.connectPin(0, sinks);
+    gpio.apply();
 
     MockRuntime::start();
     CHECK_EQ(MockRuntime::activeGpioCount(), 1);

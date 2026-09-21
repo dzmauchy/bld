@@ -149,6 +149,8 @@ describe("CppDiagramBuilder", () => {
     expect(cpp).toContain("new push::f32::sources::GpioInF32(1u, 7, static_cast<Array<u8>&&>(g_pins))");
     expect(cpp).toContain("g_p0.push_back(s_in[0])");
     expect(cpp).toContain("g_p1.push_back(s_in[1])");
+    expect(cpp).toContain("g->connectPin(static_cast<u8>(0)");
+    expect(cpp).toContain("g->apply();");
     expect(cpp).toContain("register_gpio_block(1u, 7, g_hw)");
   });
 
