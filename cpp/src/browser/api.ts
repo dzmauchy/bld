@@ -5,6 +5,8 @@ import { wrapEventTargetWorker } from "../thread.ts";
 export type CppPageApi = {
   warmup(): Promise<void>;
   compile(files: Record<string, string>): Promise<number>;
+  compileOnly(files: Record<string, string>): Promise<number>;
+  instantiateLast(): Promise<number>;
   invoke(name: string, args: number[]): Promise<number>;
   compileAndInvoke(files: Record<string, string>, name: string, args: number[]): Promise<number>;
   workerCreateCount(): number;

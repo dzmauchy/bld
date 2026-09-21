@@ -215,13 +215,17 @@ export class Diagram implements IDiagram {
       : { compiler: compiler ?? new DiagramCompiler(), options: optionsOrCompiler };
   }
 
+  emitFiles(compiler = new DiagramCompiler()): Map<string, string> {
+    return compiler.emitFiles(this);
+  }
+
   emitText(compiler = new DiagramCompiler()): string {
     return compiler.emitText(this);
   }
 
-  compile(options?: CompileOptionsLike, compiler?: DiagramCompiler): Uint8Array;
-  compile(compiler?: DiagramCompiler): Uint8Array;
-  compile(optionsOrCompiler?: CompileOptionsLike | DiagramCompiler, compiler?: DiagramCompiler): Uint8Array {
+  compile(options?: CompileOptionsLike, compiler?: DiagramCompiler): Promise<Uint8Array>;
+  compile(compiler?: DiagramCompiler): Promise<Uint8Array>;
+  compile(optionsOrCompiler?: CompileOptionsLike | DiagramCompiler, compiler?: DiagramCompiler): Promise<Uint8Array> {
     const { compiler: comp, options } = this.resolveCompiler(optionsOrCompiler, compiler);
     return comp.compile(this, options);
   }

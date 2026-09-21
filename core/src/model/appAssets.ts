@@ -1,7 +1,6 @@
 /**
  * @title App Assets
  */
-import { defaultFetchText, resolveUrl as runtimeResolveUrl } from "runtime";
 
 export type AssetResolver = (path: string) => Promise<string | undefined>;
 
@@ -30,8 +29,23 @@ export class AppAssetStore extends AbstractAssetStore {
     return path.replace(/\\/g, "/").replace(/^\.?\/+/, "");
   }
 
+  static resolveUrl(url: string, baseUrl?: string): string {
+    if (URL.canParse(url)) return url;
+    if (baseUrl && URL.canParse(baseUrl)) return new URL(url, baseUrl).href;
+    if (baseUrl) {
+      const normalized = baseUrl.replace(/\\/g, "/");
+      const slash = normalized.lastIndexOf("/");
+      if (slash !== -1) return `${normalized.slice(0, slash + 1)}${url}`;
+    }
+    return url;
+  }
+
   static async fetchText(url: string): Promise<string> {
-    return defaultFetchText(url);
+    const response = await fetch(url);
+    if (!response.ok) {
+      throw new Error(`Failed to fetch ${url}: ${response.status} ${response.statusText}`);
+    }
+    return response.text();
   }
 
   override register(path: string, content: string): void {
@@ -75,7 +89,7 @@ export class AppAssetStore extends AbstractAssetStore {
 }
 
 export const normalizeAssetPath = (path: string): string => AppAssetStore.normalizePath(path);
-export const resolveUrl = (url: string, baseUrl?: string): string => runtimeResolveUrl(url, baseUrl);
+export const resolveUrl = (url: string, baseUrl?: string): string => AppAssetStore.resolveUrl(url, baseUrl);
 export const registerAppAsset = (path: string, content: string): void => AppAssetStore.shared.register(path, content);
 export const registerAppAssets = (assets: Record<string, string>): void => AppAssetStore.shared.registerAll(assets);
 export const getRegisteredAppAsset = (path: string): string | undefined => AppAssetStore.shared.get(path);

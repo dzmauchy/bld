@@ -9,19 +9,11 @@
       "types": "./dist/types/index.d.ts",
       "default": "./src/index.ts"
     },
-    "./assembly": "./dist/assembly.js"
-  },
-  "dependencies": {
-    "runtime": "*"
-  },
-  "devDependencies": {
-    "esbuild": "^0.25.12"
+    "./native/*": "./native/*"
   },
   "scripts": {
-    "bundle": "esbuild src/index.ts --bundle --minify --format=esm --platform=neutral --target=esnext --outfile=dist/assembly.js --legal-comments=none",
-    "build": "tsc -b && npm run bundle",
-    "test": "tsc -b && tsc -b tsconfig.test.json && npm run bundle && vitest run tests",
-    "test:e2e": "npm run bundle",
+    "build": "tsc -b && tsc -b tsconfig.test.json",
+    "test": "tsc -b && tsc -b tsconfig.test.json && vitest run tests",
     "clean": "tsc -b --clean"
   }
 }

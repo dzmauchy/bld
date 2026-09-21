@@ -11,7 +11,9 @@ describe("virtual source paths", () => {
     expect(isCppSource("main.cpp")).toBe(true);
     expect(isCppSource("lib.cc")).toBe(true);
     expect(isCppSource("add.h")).toBe(false);
+    expect(isCppSource("wasm_host.inc")).toBe(false);
     expect(isHeader("add.hpp")).toBe(true);
+    expect(isHeader("wasm_host.inc")).toBe(true);
   });
 
   test("rejects parent traversal", () => {

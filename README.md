@@ -1,13 +1,13 @@
 <img src="ui/public/icons/bigbld.svg" alt="BLD Logo" width="640" height="320" style="margin-bottom: -80px"/>
 
 [![TypeScript](https://img.shields.io/badge/TypeScript-5.x-blue.svg)](https://www.typescriptlang.org/)
-[![WebAssembly](https://img.shields.io/badge/WebAssembly-Wasm%20GC-654FF0.svg)](https://webassembly.org/)
-[![Binaryen](https://img.shields.io/badge/Binaryen-v132-brightgreen.svg)](https://github.com/WebAssembly/binaryen)
+[![WebAssembly](https://img.shields.io/badge/WebAssembly-clang%2Flld-654FF0.svg)](https://webassembly.org/)
+[![C++](https://img.shields.io/badge/C%2B%2B-base%20library-00599C.svg)](https://isocpp.org/)
 [![Solid.js](https://img.shields.io/badge/Solid.js-1.9-2c4f7c.svg)](https://www.solidjs.com/)
 [![Rsbuild](https://img.shields.io/badge/Rsbuild-Fast%20Builds-F43F5E.svg)](https://rsbuild.dev/)
 [![License: AGPL-3.0](https://img.shields.io/badge/License-AGPL--3.0-orange.svg)](LICENSE)
 
-> A modern, client-side Visual Programming IDE and compiler for creating, editing, and executing reactive dataflow diagrams. Diagrams compile ahead-of-time in the browser to high-performance **WebAssembly** via **Binaryen**, running isolated inside Web Worker threads, with an MCU deployment target reserved for embedded devices.
+> A modern, client-side Visual Programming IDE and compiler for creating, editing, and executing reactive dataflow diagrams. Diagrams are translated to **C++** against the native base library and compiled in the browser to **WebAssembly** with **clang/lld**, running isolated inside Web Worker threads, with an MCU deployment target reserved for embedded devices.
 
 ---
 
@@ -18,9 +18,8 @@
 - [Architecture & Monorepo Layout](#architecture--monorepo-layout)
 - [System Architecture](#system-architecture)
 - [Compilation Pipeline](#compilation-pipeline)
-- [Dual-Runtime Execution Engine](#dual-runtime-execution-engine)
 - [Worker Threading & Host Communication](#worker-threading--host-communication)
-- [Linear Memory & Buffer Layout](#linear-memory--buffer-layout)
+- [Scope Buffers & Pin Inspection](#scope-buffers--pin-inspection)
 - [Object-Oriented Design & Class Hierarchies](#object-oriented-design--class-hierarchies)
 - [Type System & Inference](#type-system--inference)
 - [Standard Block Library (`base`)](#standard-block-library-base)
@@ -42,21 +41,19 @@
 
 The project features a **client-side only** architecture:
 1. **Visual Diagram Modeling**: Interactive canvas for assembling signal processing pipelines and reactive control algorithms.
-2. **Direct WebAssembly Compilation**: The diagram is topologically planned and compiled directly to WebAssembly bytecode in the browser using **Binaryen**, leveraging typed arrays and Wasm GC features.
+2. **C++ to WebAssembly Compilation**: The diagram is emitted as C++ against the native base library and compiled in the browser with clang/lld.
 3. **Isolated Threaded Simulation**: Generated WebAssembly binaries execute in dedicated **Web Worker threads**, keeping UI rendering responsive at 60 FPS while streaming real-time pin observations back to the host.
-4. **Dual Runtimes**: Alongside the JIT WebAssembly compiler, a reference TypeScript implementation (**RI**) provides deterministically identical execution for validation, testing, and headless execution.
 
 ---
 
 ## Key Features
 
 - **Pure Client-Side Execution**: Zero backend dependencies; compilation and execution take place entirely within the browser.
-- **Binaryen-Powered Wasm Code Generator**: Emits optimized WebAssembly modules with functions for push-driven event delivery (`b<id>_push`), periodic intervals (`b<id>_tick`), and GPIO input events (`b<id>_gpio`).
+- **C++ Diagram Builder**: Generates C++ that instantiates `push::f32` blocks from the base library and delegates wasm compilation to the `cpp` workspace.
 - **Web Worker Thread Isolation**: All runtime execution runs off the main thread with non-blocking RPC communication and streaming pin updates.
-- **Sliding Scope Buffers**: High-rate signal capture implemented via sliding circular/pinned buffers in linear memory and WebAssembly GC arrays.
+- **Sliding Scope Buffers**: High-rate signal capture in the browser uses a `Float32Array`/`Float64Array` ring with a single write pointer.
 - **Parametric Type System**: Full support for primitive types (`f32`, `i32`, `bool`), type variables (`?T`), and parameterized stream types (`pss<f32>`) with automatic bidirectional type inference.
-- **JSON Schema-Backed Serialization**: Clean JSON diagram format adhering to formal JSON Schemas. Properties matching default values are automatically omitted for clean version control diffs.
-- **Extensible Block DSL**: Domain-Specific Language in TypeScript allowing new block primitives to define push, tick, and GPIO handlers with type-safe AST construction.
+- **JSON Schema-Backed Serialization**: Clean JSON diagram format adhering to formal JSON Schemas. Properties matching default values are automatically omitted for clean version control diffs. Block refs and `cpp` class names match the native `push::f32` library.
 - **Production-Ready UI Stack**: Built on Solid.js, Web Awesome, dark mode by default, and bundled with Rsbuild.
 
 ---
@@ -67,9 +64,10 @@ The repository is structured as an npm multi-workspace monorepo:
 
 ```
 bld/
-├── base/        # Standard block library implemented via the runtime DSL (bundled to assembly.js)
-├── core/        # Domain model, Diagram, TypeSystem, Schemas, Assets, and Reference Implementation (RI)
-├── runtime/     # WebAssembly compiler (Binaryen), Program Planner, DSL emitters, Worker thread bridge
+├── base/        # Native C++ block library (`base/native`) and header assets
+├── core/        # Domain model, Diagram, TypeSystem, Schemas, and C++ diagram builder
+├── runtime/     # Wasm session, worker bridge, sliding scope buffers
+├── cpp/         # In-browser clang/lld compilation
 └── ui/          # Solid.js frontend, canvas, Web Awesome components, worker runners, and Rsbuild config
 ```
 
@@ -77,9 +75,10 @@ bld/
 
 | Package | Purpose | Key Responsibilities |
 |---|---|---|
-| **`runtime`** | Compilation & Wasm Execution | Binaryen AST generation, `WasmProgramPlanner`, `BlockEmitter` DSL (`PushEmitter`, `TickEmitter`, `GpioEmitter`), memory layout, `Thread` abstraction, `WasmRuntime`, `WasmSession`. |
-| **`base`** | Standard Block Library | Standard library definitions (`scope_f32`, `sum_f32`, `product_f32`, `sin_f32`, `cos_f32`, `const_f32`, `cos_gen_f32`, `sin_gen_f32`, `rand_gen_f32`, `pulse_gen_f32`, `gpio_in`). Bundled with esbuild into `dist/assembly.js`. |
-| **`core`** | Domain Model & Schemas | `Diagram`, `DiagramBlock`, `Connection`, `PortEndpoint`, `Palette`, `Library`, `TypeSystem`, `TypeInference`, JSON Schema catalog, and `RiProgram` (TypeScript Reference Implementation). |
+| **`runtime`** | Wasm session & scopes | Worker RPC (`WasmRuntime`, `WasmSession`), WASI/env bindings, sliding scope buffers. |
+| **`base`** | Native C++ library | `push::f32` blocks in `base/native` (`ScopeF32`, `SumF32`, `ProductF32`, `GpioInF32`, generators) plus `wasm_host` exports used by generated diagrams. |
+| **`core`** | Domain model & C++ builder | `Diagram`, `Palette`, `Library`, `TypeSystem`, `CppDiagramBuilder`, `DiagramCompiler` (delegates wasm compilation to `cpp`). |
+| **`cpp`** | In-browser clang/lld | Compiles generated C++ sources to wasm and executes the module in a worker. |
 | **`ui`** | User Interface & Worker Host | Solid.js web app, dark UI theme, canvas interactions, Rsbuild dev server, Cloudflare Pages deployment configuration (`wrangler.json`), browser Worker hosting (`run.worker.ts`). |
 
 ---
@@ -105,34 +104,38 @@ graph TD
         Core["core"]
         Diag["Diagram / DiagramBlock / Connection"]
         TS["TypeSystem & TypeInference"]
-        CompilerFacade["DiagramCompiler (Browser / MCU)"]
-        RI["Reference Implementation (RiProgram)"]
+        CompilerFacade["DiagramCompiler"]
+        Builder["CppDiagramBuilder"]
 
         Core --> Diag
         Core --> TS
         Core --> CompilerFacade
-        Core --> RI
+        CompilerFacade --> Builder
     end
 
-    subgraph RuntimePackage["Runtime & Compilation"]
+    subgraph RuntimePackage["Runtime"]
         Runtime["runtime"]
-        Planner["WasmProgramPlanner"]
-        Registry["BlockRegistry"]
-        DSLEmitters["DSL Emitters (Push / Tick / Gpio)"]
-        Binaryen["Binaryen (Wasm Module Builder)"]
+        Session["WasmSession"]
         ThreadMod["Thread & WorkerClient"]
+        Buffers["SlidingScopeBuffer"]
 
-        Runtime --> Planner
-        Runtime --> Registry
-        Runtime --> DSLEmitters
-        Runtime --> Binaryen
+        Runtime --> Session
         Runtime --> ThreadMod
+        Runtime --> Buffers
     end
 
     subgraph BaseLib["Standard Library"]
         Base["base"]
-        Assembly["dist/assembly.js (Bundled DSL Definitions)"]
-        Base --> Assembly
+        Native["base/native (base.hpp, wasm_host.cpp)"]
+        Base --> Native
+    end
+
+    subgraph CppPkg["cpp clang/lld"]
+        Cpp["cpp"]
+        Clang["ClangFrontend"]
+        Lld["WasmLinker"]
+        Cpp --> Clang
+        Cpp --> Lld
     end
 
     subgraph WorkerEnv["Web Worker Thread"]
@@ -148,10 +151,10 @@ graph TD
 
     UI --> Core
     UI --> Runtime
-    Core --> Runtime
     Core --> Base
-    Base --> Runtime
-    Assembly -.->|Dynamically Loaded| Registry
+    Runtime --> Cpp
+    CompilerFacade -->|"ICppCompiler"| Cpp
+    Builder --> Native
     WasmRT <==>|"postMessage / RPC"| WorkerEntry
     EnvBridge -.->|"Real-time Pin Push"| WasmRT
 ```
@@ -160,84 +163,29 @@ graph TD
 
 ## Compilation Pipeline
 
-When a diagram is executed, it passes through an ahead-of-time compilation pipeline that turns diagram nodes and connections into optimized WebAssembly bytecode:
+When a diagram is executed, `CppDiagramBuilder` emits C++ against the native base library and `DiagramCompiler` delegates wasm compilation to the `cpp` workspace:
 
 ```mermaid
 flowchart TD
-    A["Diagram Model / DiagramJson"] --> B["WasmProgramPlanner"]
+    A["Diagram Model / DiagramJson"] --> B["CppDiagramBuilder"]
     
-    subgraph Planning["Program Planning Phase"]
-        B --> B1["Assign Contiguous Numeric IDs (0..N-1)"]
-        B1 --> B2["Analyze Topo Connections & Vector Indices"]
-        B2 --> B3["Compute Downstream Consumer Maps (consumers, pinConsumers)"]
-        B3 --> B4["Calculate Receive Channel Counts"]
+    subgraph Emit["C++ Generation"]
+        B --> B1["Map JSON refs to push::f32 classes"]
+        B1 --> B2["Reverse-topo apply order (sinks before sources)"]
+        B2 --> B3["Emit diagram.cpp + native headers/host"]
     end
     
-    B4 --> C["WasmProgram Specification"]
+    B3 --> C["Map of C++ files"]
     
-    subgraph CodeGen["Binaryen Code Generation Phase"]
-        C --> D["BlockRegistry"]
-        D --> E["Load Block Emitter Definitions"]
-        E --> F["BlockEmitter DSL"]
-        
-        F --> F1["PushEmitter (b*_push functions)"]
-        F --> F2["TickEmitter (b*_tick functions)"]
-        F --> F3["GpioEmitter (b*_gpio functions)"]
-        
-        F1 & F2 & F3 --> G["BrowserWasmModule (Binaryen Module)"]
-        G --> H["Finish Global Dispatchers (tick, tickThenObserve, emitGpioIn)"]
-        H --> I["Export Memory & Pin Introspection Functions"]
+    subgraph ClangLld["cpp clang/lld"]
+        C --> D["ICppCompiler.compile(files)"]
+        D --> E["clang++ -std=c++23 wasm32-emscripten"]
+        E --> F["wasm-ld --export-all"]
     end
     
-    I --> J["Optimize (Binaryen setOptimizeLevel)"]
-    J --> K["Validate WebAssembly Module"]
-    K --> L["Emit Uint8Array Wasm Binary"]
-    L --> M["Transfer to Web Worker for Instantiation"]
+    F --> G["Uint8Array Wasm Binary"]
+    G --> H["Web Worker instantiate + start()"]
 ```
-
----
-
-## Dual-Runtime Execution Engine
-
-The platform provides two independent execution paths, allowing users and automated tests to verify compilation outputs against reference behavior:
-
-```mermaid
-flowchart LR
-    subgraph Source["Source Diagram"]
-        DiagInput["Diagram / DiagramJson"]
-    end
-
-    subgraph PathWasm["Path 1: WebAssembly JIT (Binaryen)"]
-        Plan["WasmProgramPlanner"]
-        Compiler["DiagramCompiler"]
-        WasmBin["Uint8Array Wasm Binary"]
-        Worker["Web Worker Thread"]
-        Session["WasmSession"]
-
-        Plan --> Compiler
-        Compiler --> WasmBin
-        WasmBin --> Worker
-        Worker --> Session
-    end
-
-    subgraph PathRI["Path 2: TypeScript Reference Implementation (RI)"]
-        RiBuilder["RiProgram.fromDiagramJson()"]
-        Topo["Topological Dependency Resolution"]
-        Adapters["RiBlockAdapterRegistry"]
-        Ctx["RiExecutionContext"]
-
-        RiBuilder --> Topo
-        Topo --> Adapters
-        Adapters --> Ctx
-    end
-
-    DiagInput --> Plan
-    DiagInput --> RiBuilder
-    Session <===>|"Deterministic Equivalence"| Ctx
-```
-
-- **WebAssembly Engine**: Generates lean machine code for maximum throughput. Used for browser simulation and MCU targeting.
-- **Reference Implementation (RI)**: An in-memory push-stream engine (`push.f32.*`) modeling exact floating-point behaviors, used for integration tests, debugging, and verification.
 
 ---
 
@@ -282,33 +230,16 @@ sequenceDiagram
 
 ---
 
-## Linear Memory & Buffer Layout
+## Scope Buffers & Pin Inspection
 
-The browser WebAssembly profile allocates a single WebAssembly memory page (64 KB) with an organized deterministic linear layout:
+Browser scopes keep samples in a JavaScript sliding buffer (`SlidingScopeBuffer`): a `Float32Array` or `Float64Array` plus a single write pointer. The wasm host records the latest pin values and write counts for inspection:
 
-```mermaid
-classDiagram
-    class LinearMemory {
-        +0x0000 : OFFSET_WRITE_COUNT (uint32)
-        +0x0004 : OFFSET_CLOSED (uint32)
-        +0x0010 : OFFSET_HAS_PIN (512 bytes: 64 blocks x 8 pins)
-        +0x0210 : OFFSET_LAST_PIN (2048 bytes: 64 blocks x 8 pins x 4B float32)
-        +0x0A10 : OFFSET_INTERVAL_PERIODS (128 bytes: 32 intervals x 4B uint32)
-        +Dynamic : WebAssembly GC Arrays (Sliding value buffers)
-    }
-```
+- `lastPin(blockId, pin)`, `hasPin(blockId, pin)`, `pinWriteCount()`
+- `emitGpioIn(blockId, pinIndex, value)` to inject GPIO edges
+- `setNow` / `setRandom` for deterministic generator tests
+- `tick` / `tickThenObserve` to fire registered intervals
 
-```
-+-------------------+-------------------+-------------------+-------------------+-----------------------+
-|  WRITE_COUNT (4B) |    CLOSED (4B)    |   HAS_PIN (512B)  |  LAST_PIN (2048B) | INTERVAL_PERIODS (128)|
-|     offset 0      |     offset 4      |     offset 16     |    offset 528     |      offset 2576      |
-+-------------------+-------------------+-------------------+-------------------+-----------------------+
-| Total pin updates | Stop flag (0 or 1)| Pin active bitset | Latest f32 values |  Tick interval table  |
-+-------------------+-------------------+-------------------+-------------------+-----------------------+
-```
-
-- **Sliding Scope Buffers**: High-frequency sink blocks allocate internal WebAssembly GC arrays (`array.new_data`, `array.set`, `array.get`) with an offset pointer, preventing GC stalls and memory leaks during long-running simulations.
-- **Pin Inspection**: Host threads can asynchronously probe pin values directly via exported getters (`lastPin(blockId, pin)`, `hasPin(blockId, pin)`, `pinWriteCount()`).
+Host pin updates are pushed through `env.host_sendPinF32` so the UI can append samples to sliding buffers without polling wasm memory.
 
 ---
 
@@ -360,55 +291,35 @@ classDiagram
         +getFile(name) string
     }
     class DiagramCompiler {
-        -planner: IDiagramPlanner
-        +plan(diagram) WasmProgram
-        +compile(diagram, options) Uint8Array
-        +emitText(diagram, options) string
+        -cppCompiler: ICppCompiler
+        +emitFiles(diagram) Map
+        +emitText(diagram) string
+        +compile(diagram, options) Promise~Uint8Array~
         +run(diagram, runtime, options) Promise~WasmSession~
     }
     class BrowserCompiler {
-        +constructor(initialFiles)
+        +constructor(libraryFiles, cppCompiler)
     }
     class McuCompiler {
-        +constructor(initialFiles)
+        +constructor(libraryFiles)
     }
     CompilationModel <|-- DiagramCompiler
     DiagramCompiler <|-- BrowserCompiler
     DiagramCompiler <|-- McuCompiler
 
-    %% DSL Emitter Hierarchy
-    class FnEmitter {
+    class DiagramSourceBuilder {
         <<abstract>>
-        #wasm: BrowserWasmModule
-        #block: PlannedBlock
-        #stmts: Expr[]
-        +alloc(type) number
-        +i32(val) Expr
-        +f32(val) Expr
-        +forward(val, consumers) void
-        +recordPin(pin, val) void
-        +build() Object
+        +build(diagram)* Map
     }
-    class PushEmitter {
-        +channel: Expr
-        +value: Expr
-        +storeChannel() void
-        +storeAndRecord() void
-        +transformAndRecord(fn, pin) void
+    class CppDiagramBuilder {
+        +build(diagram) Map
+        +emitDiagram(diagram) string
     }
-    class TickEmitter {
-        +flushArrayToPins() void
-        +pulse(period, duty) Expr
+    class CppBlockCatalog {
+        +require(ref) CppBlockBinding
     }
-    class GpioEmitter {
-        +pinIndex: Expr
-        +rawValue: Expr
-        +highIfTrue() Expr
-        +forwardPins() void
-    }
-    FnEmitter <|-- PushEmitter
-    FnEmitter <|-- TickEmitter
-    FnEmitter <|-- GpioEmitter
+    DiagramSourceBuilder <|-- CppDiagramBuilder
+    CppDiagramBuilder --> CppBlockCatalog
 ```
 
 ---
@@ -483,7 +394,7 @@ The standard library includes fundamental building blocks for digital signal pro
 | `cos_gen_f32` | Source | None | `v` (`pss<f32>`) | Periodic harmonic cosine wave generator over time. |
 | `rand_gen_f32` | Source | None | `v` (`pss<f32>`) | Pseudo-random uniform noise generator. |
 | `pulse_gen_f32` | Source | None | `v` (`pss<f32>`) | Square wave pulse generator with configurable period and duty cycle. |
-| `gpio_in` | Source | Hardware Pin | `pin` (`pss<f32>`) | Multi-pin digital GPIO input with reactive push notification. |
+| `gpio_in_f32` | Source | Hardware Pin | `pin` (`pss<f32>`) | Multi-pin digital GPIO input with reactive push notification. |
 | `sin_f32` | Transformer | `v` (`pss<f32>`) | `sin` (`pss<f32>`) | Unary sine function applied to incoming push values. |
 | `cos_f32` | Transformer | `v` (`pss<f32>`) | `cos` (`pss<f32>`) | Unary cosine function applied to incoming push values. |
 | `sum_f32` | Transformer | `v` (vector `pss<f32>`) | `s` (`pss<f32>`) | Multi-channel vector summation. |
@@ -555,19 +466,20 @@ npm install
 
 ### Build
 
-Compile all workspaces, generate TypeScript declaration files, and bundle the standard library assembly:
+Compile all workspaces and generate TypeScript declaration files:
 
 ```bash
-# Build base, core, runtime, and ui
+# Build base, core, runtime, cpp, and ui
 npm run build --workspaces
 ```
 
 Or build specific workspaces:
 
 ```bash
-npm run build --workspace=base     # Bundles dist/assembly.js
-npm run build --workspace=core     # Typechecks model and assets
-npm run build --workspace=runtime  # Builds Wasm compiler backend
+npm run build --workspace=base     # Typechecks native header exports
+npm run build --workspace=core     # Typechecks model and C++ builder
+npm run build --workspace=runtime  # Typechecks wasm session and sliding buffers
+npm run build --workspace=cpp      # Typechecks in-browser clang/lld
 npm run build --workspace=ui       # Bundles Solid.js UI via Rsbuild
 ```
 
@@ -589,8 +501,11 @@ The workspace follows a tiered testing approach:
 # Run all unit and integration test suites across all packages
 npm test
 
-# Run e2e tests for core and diagram execution
+# Run e2e tests for core C++ generation
 npm run test:e2e --workspace=core
+
+# Run Playwright clang/lld diagram execution tests (scopes + GPIO)
+npm run test:e2e --workspace=cpp
 
 # Run Playwright UI e2e tests
 npm run test:e2e --workspace=ui
@@ -609,9 +524,9 @@ The repository follows a clean, three-layer test layout:
 └── e2e/               # End-to-end diagram compilation, session execution, and Playwright UI tests
 ```
 
-- **Unit Tests**: Verify isolated models (`Diagram`, `DiagramBlock`, `TypeSystem`, `TypeInference`, `WasmProgramPlanner`).
-- **Integration Tests**: Verify end-to-end Wasm bytecode emission, Web Worker RPC bindings, and Reference Implementation equivalence.
-- **E2E Tests**: Validate full diagram execution workflows via fluent builder patterns (`DiagramJsonBuilder`), comparing expected pin outputs against active sessions.
+- **Unit Tests**: Verify isolated models (`Diagram`, `CppDiagramBuilder`, `CppBlockCatalog`, `TypeSystem`, `SlidingScopeBuffer`).
+- **Integration Tests**: Verify generated C++ matches JSON block refs and native `push::f32` class names.
+- **E2E Tests**: Node generation tests in `core/e2e`, and in-browser clang/lld compile+run tests in `cpp/e2e/diagram.spec.ts` covering scopes and GPIO.
 
 ---
 

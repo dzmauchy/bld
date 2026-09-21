@@ -31,6 +31,8 @@ describe("SysrootInstaller", () => {
     const installer = new SysrootInstaller(fs);
     const result = await installer.install(tar, "headers", false);
     expect(result.files).toBe(1);
+    expect(result.entries).toHaveLength(1);
+    expect(result.entries[0]?.path).toBe("/sysroot/include/foo.h");
     expect(new TextDecoder().decode(fs.readFile("/sysroot/include/foo.h"))).toBe("hello");
     expect(fs.exists("/sysroot/lib/wasm32-emscripten/libc.a")).toBe(false);
   });

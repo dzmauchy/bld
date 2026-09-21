@@ -34,6 +34,10 @@
           "type": "string",
           "description": "Detailed explanation of block functionality."
         },
+        "cpp": {
+          "type": "string",
+          "description": "Fully qualified C++ class name in the base library."
+        },
         "inputs": {
           "type": "object",
           "additionalProperties": {

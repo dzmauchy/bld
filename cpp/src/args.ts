@@ -23,6 +23,7 @@ export class ClangArgumentBuilder {
       this.options.resourceDir,
       "-fno-exceptions",
       "-fno-rtti",
+      "-fno-threadsafe-statics",
       `-std=${this.options.std}`,
       `-O${this.options.optimize}`,
       "-fno-color-diagnostics",

@@ -1,10 +1,11 @@
 export const modelAssetFiles = [
   "appAssets.ts",
   "blockDefinition.ts",
-  "blockEmitters.ts",
   "compiler.ts",
   "compilerContext.ts",
   "connection.ts",
+  "cppBlockCatalog.ts",
+  "cppBuilder.ts",
   "diagram.ts",
   "diagramBlock.ts",
   "endpoint.ts",

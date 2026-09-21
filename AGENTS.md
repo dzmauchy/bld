@@ -19,16 +19,18 @@ Technology stack:
 - webawesome
 - dark theme
 - WebAssembly
-- Binaryen
+- In-browser clang/lld (cpp workspace)
+- C++ base library
 
 # Some behavioral aspects
 
 - If a block configuration property was set to its default value, 
   it should be omitted from the JSON output
 - The browser diagram runtime should be executed in a worker thread
-- The browser simulation is made by generating a wasm module from the diagram
-  blocks and connections with Binaryen (browser profile); MCU profile is reserved
-  but unimplemented
+- Diagrams are compiled by generating C++ from the diagram and delegating
+  wasm compilation to the cpp workspace (in-browser clang/lld). MCU
+  compilation is reserved but unimplemented
+- JSON block refs and types correspond to the C++ base library in `base/native`
 - The scope implementation in the browser should be made by 
   using a sliding buffer (Float32Array or Float64Array) with one 
   pointer

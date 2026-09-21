@@ -1,4 +1,5 @@
 import { beforeAll, describe, expect, test } from "vitest";
+import { nativeLibraryFiles } from "base";
 import {
   browserContext,
   BrowserCompiler,
@@ -13,9 +14,9 @@ import { Diagram } from "../../../src/model/diagram.ts";
 import { Library } from "../../../src/model/library.ts";
 import { Palette } from "../../../src/model/palette.ts";
 import { PortEndpoint } from "../../../src/model/endpoint.ts";
-import { mcuProfile } from "runtime";
 
 let palette: Palette;
+const libraryFiles = nativeLibraryFiles();
 
 beforeAll(async () => {
   const lib = await Library.load("base.json");
@@ -28,7 +29,6 @@ function createTestDiagram(): Diagram {
     precision: 10,
   });
   const constant = diagram.addBlock("const_f32", { x: 100, y: 10 }, "const_0", {
-    precision: 10,
     v: 3.14,
   });
   diagram.connect(
@@ -38,40 +38,81 @@ function createTestDiagram(): Diagram {
   return diagram;
 }
 
-describe("DiagramCompiler wasm profiles", () => {
+describe("DiagramCompiler C++ generation", () => {
   test("default compiler targets the browser profile", () => {
-    const compiler = new DiagramCompiler();
+    const compiler = new DiagramCompiler({ files: libraryFiles });
     expect(compiler.getProfile().name).toBe("browser");
     expect(compiler.getContext().name).toBe("browser");
 
     const diagram = createTestDiagram();
-    const wat = compiler.emitText(diagram);
-    expect(wat).toContain("(func $tick");
-    expect(wat).toContain("(func $b0_push");
-    expect(wat).toContain("(func $b1_tick");
-    expect(wat).toContain("(export \"tick\"");
-    expect(wat).toContain("(export \"emitGpioIn\"");
-    expect(wat).toContain("array.set");
-    expect(wat).toContain("return_call");
-    expect(wat).toContain("wasm:js-string");
-    expect(wat).toContain("array.new");
-    expect(wat).toContain("(try");
-    expect(wat).toContain("array.fill");
-    expect(wat).not.toContain("AssemblyScript");
+    const cpp = compiler.emitText(diagram);
+    expect(cpp).toContain("#include <base.hpp>");
+    expect(cpp).toContain("push::f32::sinks::ScopeF32");
+    expect(cpp).toContain("push::f32::sources::ConstF32");
+    expect(cpp).toContain("build_diagram");
+    expect(cpp).toContain("3.14f");
+    expect(cpp).toContain("->apply(");
   });
 
   test("BrowserCompiler specializes the browser profile", () => {
-    const compiler = new BrowserCompiler();
+    const compiler = new BrowserCompiler(libraryFiles);
     expect(compiler.getProfile().name).toBe("browser");
   });
 
-  test("McuCompiler leaves the MCU profile unimplemented", () => {
-    const compiler = new McuCompiler();
+  test("McuCompiler leaves the MCU profile unimplemented", async () => {
+    const compiler = new McuCompiler(libraryFiles);
     expect(compiler.getProfile().name).toBe("mcu");
-    expect(compiler.getProfile()).toBe(mcuProfile);
     const diagram = createTestDiagram();
-    expect(() => compiler.compile(diagram)).toThrow(/MCU wasm profile is not implemented/);
-    expect(() => compiler.emitText(diagram)).toThrow(/not implemented/);
+    await expect(compiler.compile(diagram)).rejects.toThrow(/MCU wasm profile is not implemented/);
+    expect(compiler.emitText(diagram)).toContain("build_diagram");
+  });
+
+  test("compile without a C++ backend throws", async () => {
+    const compiler = new BrowserCompiler(libraryFiles);
+    const diagram = createTestDiagram();
+    await expect(compiler.compile(diagram)).rejects.toThrow(/C\+\+ compiler backend is required/);
+  });
+
+  test("compile delegates generated C++ files to the backend", async () => {
+    const captured: Map<string, string>[] = [];
+    const wasm = new Uint8Array([0, 97, 115, 109, 1, 0, 0, 0]);
+    const compiler = new DiagramCompiler({
+      files: libraryFiles,
+      cppCompiler: {
+        async compile(files) {
+          captured.push(files);
+          return wasm;
+        },
+      },
+    });
+    const diagram = createTestDiagram();
+    await expect(compiler.compile(diagram)).resolves.toBe(wasm);
+    expect(captured).toHaveLength(1);
+    const files = captured[0];
+    expect(files?.get("diagram.cpp")).toContain("build_diagram");
+    expect(files?.get("diagram.cpp")).toContain("#include \"wasm_host.inc\"");
+    expect(files?.get("base.hpp")).toContain("class ScopeF32");
+    expect(files?.get("wasm_host.inc")).toContain("void start()");
+    expect(files?.get("wasm_host.cpp")).toBeUndefined();
+  });
+
+  test("run instantiates the wasm produced by the C++ backend", async () => {
+    const wasm = new Uint8Array([0, 97, 115, 109, 9, 9, 9, 9]);
+    const compiler = new BrowserCompiler(libraryFiles, {
+      async compile() {
+        return wasm;
+      },
+    });
+    let captured: Uint8Array | undefined;
+    const session = { close: async () => 0 } as unknown as import("../../../src/model/compiler.ts").WasmSessionLike;
+    const runtime = {
+      async instantiate(bytes: Uint8Array) {
+        captured = bytes;
+        return session;
+      },
+    };
+    await expect(compiler.run(createTestDiagram(), runtime)).resolves.toBe(session);
+    expect(captured).toBe(wasm);
   });
 
   test("supports custom context registration", () => {
@@ -79,15 +120,14 @@ describe("DiagramCompiler wasm profiles", () => {
     expect(getCompilerContext("custom_sim")?.name).toBe("custom_sim");
   });
 
-  test("Diagram.emitText uses the default browser compiler", () => {
+  test("Diagram.emitText uses the default browser compiler files when provided", () => {
     const diagram = createTestDiagram();
-    const wat = diagram.emitText();
-    expect(wat).toContain("(func $tick");
-    expect(wat).toContain("return_call");
+    const cpp = diagram.emitText(new BrowserCompiler(libraryFiles));
+    expect(cpp).toContain("new push::f32::sources::ConstF32");
   });
 
   test("setContext switches a compiler onto a registered target", () => {
-    const compiler = new DiagramCompiler();
+    const compiler = new DiagramCompiler({ files: libraryFiles });
     expect(compiler.getProfile().name).toBe("browser");
 
     compiler.setContext("mcu");
@@ -99,14 +139,7 @@ describe("DiagramCompiler wasm profiles", () => {
     expect(compiler.getContext().name).toBe(browserContext.name);
   });
 
-  test("registers default block emitters used by diagram codegen", () => {
-    expect(defaultBlockEmitters.has("scope_f32")).toBe(true);
-    expect(defaultBlockEmitters.has("const_f32")).toBe(true);
-    expect(defaultBlockEmitters.has("gpio_in")).toBe(true);
-    expect(defaultBlockEmitters.has("unknown_block")).toBe(false);
-  });
-
-  test("every blocks.json entry has a wasm emitter", async () => {
+  test("every blocks.json entry has a C++ binding", async () => {
     const lib = await Library.load("base.json");
     for (const id of Object.keys(lib.blocks)) {
       expect(defaultBlockEmitters.has(id), id).toBe(true);

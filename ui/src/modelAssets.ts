@@ -1,9 +1,10 @@
 import appAssets from "core/model/appAssets.ts?raw";
 import blockDefinition from "core/model/blockDefinition.ts?raw";
-import blockEmitters from "core/model/blockEmitters.ts?raw";
 import compiler from "core/model/compiler.ts?raw";
 import compilerContext from "core/model/compilerContext.ts?raw";
 import connection from "core/model/connection.ts?raw";
+import cppBlockCatalog from "core/model/cppBlockCatalog.ts?raw";
+import cppBuilder from "core/model/cppBuilder.ts?raw";
 import diagram from "core/model/diagram.ts?raw";
 import diagramBlock from "core/model/diagramBlock.ts?raw";
 import endpoint from "core/model/endpoint.ts?raw";
@@ -15,10 +16,11 @@ import { modelAssetFiles } from "core";
 export const modelAssets = {
   "appAssets.ts": appAssets,
   "blockDefinition.ts": blockDefinition,
-  "blockEmitters.ts": blockEmitters,
   "compiler.ts": compiler,
   "compilerContext.ts": compilerContext,
   "connection.ts": connection,
+  "cppBlockCatalog.ts": cppBlockCatalog,
+  "cppBuilder.ts": cppBuilder,
   "diagram.ts": diagram,
   "diagramBlock.ts": diagramBlock,
   "endpoint.ts": endpoint,

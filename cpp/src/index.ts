@@ -13,3 +13,4 @@ export { RpcClient } from "./rpc.ts";
 export { SysrootInstaller, shouldInstallSysrootEntry, tarPathToMemfs } from "./sysroot.ts";
 export { Thread, EventTargetWorkerThread, wrapEventTargetWorker } from "./thread.ts";
 export { DefaultWasmBindings } from "./bindings.ts";
+export type { HostEnvCallbacks } from "./bindings.ts";

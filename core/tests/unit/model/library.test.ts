@@ -59,14 +59,13 @@ describe("Library and Asset Loader", () => {
     expect(cos).toBeDefined();
     expect(cos?.category).toBe("transformers");
 
-    const gpio = lib.palette.getBlock("gpio_in");
+    const gpio = lib.palette.getBlock("gpio_in_f32");
     expect(gpio).toBeDefined();
     expect(gpio?.category).toBe("sources");
+    expect(gpio?.cppClass).toBe("push::f32::sources::GpioInF32");
 
     // In-memory CompilationModel populated
     expect(lib.compilationModel).toBeInstanceOf(CompilationModel);
-    expect(lib.assembly).toBeDefined();
-    expect(URL.canParse(lib.assembly!)).toBe(true);
 
     // Base library is cached
     expect(Library.getBaseSync()).toBe(lib);
@@ -84,7 +83,6 @@ describe("Library and Asset Loader", () => {
             types: ["https://my-plugin.org/dsp/types.json"],
             namespaces: ["https://my-plugin.org/dsp/namespaces.json"],
             blocks: ["https://my-plugin.org/dsp/blocks.json"],
-            assembly: "https://my-plugin.org/dsp/plugin.ts",
           }),
           { status: 200 },
         );
@@ -129,26 +127,16 @@ describe("Library and Asset Loader", () => {
     globalThis.fetch = fetchMock as unknown as typeof fetch;
 
     try {
-      const imported: string[] = [];
-      const lib = await Library.load("https://my-plugin.org/dsp/library.json", {
-        importModule: async (url) => {
-          imported.push(url);
-          return {};
-        },
-      });
+      const lib = await Library.load("https://my-plugin.org/dsp/library.json");
       expect(lib.id).toBe("remote_plugin");
       expect(lib.name).toBe("Remote Plugin");
       expect(lib.typeSystem.getPrimitive("custom_t")).toBeDefined();
       expect(lib.palette.getBlock("custom_block")).toBeDefined();
-      expect(lib.assembly).toBe("https://my-plugin.org/dsp/plugin.ts");
-      expect(imported).toEqual(["https://my-plugin.org/dsp/plugin.ts"]);
 
-      // Verify fetch was invoked for JSON assets, not the assembly module.
       expect(fetchMock).toHaveBeenCalledWith("https://my-plugin.org/dsp/library.json");
       expect(fetchMock).toHaveBeenCalledWith("https://my-plugin.org/dsp/types.json");
       expect(fetchMock).toHaveBeenCalledWith("https://my-plugin.org/dsp/namespaces.json");
       expect(fetchMock).toHaveBeenCalledWith("https://my-plugin.org/dsp/blocks.json");
-      expect(fetchMock).not.toHaveBeenCalledWith("https://my-plugin.org/dsp/plugin.ts");
     } finally {
       globalThis.fetch = originalFetch;
     }
@@ -160,7 +148,7 @@ describe("Library and Asset Loader", () => {
   });
 
   test("normalizes asset paths and loads via the shared AppAssetStore", async () => {
-    expect(normalizeAssetPath("./assembly/blocks.ts")).toBe("assembly/blocks.ts");
+    expect(normalizeAssetPath("./native/blocks.ts")).toBe("native/blocks.ts");
 
     registerAppAssets({
       "bundle/a.json": "{\"a\":1}",
@@ -224,38 +212,11 @@ describe("Library and Asset Loader", () => {
     expect(palette.getBlock("scope_f32")?.title).toBe("Scope");
   });
 
-  test("loads assembly via dynamic import and installs block emitters into registry", async () => {
-    const { BlockRegistry } = await import("runtime");
-    const registry = new BlockRegistry();
-    const importedUrls: string[] = [];
-
-    const lib = await Library.load(
-      {
-        id: "dynamic_math",
-        name: "Dynamic Math",
-        assembly: "math_assembly.js",
-      },
-      {
-        registry,
-        importModule: async (url) => {
-          importedUrls.push(url);
-          return {
-            install: (api) => {
-              api.define("dynamic_scale", (block) => {
-                block.onPush((push) => {
-                  push.forward(push.f32(42));
-                });
-              });
-            },
-          };
-        },
-      },
-    );
-
-    expect(lib.id).toBe("dynamic_math");
-    expect(lib.assembly).toBe("math_assembly.js");
-    expect(importedUrls).toEqual(["math_assembly.js"]);
-    expect(registry.has("dynamic_scale")).toBe(true);
+  test("JSON block cpp fields match the C++ catalog", async () => {
+    const lib = await Library.loadBase();
+    for (const [id, raw] of Object.entries(lib.blocks)) {
+      expect(raw.cpp, id).toBe(lib.palette.getBlock(id)?.cppClass);
+    }
   });
 });
 

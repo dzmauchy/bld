@@ -1,15 +1,7 @@
 /**
  * @title Compiler Context
  */
-export {
-  BrowserWasmProfile,
-  McuWasmProfile,
-  WasmProfile,
-  browserProfile,
-  getWasmProfile,
-  mcuProfile,
-  type WasmProfileName,
-} from "runtime";
+export type WasmProfileName = "browser" | "mcu";
 
 export abstract class CompilerContext {
   abstract readonly name: string;

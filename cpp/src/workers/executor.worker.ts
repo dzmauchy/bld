@@ -17,8 +17,14 @@ export class WasmExecutorSession {
     });
     instance = await WebAssembly.instantiate(module, bindings.fill(module));
     this.instance = instance;
-    const ctors = instance.exports["__wasm_call_ctors"];
-    if (typeof ctors === "function") (ctors as () => void)();
+    const initialize = instance.exports["_initialize"];
+    if (typeof initialize === "function") (initialize as () => void)();
+    else {
+      const ctors = instance.exports["__wasm_call_ctors"];
+      if (typeof ctors === "function") (ctors as () => void)();
+    }
+    const start = instance.exports["start"];
+    if (typeof start === "function") (start as () => void)();
     return Object.keys(instance.exports);
   }
 
