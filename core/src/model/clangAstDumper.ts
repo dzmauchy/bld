@@ -26,9 +26,11 @@ export class ClangDumpResult {
 
 export abstract class ClangAstDumper {
   private static registered: ClangAstDumper | undefined;
+  static libraryFiles: Record<string, string> = {};
 
-  static register(dumper: ClangAstDumper): void {
+  static register(dumper: ClangAstDumper, libraryFiles: Record<string, string> = {}): void {
     this.registered = dumper;
+    if (Object.keys(libraryFiles).length > 0) this.libraryFiles = libraryFiles;
   }
 
   static defaultDumper(): ClangAstDumper {

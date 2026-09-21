@@ -4,7 +4,6 @@
  * Consumes `clang++ -Xclang -ast-dump=json` output to recover C++ types and
  * detect incompatibilities. No custom unification or port-type algebra.
  */
-import { nativeLibraryFiles } from "base";
 import { ClangAstDumper, type ClangDumpResult } from "./clangAstDumper";
 
 export type ClangAstJson = {
@@ -208,18 +207,23 @@ export class ClangTypeCatalog {
 
   constructor(
     private readonly dumper?: ClangAstDumper,
-    private readonly libraryFiles: Record<string, string> = nativeLibraryFiles(),
+    private readonly libraryFiles: Record<string, string> = {},
   ) {}
 
   private getDumper(): ClangAstDumper {
     return this.dumper ?? ClangAstDumper.defaultDumper();
   }
 
+  private nativeFiles(): Record<string, string> {
+    return this.libraryFiles["base.hpp"] ? this.libraryFiles : ClangAstDumper.libraryFiles;
+  }
+
   ensure(): ClangTranslationUnit {
     if (this.unit) return this.unit;
+    const library = this.nativeFiles();
     const files = new Map<string, string>([
-      ["bld.hpp", this.libraryFiles["bld.hpp"] ?? ""],
-      ["base.hpp", this.libraryFiles["base.hpp"] ?? ""],
+      ["bld.hpp", library["bld.hpp"] ?? ""],
+      ["base.hpp", library["base.hpp"] ?? ""],
       ["probe.cpp", '#include "base.hpp"\n'],
     ]);
     const dump = this.getDumper().dump(files, "probe.cpp");
@@ -247,10 +251,11 @@ export class ClangTypeCatalog {
   }
 
   dumpProbe(source: string): ClangDumpResult {
+    const library = this.nativeFiles();
     const files = new Map<string, string>([
-      ["bld.hpp", this.libraryFiles["bld.hpp"] ?? ""],
-      ["base.hpp", this.libraryFiles["base.hpp"] ?? ""],
-      ["wasm_host.hpp", this.libraryFiles["wasm_host.hpp"] ?? ""],
+      ["bld.hpp", library["bld.hpp"] ?? ""],
+      ["base.hpp", library["base.hpp"] ?? ""],
+      ["wasm_host.hpp", library["wasm_host.hpp"] ?? ""],
       ["probe.cpp", prepareProbeSource(source)],
     ]);
     return this.getDumper().dump(files, "probe.cpp");

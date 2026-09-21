@@ -7,6 +7,7 @@ import { spawnSync } from "node:child_process";
 import { existsSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
+import { nativeLibraryFiles } from "base";
 import { ClangAstDumper, ClangDumpResult } from "./clangAstDumper";
 
 export class HostClangAstDumper extends ClangAstDumper {
@@ -71,4 +72,4 @@ export class HostClangAstDumper extends ClangAstDumper {
   }
 }
 
-ClangAstDumper.register(HostClangAstDumper.shared);
+ClangAstDumper.register(HostClangAstDumper.shared, nativeLibraryFiles());
