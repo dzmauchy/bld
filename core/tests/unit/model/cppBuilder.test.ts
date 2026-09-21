@@ -56,7 +56,8 @@ describe("CppDiagramBuilder", () => {
     expect(cpp).toContain("new push::f32::sinks::ScopeF32(0u, 60u, 10u)");
     expect(cpp).toContain("new push::f32::sources::ConstF32(1u, 3.5f)");
     expect(cpp).toContain("s_in = s->apply(static_cast<u8>(1))");
-    expect(cpp).toContain("c->apply({s_in[0]})");
+    expect(cpp).toContain("c_dn.push_back(s_in[0])");
+    expect(cpp).toContain("c->apply(static_cast<VectorizedInput<Pss<f32>>&&>(c_dn))");
   });
 
   test("fans a constant out to two scope channels", () => {
@@ -67,7 +68,8 @@ describe("CppDiagramBuilder", () => {
       connect(d, "c", "v", 0, "s", "sink", 1);
     });
     expect(cpp).toContain("s->apply(static_cast<u8>(2))");
-    expect(cpp).toContain("c->apply({s_in[0], s_in[1]})");
+    expect(cpp).toContain("c_dn.push_back(s_in[0])");
+    expect(cpp).toContain("c_dn.push_back(s_in[1])");
   });
 
   test("emits unary cos then sin chain", () => {
@@ -83,9 +85,9 @@ describe("CppDiagramBuilder", () => {
     expect(cpp.indexOf("s->apply(")).toBeLessThan(cpp.indexOf("sn->apply"));
     expect(cpp.indexOf("sn->apply")).toBeLessThan(cpp.indexOf("cs->apply"));
     expect(cpp.indexOf("cs->apply")).toBeLessThan(cpp.indexOf("zero->apply"));
-    expect(cpp).toContain("sn_in = sn->apply({s_in[0]})");
-    expect(cpp).toContain("cs_in = cs->apply({sn_in})");
-    expect(cpp).toContain("zero->apply({cs_in})");
+    expect(cpp).toContain("sn_dn.push_back(s_in[0])");
+    expect(cpp).toContain("cs_dn.push_back(sn_in)");
+    expect(cpp).toContain("zero_dn.push_back(cs_in)");
   });
 
   test("emits product of two constants", () => {
@@ -98,9 +100,9 @@ describe("CppDiagramBuilder", () => {
       connect(d, "a", "v", 0, "p", "v", 0);
       connect(d, "b", "v", 0, "p", "v", 1);
     });
-    expect(cpp).toContain("p_in = p->apply({s_in[0]}, static_cast<u8>(2))");
-    expect(cpp).toContain("a->apply({p_in[0]})");
-    expect(cpp).toContain("b->apply({p_in[1]})");
+    expect(cpp).toContain("p->apply(static_cast<VectorizedInput<Pss<f32>>&&>(p_dn), static_cast<u8>(2))");
+    expect(cpp).toContain("a_dn.push_back(p_in[0])");
+    expect(cpp).toContain("b_dn.push_back(p_in[1])");
   });
 
   test("emits sum with configured precision", () => {
@@ -142,9 +144,12 @@ describe("CppDiagramBuilder", () => {
       connect(d, "g", "pin", 0, "s", "sink", 0);
       connect(d, "g", "pin", 1, "s", "sink", 1);
     });
-    expect(cpp).toContain("new push::f32::sources::GpioInF32(1u, 7, Array<u8>{1, 3})");
-    expect(cpp).toContain("g->apply({{s_in[0]}, {s_in[1]}})");
-    expect(cpp).toContain("register_gpio_block(1u, 7, Array<u8>{1, 3})");
+    expect(cpp).toContain("g_pins.push_back(1)");
+    expect(cpp).toContain("g_pins.push_back(3)");
+    expect(cpp).toContain("new push::f32::sources::GpioInF32(1u, 7, static_cast<Array<u8>&&>(g_pins))");
+    expect(cpp).toContain("g_p0.push_back(s_in[0])");
+    expect(cpp).toContain("g_p1.push_back(s_in[1])");
+    expect(cpp).toContain("register_gpio_block(1u, 7, g_hw)");
   });
 
   test("applies sinks before sources", () => {

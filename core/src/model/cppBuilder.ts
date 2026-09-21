@@ -59,7 +59,7 @@ export class CppDiagramBuilder extends DiagramSourceBuilder {
     ];
 
     for (const item of planned) {
-      lines.push(`  ${this.emitConstruct(item)};`);
+      lines.push(...this.emitConstruct(item).map((line) => `  ${line}`));
     }
     lines.push("");
     for (const item of applyOrder) {
@@ -111,36 +111,66 @@ export class CppDiagramBuilder extends DiagramSourceBuilder {
     return ordered;
   }
 
-  private emitConstruct(item: PlannedBlock): string {
-    const args = [u32Lit(item.numericId), ...item.binding.ctorArgs.map((arg) => this.formatArg(item.block.getAllConf(), arg))];
-    return `auto* ${item.ident} = new ${item.binding.cppClass}(${args.join(", ")})`;
+  private emitConstruct(item: PlannedBlock): string[] {
+    const conf = item.block.getAllConf();
+    const args: string[] = [u32Lit(item.numericId)];
+    const prefix: string[] = [];
+    for (const arg of item.binding.ctorArgs) {
+      if (arg.type === "u8[]") {
+        const ident = `${item.ident}_pins`;
+        prefix.push(...emitPushArray(ident, "Array<u8>", pinsConf(conf).map((pin) => String(pin))));
+        args.push(moveExpr("Array<u8>", ident));
+      } else {
+        args.push(this.formatArg(conf, arg));
+      }
+    }
+    return [...prefix, `auto* ${item.ident} = new ${item.binding.cppClass}(${args.join(", ")});`];
   }
 
   private emitApply(item: PlannedBlock, planned: PlannedBlock[], connections: Connection[]): string[] {
     const downstream = this.downstreamExprs(item, planned, connections);
     const incoming = this.maxIncomingIndex(item.block.id, connections);
+    const dn = `${item.ident}_dn`;
     switch (item.binding.kind) {
       case "sink": {
         const width = Math.max(1, incoming + 1);
         return [`auto ${item.ident}_in = ${item.ident}->apply(${u8Lit(width)});`];
       }
       case "unary":
-        return [`auto ${item.ident}_in = ${item.ident}->apply({${downstream.join(", ")}});`];
+        return [
+          ...emitPushArray(dn, SINKS, downstream),
+          `auto ${item.ident}_in = ${item.ident}->apply(${moveExpr(SINKS, dn)});`,
+        ];
       case "aggregate": {
         const width = Math.max(1, incoming + 1);
-        return [`auto ${item.ident}_in = ${item.ident}->apply({${downstream.join(", ")}}, ${u8Lit(width)});`];
+        return [
+          ...emitPushArray(dn, SINKS, downstream),
+          `auto ${item.ident}_in = ${item.ident}->apply(${moveExpr(SINKS, dn)}, ${u8Lit(width)});`,
+        ];
       }
       case "source":
-        return [`${item.ident}->apply({${downstream.join(", ")}});`];
+        return [
+          ...emitPushArray(dn, SINKS, downstream),
+          `${item.ident}->apply(${moveExpr(SINKS, dn)});`,
+        ];
       case "gpio": {
         const pinGroups = this.gpioPinGroups(item, planned, connections);
         const conf = item.block.getAllConf();
         const port = numberConf(conf, "port", 0);
         const pins = pinsConf(conf);
-        return [
-          `${item.ident}->apply({${pinGroups.join(", ")}});`,
-          `register_gpio_block(${u32Lit(item.numericId)}, ${u16Lit(port)}, Array<u8>{${pins.map((pin) => String(pin)).join(", ")}});`,
-        ];
+        const lines: string[] = [];
+        const bag = `${item.ident}_dn`;
+        lines.push(`auto ${bag} = Array<${SINKS}>{};`);
+        pinGroups.forEach((group, index) => {
+          const pin = `${item.ident}_p${index}`;
+          lines.push(...emitPushArray(pin, SINKS, group));
+          lines.push(`${bag}.push_back(${moveExpr(SINKS, pin)});`);
+        });
+        const hw = `${item.ident}_hw`;
+        lines.push(`${item.ident}->apply(${moveExpr(`Array<${SINKS}>`, bag)});`);
+        lines.push(...emitPushArray(hw, "Array<u8>", pins.map((pin) => String(pin))));
+        lines.push(`register_gpio_block(${u32Lit(item.numericId)}, ${u16Lit(port)}, ${hw});`);
+        return lines;
       }
     }
   }
@@ -158,7 +188,7 @@ export class CppDiagramBuilder extends DiagramSourceBuilder {
     return exprs;
   }
 
-  private gpioPinGroups(item: PlannedBlock, planned: PlannedBlock[], connections: Connection[]): string[] {
+  private gpioPinGroups(item: PlannedBlock, planned: PlannedBlock[], connections: Connection[]): string[][] {
     const byId = new Map(planned.map((entry) => [entry.block.id, entry]));
     const pins = pinsConf(item.block.getAllConf());
     const groups: string[][] = pins.map(() => []);
@@ -170,7 +200,7 @@ export class CppDiagramBuilder extends DiagramSourceBuilder {
       while (groups.length <= pinIndex) groups.push([]);
       groups[pinIndex]?.push(this.consumerExpr(target, connection.to.vectorIndex));
     }
-    return groups.map((group) => `{${group.join(", ")}}`);
+    return groups;
   }
 
   private consumerExpr(target: PlannedBlock, vectorIndex: number): string {
@@ -231,4 +261,18 @@ function f32Lit(value: number): string {
   if (Object.is(value, -0)) return "-0.f";
   if (Number.isInteger(value)) return `${value}.f`;
   return `${value}f`;
+}
+
+const SINKS = "VectorizedInput<Pss<f32>>";
+
+function emitPushArray(ident: string, type: string, values: string[]): string[] {
+  const lines = [`auto ${ident} = ${type}{};`];
+  for (const value of values) {
+    lines.push(`${ident}.push_back(${value});`);
+  }
+  return lines;
+}
+
+function moveExpr(type: string, ident: string): string {
+  return `static_cast<${type}&&>(${ident})`;
 }

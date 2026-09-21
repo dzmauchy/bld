@@ -139,7 +139,8 @@ describe("E2E diagram C++ generation", () => {
     );
     expect(cpp).toContain("ConstF32");
     expect(cpp).toContain("42.5f");
-    expect(cpp).toContain("c->apply({s_in[0]})");
+    expect(cpp).toContain("c_dn.push_back(s_in[0])");
+    expect(cpp).toContain("c->apply(static_cast<VectorizedInput<Pss<f32>>&&>(c_dn))");
   });
 
   test("cos_gen and sin_gen to a multi-channel scope", () => {
@@ -185,7 +186,7 @@ describe("E2E diagram C++ generation", () => {
         .build(),
     );
     expect(cpp.indexOf("s->apply(")).toBeLessThan(cpp.indexOf("sn->apply"));
-    expect(cpp).toContain("zero->apply({c_in})");
+    expect(cpp).toContain("zero_dn.push_back(c_in)");
   });
 
   test("product of two constants", () => {
@@ -201,7 +202,8 @@ describe("E2E diagram C++ generation", () => {
         .build(),
     );
     expect(cpp).toContain("ProductF32");
-    expect(cpp).toContain("p_in = p->apply({s_in[0]}, static_cast<u8>(2))");
+    expect(cpp).toContain("p_dn.push_back(s_in[0])");
+    expect(cpp).toContain("p->apply(static_cast<VectorizedInput<Pss<f32>>&&>(p_dn), static_cast<u8>(2))");
   });
 
   test("sum of three constants", () => {
@@ -232,7 +234,8 @@ describe("E2E diagram C++ generation", () => {
         .build(),
     );
     expect(cpp).toContain("GpioInF32");
-    expect(cpp).toContain("gpio->apply({{s_in[0]}, {s_in[1]}})");
+    expect(cpp).toContain("gpio_p0.push_back(s_in[0])");
+    expect(cpp).toContain("gpio_p1.push_back(s_in[1])");
     expect(cpp).toContain("register_gpio_block");
   });
 
@@ -246,7 +249,7 @@ describe("E2E diagram C++ generation", () => {
         .connect("c", "cos", 0, "s", "sink", 0)
         .build(),
     );
-    expect(cpp).toContain("gpio->apply({{c_in}})");
+    expect(cpp).toContain("gpio_p0.push_back(c_in)");
   });
 
   test("disjoint subgraphs stay independent", () => {
@@ -260,8 +263,8 @@ describe("E2E diagram C++ generation", () => {
         .connect("const_b", "v", 0, "scope_b", "sink", 0)
         .build(),
     );
-    expect(cpp).toContain("const_a->apply({scope_a_in[0]})");
-    expect(cpp).toContain("const_b->apply({scope_b_in[0]})");
+    expect(cpp).toContain("const_a_dn.push_back(scope_a_in[0])");
+    expect(cpp).toContain("const_b_dn.push_back(scope_b_in[0])");
   });
 
   test("loads diagram_demo.json", () => {
@@ -309,8 +312,8 @@ describe("E2E diagram C++ generation", () => {
         .connect("p", "p", 0, "s", "sink", 0)
         .build(),
     );
-    expect(cpp).toContain("gpio->apply({{p_in[0]}})");
-    expect(cpp).toContain("amp->apply({p_in[1]})");
+    expect(cpp).toContain("gpio_p0.push_back(p_in[0])");
+    expect(cpp).toContain("amp_dn.push_back(p_in[1])");
   });
 
   test("two gpio blocks and two scopes stay independent", () => {
@@ -324,8 +327,8 @@ describe("E2E diagram C++ generation", () => {
         .connect("g1", "pin", 0, "s1", "sink", 0)
         .build(),
     );
-    expect(cpp).toContain("g0->apply({{s0_in[0]}})");
-    expect(cpp).toContain("g1->apply({{s1_in[0]}})");
+    expect(cpp).toContain("g0_p0.push_back(s0_in[0])");
+    expect(cpp).toContain("g1_p0.push_back(s1_in[0])");
     expect(cpp).toContain("register_gpio_block(2u");
     expect(cpp).toContain("register_gpio_block(3u");
   });
