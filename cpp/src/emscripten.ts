@@ -33,6 +33,8 @@ export abstract class EmscriptenTool {
   private fs: EmscriptenFileSystem | undefined;
   private sysrootArchive: ArrayBuffer | undefined;
   private sysrootKind: SysrootInstallKind | undefined;
+  private sysrootEntries: { path: string; data: Uint8Array }[] | undefined;
+  private resourceDir: string | undefined;
   private stdout: string[] = [];
   private stderr: string[] = [];
 
@@ -43,6 +45,8 @@ export abstract class EmscriptenTool {
   ) {}
 
   async boot(): Promise<void> {
+    this.runtime = undefined;
+    this.fs = undefined;
     this.stdout = [];
     this.stderr = [];
     this.runtime = await this.createModule({
@@ -66,8 +70,15 @@ export abstract class EmscriptenTool {
     this.sysrootKind = kind;
     const installer = new SysrootInstaller(this.requireFs());
     const installed = await installer.install(archive, kind, true);
+    this.sysrootEntries = installed.entries;
+    this.resourceDir = installed.resourceDir;
     this.onSysrootInstalled(installed.resourceDir);
     return installed.resourceDir;
+  }
+
+  async recycle(): Promise<void> {
+    await this.boot();
+    await this.restoreSysroot();
   }
 
   /**
@@ -123,7 +134,18 @@ export abstract class EmscriptenTool {
   }
 
   private async recoverFromAbort(): Promise<void> {
-    await this.boot();
+    await this.recycle();
+  }
+
+  private async restoreSysroot(): Promise<void> {
+    if (this.sysrootEntries && this.sysrootEntries.length > 0) {
+      const fs = this.requireFs();
+      for (const file of this.sysrootEntries) {
+        fs.writeTree(file.path, file.data);
+      }
+      this.onSysrootInstalled(this.resourceDir ?? "/sysroot/lib/clang/23");
+      return;
+    }
     if (this.sysrootArchive && this.sysrootKind) {
       await this.installSysroot(this.sysrootArchive, this.sysrootKind);
     }

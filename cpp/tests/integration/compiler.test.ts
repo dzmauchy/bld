@@ -52,6 +52,25 @@ describe("clang frontend and wasm linker", () => {
     expect(objects[0]?.bytes).toEqual(new Uint8Array([9, 8, 7]));
   });
 
+  test("clang recycles its emscripten module after each compile", async () => {
+    const fs = new MemoryFileSystem();
+    let boots = 0;
+    const clang = new ClangFrontend(async () => {
+      boots += 1;
+      return {
+        FS: emscriptenApi(fs),
+        callMain: (args) => {
+          fs.writeTree(args.at(-1) ?? "", new Uint8Array([1]));
+          return 0;
+        },
+      };
+    }, "clang.wasm");
+    await clang.boot();
+    expect(boots).toBe(1);
+    await clang.compile(new Map([["add.cpp", "extern \"C\" int add() { return 1; }"]]));
+    expect(boots).toBe(2);
+  });
+
   test("linker writes object files into its own filesystem before producing wasm", async () => {
     const fs = new MemoryFileSystem();
     const seen: string[] = [];

@@ -26,18 +26,23 @@ export class SysrootInstaller {
     archive: ArrayBuffer | Uint8Array | ReadableStream<Uint8Array>,
     kind: SysrootInstallKind,
     compressed = true,
-  ): Promise<{ files: number; resourceDir: string }> {
+  ): Promise<{ files: number; resourceDir: string; entries: { path: string; data: Uint8Array }[] }> {
     const source = compressed ? await inflateGzip(archive) : await readBytes(archive);
-    const entries = await unpackTar(source, {
+    const unpacked = await unpackTar(source, {
       filter: (header) => header.type !== "directory" && shouldInstallSysrootEntry(header.name, kind),
     });
     let files = 0;
-    for (const entry of entries) {
+    const entries: { path: string; data: Uint8Array }[] = [];
+    for (const entry of unpacked) {
       if (!entry.data) continue;
-      this.fs.writeTree(tarPathToMemfs(entry.header.name), entry.data);
+      const path = tarPathToMemfs(entry.header.name);
+      const data = new Uint8Array(entry.data.byteLength);
+      data.set(entry.data);
+      this.fs.writeTree(path, data);
+      entries.push({ path, data });
       files += 1;
     }
-    return { files, resourceDir: this.detectResourceDir() };
+    return { files, resourceDir: this.detectResourceDir(), entries };
   }
 
   detectResourceDir(): string {
