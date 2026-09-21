@@ -108,6 +108,15 @@ export abstract class EmscriptenTool {
     this.executeMain(args);
   }
 
+  runMainCapture(args: string[]): { code: number; stdout: string; stderr: string } {
+    const runtime = this.requireRuntime();
+    this.stdout = [];
+    this.stderr = [];
+    this.requireFs().chdir("/");
+    const code = this.callMain(runtime, [...args]);
+    return { code, stdout: this.logs.stdout, stderr: this.logs.stderr };
+  }
+
   get logs(): { stdout: string; stderr: string } {
     return {
       stdout: this.stdout.join("\n"),
@@ -152,13 +161,9 @@ export abstract class EmscriptenTool {
   }
 
   private executeMain(args: string[]): void {
-    const runtime = this.requireRuntime();
-    this.stdout = [];
-    this.stderr = [];
-    this.requireFs().chdir("/");
-    const code = this.callMain(runtime, [...args]);
+    const { code, stdout, stderr } = this.runMainCapture(args);
     if (code !== 0) {
-      const details = [this.logs.stderr, this.logs.stdout].filter(Boolean).join("\n");
+      const details = [stderr, stdout].filter(Boolean).join("\n");
       throw new Error(`${this.programName} exited with ${code}${details ? `\n${details}` : ""}`);
     }
   }

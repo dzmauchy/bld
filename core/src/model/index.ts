@@ -2,6 +2,8 @@
  * @title Model Index
  */
 export * from "../types";
+export * from "./clangAstDumper";
+export * from "./clangAst";
 export * from "./blockDefinition";
 export * from "./palette";
 export * from "./endpoint";

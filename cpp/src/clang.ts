@@ -37,6 +37,25 @@ export class ClangFrontend extends EmscriptenTool {
     }
   }
 
+  async dumpAst(files: Map<string, string>, mainFile: string): Promise<{ ok: boolean; ast: unknown; stdout: string; stderr: string }> {
+    try {
+      return await this.runJob(async () => {
+        this.prepareWork();
+        for (const [name, text] of files) this.writeText(workPath(name), text);
+        const captured = this.runMainCapture(this.args.syntaxOnlyAstDump(workPath(mainFile)));
+        let ast: unknown;
+        try {
+          ast = JSON.parse(captured.stdout);
+        } catch {
+          ast = undefined;
+        }
+        return { ok: captured.code === 0, ast, stdout: captured.stdout, stderr: captured.stderr };
+      });
+    } finally {
+      await this.recycle();
+    }
+  }
+
   protected override onSysrootInstalled(resourceDir: string): void {
     this.args = this.args.withResourceDir(resourceDir);
   }

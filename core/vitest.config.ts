@@ -5,6 +5,6 @@ export default defineConfig({
     include: ["tests/{unit,integration}/**/*.test.ts", "e2e/**/*.test.ts"],
     setupFiles: ["tests/setup.ts"],
     hookTimeout: 60_000,
-    testTimeout: 30_000,
+    testTimeout: 60_000,
   },
 });

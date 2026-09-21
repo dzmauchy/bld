@@ -1,14 +1,12 @@
 /**
  * @title C++ Diagram Builder
  *
- * Emits C++ sources for a diagram that instantiate the base library and
- * delegate wasm compilation to the `cpp` package. Constructor arguments and
- * wiring come from JSON port/conf types, not a closed block-kind union.
+ * Emits C++ sources for a diagram that instantiate the base library.
+ * Constructor argument types and apply wiring come from clang++ AST dumps.
  */
 import type { Diagram } from "./diagram";
 import type { DiagramBlock } from "./diagramBlock";
 import type { Connection } from "./connection";
-import type { ConfigPropertyDefinition } from "./blockDefinition";
 import {
   BlockPortTopology,
   CppBlockCatalog,
@@ -58,6 +56,8 @@ export class CppDiagramBuilder extends DiagramSourceBuilder {
       "#include \"wasm_host.hpp\"",
       "#include \"wasm_host.inc\"",
       "",
+      "using push::f32::F32;",
+      "",
       "extern \"C\" void build_diagram() {",
     ];
 
@@ -75,19 +75,15 @@ export class CppDiagramBuilder extends DiagramSourceBuilder {
 
   private plan(diagram: Diagram): PlannedBlock[] {
     const catalog = this.catalogFor(diagram);
-    const inferred = diagram.inferPortTypes();
     return diagram.getBlocks().map((block, index) => {
       if (!block.definition.cppClass) throw new Error(`Unknown C++ block "${block.ref}"`);
-      catalog.require(block.ref);
-      const topology = new BlockPortTopology(block.definition, diagram.typeInference, block.getAllConf());
-      const streamType = inferred.streamType(block.id) ?? topology.streamType();
-      if (!streamType) throw new Error(`Block "${block.ref}" has no inferable stream type`);
+      const topology = catalog.topology(block.ref, block.getAllConf());
       return {
         block,
         numericId: index,
         ident: cppIdent(block.id),
         topology,
-        streamCppType: CppTypeNames.vectorizedInput(streamType),
+        streamCppType: topology.streamCppType(),
       };
     });
   }
@@ -134,18 +130,20 @@ export class CppDiagramBuilder extends DiagramSourceBuilder {
     const conf = item.block.getAllConf();
     const args: string[] = [u32Lit(item.numericId)];
     const prefix: string[] = [];
-    for (const prop of item.block.definition.config.values()) {
-      if (CppTypeNames.isArray(prop.type)) {
+    const ctorParams = item.topology.constructorParameters().slice(1);
+    const confProps = [...item.block.definition.config.values()];
+    ctorParams.forEach((param, index) => {
+      const prop = confProps[index];
+      if (!prop) return;
+      if (CppTypeNames.isArrayQualType(param.qualType)) {
         const ident = `${item.ident}_${prop.id}`;
-        const values = arrayConf(conf, prop).map((entry) =>
-          CppTypeNames.literal(CppTypeNames.elementType(prop.type) ?? prop.type, entry),
-        );
-        prefix.push(...emitPushArray(ident, CppTypeNames.of(prop.type), values));
-        args.push(moveExpr(CppTypeNames.of(prop.type), ident));
+        const values = arrayConf(conf, prop.id, prop.defaultValue).map((entry) => String(entry));
+        prefix.push(...emitPushArray(ident, param.qualType, values));
+        args.push(moveExpr(param.qualType, ident));
       } else {
-        args.push(this.formatArg(conf, prop));
+        args.push(CppTypeNames.literalFromClang(param.qualType, conf[prop.id] ?? prop.defaultValue ?? 0));
       }
-    }
+    });
     return [...prefix, `auto* ${item.ident} = new ${item.block.definition.cppClass}(${args.join(", ")});`];
   }
 
@@ -191,12 +189,15 @@ export class CppDiagramBuilder extends DiagramSourceBuilder {
     const portProp = item.block.definition.getConfig("port");
     const pinsId = item.topology.pinBindConfId();
     const pinsProp = pinsId ? item.block.definition.getConfig(pinsId) : undefined;
+    const ctorParams = item.topology.constructorParameters();
+    const portType = ctorParams[1]?.qualType ?? "u16";
+    const pinsType = ctorParams[2]?.qualType ?? "Array<u8>";
     if (portProp && pinsProp) {
       const hw = `${item.ident}_hw`;
-      const pins = arrayConf(conf, pinsProp);
-      lines.push(...emitPushArray(hw, CppTypeNames.of(pinsProp.type), pins.map((pin) => String(pin))));
+      const pins = arrayConf(conf, pinsProp.id, pinsProp.defaultValue);
+      lines.push(...emitPushArray(hw, pinsType, pins.map((pin) => String(pin))));
       lines.push(
-        `register_gpio_block(${u32Lit(item.numericId)}, ${CppTypeNames.literal(portProp.type, conf[portProp.id] ?? portProp.defaultValue ?? 0)}, ${hw});`,
+        `register_gpio_block(${u32Lit(item.numericId)}, ${CppTypeNames.literalFromClang(portType, conf[portProp.id] ?? portProp.defaultValue ?? 0)}, ${hw});`,
       );
     }
     return lines;
@@ -218,8 +219,7 @@ export class CppDiagramBuilder extends DiagramSourceBuilder {
   private pinGroups(item: PlannedBlock, planned: PlannedBlock[], connections: Connection[]): string[][] {
     const byId = new Map(planned.map((entry) => [entry.block.id, entry]));
     const bindId = item.topology.pinBindConfId();
-    const pinsProp = bindId ? item.block.definition.getConfig(bindId) : undefined;
-    const pinCount = pinsProp ? arrayConf(item.block.getAllConf(), pinsProp).length : 0;
+    const pinCount = bindId ? arrayConf(item.block.getAllConf(), bindId, [0]).length : 0;
     const groups: string[][] = Array.from({ length: pinCount }, () => []);
     for (const connection of connections) {
       if (connection.from.blockId !== item.block.id) continue;
@@ -243,12 +243,6 @@ export class CppDiagramBuilder extends DiagramSourceBuilder {
       return Math.max(max, connection.to.vectorIndex);
     }, -1);
   }
-
-  private formatArg(conf: Record<string, unknown>, prop: ConfigPropertyDefinition): string {
-    const fallback = prop.defaultValue;
-    const value = conf[prop.id] !== undefined ? conf[prop.id] : fallback;
-    return CppTypeNames.literal(prop.type, value ?? 0);
-  }
 }
 
 export function cppIdent(id: string): string {
@@ -256,12 +250,10 @@ export function cppIdent(id: string): string {
   return /^[A-Za-z_]/.test(cleaned) ? cleaned : `b_${cleaned}`;
 }
 
-function arrayConf(conf: Record<string, unknown>, prop: ConfigPropertyDefinition): number[] {
-  const raw = conf[prop.id];
+function arrayConf(conf: Record<string, unknown>, key: string, fallback: unknown): number[] {
+  const raw = conf[key];
   if (Array.isArray(raw) && raw.length > 0) return raw.map((entry) => Number(entry));
-  if (Array.isArray(prop.defaultValue) && prop.defaultValue.length > 0) {
-    return prop.defaultValue.map((entry) => Number(entry));
-  }
+  if (Array.isArray(fallback) && fallback.length > 0) return fallback.map((entry) => Number(entry));
   return [0];
 }
 

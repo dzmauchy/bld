@@ -140,7 +140,7 @@ describe("E2E diagram C++ generation", () => {
     expect(cpp).toContain("ConstF32");
     expect(cpp).toContain("42.5f");
     expect(cpp).toContain("c_dn.push_back(s_in[0])");
-    expect(cpp).toContain("c->apply(static_cast<VectorizedInput<Pss<f32>>&&>(c_dn))");
+    expect(cpp).toContain("c->apply(static_cast<VectorizedInput<Pss<F32>>&&>(c_dn))");
   });
 
   test("cos_gen and sin_gen to a multi-channel scope", () => {
@@ -203,7 +203,7 @@ describe("E2E diagram C++ generation", () => {
     );
     expect(cpp).toContain("ProductF32");
     expect(cpp).toContain("p_dn.push_back(s_in[0])");
-    expect(cpp).toContain("p->apply(static_cast<VectorizedInput<Pss<f32>>&&>(p_dn), static_cast<u8>(2))");
+    expect(cpp).toContain("p->apply(static_cast<VectorizedInput<Pss<F32>>&&>(p_dn), static_cast<u8>(2))");
   });
 
   test("sum of three constants", () => {

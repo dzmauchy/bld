@@ -1,49 +1,32 @@
 /**
  * @title C++ Block Catalog
  *
- * C++ view of the JSON block catalog. Types come from `types.json` via the
- * palette TypeSystem; class names and ports come from `blocks.json`.
+ * C++ view of the JSON block catalog. Class names come from `blocks.json`;
+ * apply/constructor types come from a clang++ AST dump of the native library.
  */
-import { ParameterizedType, TypeSystem, type DataType } from "../types";
-import { confLengthBindId, TypeInference, type InferredPortType } from "../types/typeInference";
+import { TypeSystem } from "../types";
 import type { BlockDefinition, PortDefinition } from "./blockDefinition";
+import { ClangTypeCatalog, type ClangApplyShape } from "./clangAst";
 import { Palette } from "./palette";
 
 export class CppTypeNames {
-  static of(type: DataType): string {
-    if (type instanceof ParameterizedType) {
-      const inner = type.getArg("T");
-      const arg = inner ? CppTypeNames.of(inner) : "";
-      if (type.raw === "array") return `Array<${arg}>`;
-      if (type.raw === "pss") return `Pss<${arg}>`;
-      return arg ? `${type.raw}<${arg}>` : type.raw;
+  static literalFromClang(qualType: string, value: unknown): string {
+    if (/\bArray\s*</.test(qualType)) {
+      throw new Error("Array values must be emitted as named arrays");
     }
-    return type.raw;
-  }
-
-  static vectorizedInput(streamType: DataType): string {
-    return `VectorizedInput<${CppTypeNames.of(streamType)}>`;
-  }
-
-  static elementType(type: DataType): DataType | undefined {
-    return type instanceof ParameterizedType && type.raw === "array" ? type.getArg("T") : undefined;
-  }
-
-  static isArray(type: DataType): boolean {
-    return type instanceof ParameterizedType && type.raw === "array";
-  }
-
-  static literal(type: DataType, value: unknown): string {
-    const raw = type.raw;
-    if (raw === "bool") return value ? "true" : "false";
-    if (raw === "f32") return f32Lit(Number(value));
-    if (raw === "f64") {
+    if (/\b(f32|F32|float)\b/.test(qualType)) return f32Lit(Number(value));
+    if (/\b(f64|F64|double)\b/.test(qualType)) {
       const n = Number(value);
       return Number.isInteger(n) ? `${n}.0` : String(n);
     }
+    if (/\bbool\b/.test(qualType)) return value ? "true" : "false";
     const n = Number(value);
-    if (raw === "u32" || raw === "u64") return `${Math.trunc(n)}u`;
+    if (/\b(u32|unsigned int)\b/.test(qualType)) return `${Math.trunc(n)}u`;
     return String(Math.trunc(n));
+  }
+
+  static isArrayQualType(qualType: string): boolean {
+    return /\bArray\s*</.test(qualType);
   }
 }
 
@@ -53,81 +36,53 @@ function f32Lit(value: number): string {
   return `${value}f`;
 }
 
-/**
- * Port topology derived from JSON inputs/outputs rather than a closed block-kind union.
- */
 export class BlockPortTopology {
   constructor(
     readonly definition: BlockDefinition,
-    readonly inference: TypeInference,
+    readonly shape: ClangApplyShape,
     readonly conf: Record<string, unknown> = definition.getDefaultConfig(),
   ) {}
 
-  inferInput(id: string): InferredPortType | undefined {
-    const port = this.definition.getInput(id);
-    return port ? this.inference.inferPort(port, this.conf) : undefined;
-  }
-
-  inferOutput(id: string): InferredPortType | undefined {
-    const port = this.definition.getOutput(id);
-    return port ? this.inference.inferPort(port, this.conf) : undefined;
-  }
-
-  inferInputs(): Map<string, InferredPortType> {
-    const result = new Map<string, InferredPortType>();
-    for (const [id, port] of this.definition.inputs) {
-      result.set(id, this.inference.inferPort(port, this.conf));
-    }
-    return result;
-  }
-
-  inferOutputs(): Map<string, InferredPortType> {
-    const result = new Map<string, InferredPortType>();
-    for (const [id, port] of this.definition.outputs) {
-      result.set(id, this.inference.inferPort(port, this.conf));
-    }
-    return result;
-  }
-
   pinBoundInput(): PortDefinition | undefined {
-    return this.definition.inputs.values().find((port) => confLengthBindId(port) !== undefined);
+    return this.definition.inputs.values().find((port) => port.lengthBindConfId !== undefined);
   }
 
   pinBindConfId(): string | undefined {
-    const port = this.pinBoundInput();
-    return port ? confLengthBindId(port) : undefined;
+    return this.pinBoundInput()?.lengthBindConfId;
   }
 
-  streamType(): DataType | undefined {
-    for (const inferred of [...this.inferOutputs().values(), ...this.inferInputs().values()]) {
-      if (inferred.isStream) return inferred.dataType;
-    }
-    return undefined;
+  streamCppType(): string {
+    return this.shape.streamCppType();
   }
 
   exposesConsumerBank(): boolean {
-    return this.definition.outputs.size > 0 && this.definition.inputs.size === 0;
+    return this.shape.exposesConsumerBank;
   }
 
   returnsScalarConsumer(): boolean {
-    return this.definition.inputs.size > 0 && this.inferOutputs().values().some((port) => port.isStream && !port.isVector);
+    return this.shape.returnsScalarConsumer;
   }
 
   returnsIndexedConsumers(): boolean {
-    return this.exposesConsumerBank() || (this.definition.outputs.size > 0 && !this.returnsScalarConsumer());
+    return this.shape.returnsIndexedConsumers;
   }
 
   appliesDownstream(): boolean {
-    return this.definition.inputs.size > 0 && this.pinBoundInput() === undefined;
+    return this.shape.appliesDownstream;
   }
 
   registersHostPins(): boolean {
-    return this.pinBoundInput() !== undefined;
+    return this.shape.registersHostPins;
+  }
+
+  constructorParameters(): { qualType: string }[] {
+    return (this.shape.ctor?.parameters ?? []).map((param) => ({ qualType: param.qualType }));
   }
 }
 
 export class CppBlockCatalog {
   static readonly shared = new CppBlockCatalog(new Palette(new TypeSystem()));
+  private clangTypes: ClangTypeCatalog | undefined;
 
   constructor(private _palette: Palette) {}
 
@@ -139,8 +94,16 @@ export class CppBlockCatalog {
     return this._palette.typeSystem;
   }
 
+  get clangTypeCatalog(): ClangTypeCatalog {
+    return (this.clangTypes ??= new ClangTypeCatalog());
+  }
+
   bind(palette: Palette): void {
     this._palette = palette;
+  }
+
+  bindClangTypes(catalog: ClangTypeCatalog): void {
+    this.clangTypes = catalog;
   }
 
   static fromPalette(palette: Palette): CppBlockCatalog {
@@ -164,7 +127,7 @@ export class CppBlockCatalog {
 
   topology(ref: string, conf?: Record<string, unknown>): BlockPortTopology {
     const def = this.require(ref);
-    return new BlockPortTopology(def, new TypeInference(this.typeSystem), conf ?? def.getDefaultConfig());
+    return new BlockPortTopology(def, this.clangTypeCatalog.shapeFor(def.cppClass), conf ?? def.getDefaultConfig());
   }
 
   refs(): string[] {

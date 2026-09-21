@@ -15,6 +15,25 @@ export class ClangArgumentBuilder {
     return new ClangArgumentBuilder({ ...this.options, resourceDir });
   }
 
+  syntaxOnlyAstDump(sourcePath: string): string[] {
+    return [
+      "--target=wasm32-unknown-emscripten",
+      "--sysroot=/sysroot",
+      "-resource-dir",
+      this.options.resourceDir,
+      "-fno-exceptions",
+      "-fno-rtti",
+      "-fno-threadsafe-statics",
+      `-std=${this.options.std}`,
+      "-fno-color-diagnostics",
+      "-I/work",
+      "-fsyntax-only",
+      "-Xclang",
+      "-ast-dump=json",
+      sourcePath,
+    ];
+  }
+
   build(sourcePath: string, objectPath: string): string[] {
     return [
       "--target=wasm32-unknown-emscripten",

@@ -1,130 +1,83 @@
 import { beforeAll, describe, expect, test } from "vitest";
-import {
-  ParameterizedType,
-  PrimitiveType,
-  TypeInference,
-  TypeSystem,
-  TypeVariable,
-} from "../../../src/types/index.js";
-import { Library } from "../../../src/model/index.js";
+import { nativeLibraryFiles } from "base";
+import { ClangTranslationUnit, ClangTypeCatalog } from "../../../src/model/clangAst.ts";
+import { HostClangAstDumper } from "../../../src/model/hostClangAstDumper.ts";
+import { Library } from "../../../src/model/library.ts";
 
-describe("TypeInference", () => {
-  let ts: TypeSystem;
-  let inference: TypeInference;
+describe("clang++ AST type dump", () => {
+  const files = nativeLibraryFiles();
+  const dumper = HostClangAstDumper.shared;
+  const catalog = new ClangTypeCatalog(dumper, files);
 
   beforeAll(async () => {
-    const lib = await Library.load("base.json");
-    ts = lib.typeSystem;
-    inference = new TypeInference(ts);
+    await Library.load("base.json");
   });
 
-  test("infers port payload type and stream classification", () => {
-    const pssF32 = ts.parse({ raw: "pss", args: { T: { raw: "f32" } } });
-    const port = {
-      type: pssF32,
-      vector: true,
-    };
+  test("dumps QualTypes for library apply methods", () => {
+    const scope = catalog.shapeFor("push::f32::sinks::ScopeF32");
+    expect(scope.apply.returnType.qualType).toContain("VectorizedInput");
+    expect(scope.exposesConsumerBank).toBe(true);
 
-    const inferred = inference.inferPort(port);
-    expect(inferred.isStream).toBe(true);
-    expect(inferred.isVector).toBe(true);
-    expect(inferred.payloadType?.raw).toBe("f32");
+    const cosine = catalog.shapeFor("push::f32::transformers::CosF32");
+    expect(cosine.returnsScalarConsumer).toBe(true);
+    expect(cosine.downstreamType()?.qualType).toContain("VectorizedInput");
+
+    const product = catalog.shapeFor("push::f32::transformers::ProductF32");
+    expect(product.returnsIndexedConsumers).toBe(true);
+    expect(product.apply.parameters.some((param) => param.qualType === "u8")).toBe(true);
+
+    const constant = catalog.shapeFor("push::f32::sources::ConstF32");
+    expect(constant.returnsVoid).toBe(true);
+    expect(constant.appliesDownstream).toBe(true);
+
+    const gpio = catalog.shapeFor("push::f32::sources::GpioInF32");
+    expect(gpio.registersHostPins).toBe(true);
+    expect(gpio.connectPin?.parameters[1]?.qualType).toContain("VectorizedInput");
   });
 
-  test("infers vector length from concept configuration binding", () => {
-    const arrayPssF32 = ts.parse({
-      raw: "array",
-      args: { T: { raw: "pss", args: { T: { raw: "f32" } } } },
-    });
-
-    const port = {
-      type: arrayPssF32,
-      vector: false,
-      concept: {
-        length: {
-          bind: {
-            type: "conf",
-            id: "pins",
-          },
-        },
-      },
-    };
-
-    // With config having 3 pins
-    const conf = { pins: [0, 1, 4] };
-    const inferred = inference.inferPort(port, conf);
-
-    expect(inferred.isStream).toBe(true);
-    expect(inferred.isVector).toBe(true);
-    expect(inferred.vectorLength).toBe(3);
-    expect(inferred.payloadType?.raw).toBe("f32");
+  test("detects type incompatibilities from clang diagnostics", () => {
+    const dump = catalog.dumpProbe(`
+#include "base.hpp"
+void check() {
+  Pss<f32> *from = nullptr;
+  int *to = nullptr;
+  to = from;
+  VectorizedInput<Pss<F32>> dn{};
+  dn.push_back(0);
+}
+`);
+    expect(dump.ok).toBe(false);
+    expect(dump.hasTypeError).toBe(true);
+    expect(dump.diagnostics).toMatch(/cannot initialize|incompatible|cannot convert|no matching/i);
   });
 
-  test("unifies generic type variables with concrete types", () => {
-    const typeVarT = new TypeVariable("T");
-    const targetType = new ParameterizedType(
-      "pss",
-      "Push stream",
-      "",
-      new Map([["T", typeVarT]]),
-    );
-
-    const f64 = new PrimitiveType("f64", "64-bit Float");
-    const sourceType = new ParameterizedType(
-      "pss",
-      "Push stream",
-      "",
-      new Map([["T", f64]]),
-    );
-
-    const result = inference.unify(sourceType, targetType);
-    expect(result.ok).toBe(true);
-    expect(result.bindings.get("T")?.raw).toBe("f64");
+  test("accepts compatible consumer pointer assignment", () => {
+    const dump = catalog.dumpProbe(`
+#include "base.hpp"
+void check() {
+  auto* scope = new push::f32::sinks::ScopeF32(0u, 60u, 10u);
+  auto sinks = scope->apply(static_cast<u8>(1));
+  auto* cosine = new push::f32::transformers::CosF32(1u);
+  auto dn = VectorizedInput<Pss<F32>>{};
+  dn.push_back(sinks[0]);
+  auto* input = cosine->apply(static_cast<VectorizedInput<Pss<F32>>&&>(dn));
+  (void)input;
+}
+`);
+    expect(dump.ok, dump.diagnostics).toBe(true);
   });
 
-  test("infers connection transmission type between compatible ports", () => {
-    const pssF32 = ts.parse({ raw: "pss", args: { T: { raw: "f32" } } });
-
-    const fromPort = inference.inferPort({ type: pssF32, vector: true });
-    const toPort = inference.inferPort({ type: pssF32, vector: true });
-
-    const result = inference.inferConnection(fromPort, toPort);
-    expect(result.ok).toBe(true);
-    expect(result.payloadType?.raw).toBe("f32");
-    expect(result.effectiveType?.raw).toBe("pss");
-  });
-
-  test("rejects connection inference between incompatible types", () => {
-    const pssF32 = ts.parse({ raw: "pss", args: { T: { raw: "f32" } } });
-    const u8 = ts.parse("u8");
-
-    const result = inference.inferConnection(pssF32, u8);
-    expect(result.ok).toBe(false);
-    expect(result.error).toContain("Incompatible types");
-  });
-
-  test("infers types of literal values", () => {
-    expect(inference.inferLiteralType(true).raw).toBe("bool");
-    expect(inference.inferLiteralType(255).raw).toBe("u8");
-    expect(inference.inferLiteralType(1000).raw).toBe("u32");
-    expect(inference.inferLiteralType(3.14).raw).toBe("f32");
-    expect(inference.inferLiteralType("hello").raw).toBe("str");
-
-    const arrType = inference.inferLiteralType([10, 20]);
-    expect(arrType.raw).toBe("array");
-    expect((arrType as ParameterizedType).getArg("T")?.raw).toBe("u8");
-  });
-
-  test("substitutes unified type variables into parameterized types", () => {
-    const typeVarT = new TypeVariable("T");
-    const generic = new ParameterizedType("pss", "Push stream", "", new Map([["T", typeVarT]]));
-    const f32 = ts.parse("f32");
-    const concrete = new ParameterizedType("pss", "Push stream", "", new Map([["T", f32]]));
-
-    const unified = inference.unify(concrete, generic);
-    expect(unified.ok).toBe(true);
-    const substituted = inference.substitute(generic, unified.bindings);
-    expect(substituted.toString()).toBe("pss<T=f32>");
-    expect(inference.inferPayloadType(substituted)?.raw).toBe("f32");
+  test("parses named VarDecl types from a probe dump", () => {
+    const dump = catalog.dumpProbe(`
+#include "base.hpp"
+void probe() {
+  auto* scope = new push::f32::sinks::ScopeF32(0u, 60u, 10u);
+  auto port_scope_output_sink = scope->apply(static_cast<u8>(1));
+}
+`);
+    expect(dump.ok, dump.diagnostics).toBe(true);
+    const unit = ClangTranslationUnit.parse(dump.ast);
+    expect(unit.varType("port_scope_output_sink")?.qualType).toContain("VectorizedInput");
+    expect(unit.varType("port_scope_output_sink")?.desugaredQualType).toMatch(/Consumer/);
   });
 });

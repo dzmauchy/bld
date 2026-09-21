@@ -57,7 +57,7 @@ describe("CppDiagramBuilder", () => {
     expect(cpp).toContain("new push::f32::sources::ConstF32(1u, 3.5f)");
     expect(cpp).toContain("s_in = s->apply(static_cast<u8>(1))");
     expect(cpp).toContain("c_dn.push_back(s_in[0])");
-    expect(cpp).toContain("c->apply(static_cast<VectorizedInput<Pss<f32>>&&>(c_dn))");
+    expect(cpp).toContain("c->apply(static_cast<VectorizedInput<Pss<F32>>&&>(c_dn))");
   });
 
   test("fans a constant out to two scope channels", () => {
@@ -100,7 +100,7 @@ describe("CppDiagramBuilder", () => {
       connect(d, "a", "v", 0, "p", "v", 0);
       connect(d, "b", "v", 0, "p", "v", 1);
     });
-    expect(cpp).toContain("p->apply(static_cast<VectorizedInput<Pss<f32>>&&>(p_dn), static_cast<u8>(2))");
+    expect(cpp).toContain("p->apply(static_cast<VectorizedInput<Pss<F32>>&&>(p_dn), static_cast<u8>(2))");
     expect(cpp).toContain("a_dn.push_back(p_in[0])");
     expect(cpp).toContain("b_dn.push_back(p_in[1])");
   });
