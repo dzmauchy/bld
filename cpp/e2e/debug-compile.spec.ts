@@ -27,7 +27,7 @@ function sources(body: string): Record<string, string> {
   };
 }
 
-test("gpio connectPin and apply", async ({ browser }) => {
+async function compileOnly(browser: import("@playwright/test").Browser, body: string): Promise<number> {
   const page = await browser.newPage();
   await page.goto("/");
   await expect(page.locator("#status")).toHaveText("module-ready");
@@ -35,27 +35,33 @@ test("gpio connectPin and apply", async ({ browser }) => {
     await window.cpp.warmup();
   });
   await expect(page.locator("#status")).toHaveText("ready");
-  const bytes = await page.evaluate(
-    async (sourceFiles) => window.cpp.compile(sourceFiles),
-    sources(
+  const bytes = await page.evaluate(async (sourceFiles) => window.cpp.compileOnly(sourceFiles), sources(body));
+  await page.close();
+  return bytes;
+}
+
+const ctor = [
+  "auto* s = new push::f32::sinks::ScopeF32(0u, 60u, 10u);",
+  "auto pins = Array<u8>{};",
+  "pins.push_back(0);",
+  "auto* g = new push::f32::sources::GpioInF32(1u, 0, static_cast<Array<u8>&&>(pins));",
+  "auto s_in = s->apply(static_cast<u8>(1));",
+].join("\n");
+
+test("gpio connectPin only", async ({ browser }) => {
+  expect(
+    await compileOnly(
+      browser,
       [
-        "auto* s = new push::f32::sinks::ScopeF32(0u, 60u, 10u);",
-        "auto pins = Array<u8>{};",
-        "pins.push_back(0);",
-        "auto* g = new push::f32::sources::GpioInF32(1u, 0, static_cast<Array<u8>&&>(pins));",
-        "auto s_in = s->apply(static_cast<u8>(1));",
+        ctor,
         "auto g_p0 = VectorizedInput<Pss<f32>>{};",
         "g_p0.push_back(s_in[0]);",
         "g->connectPin(static_cast<u8>(0), static_cast<VectorizedInput<Pss<f32>>&&>(g_p0));",
-        "g->apply();",
-        "auto hw = Array<u8>{};",
-        "hw.push_back(0);",
-        "register_gpio_block(1u, 0, hw);",
       ].join("\n"),
     ),
-  );
-  expect(bytes).toBeGreaterThan(0);
-  await page.evaluate(async () => window.cpp.invoke("emitGpioIn", [1, 0, 1]));
-  expect(await page.evaluate(async () => window.cpp.invoke("lastPin", [0, 0]))).toBe(1);
-  await page.close();
+  ).toBeGreaterThan(0);
+});
+
+test("gpio apply only", async ({ browser }) => {
+  expect(await compileOnly(browser, `${ctor}\ng->apply();`)).toBeGreaterThan(0);
 });

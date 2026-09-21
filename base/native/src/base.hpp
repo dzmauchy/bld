@@ -373,8 +373,13 @@ class GpioInF32 : public NativeBlock {
   }
 
   void apply() {
-    start_.emplace(*this);
-    onStart(*start_);
+    for (u32 i = 0; i < pins_.size() && i < kMaxPins; ++i) {
+      handlers_[i] = new PinHandler(*this, pins_[i]);
+      handles_[i] = setGpio(port_, pins_[i], *handlers_[i]);
+      handleCount_ = i + 1;
+    }
+    close_.emplace(*this);
+    onClose(*close_);
   }
 
   [[nodiscard]] auto port() const { return port_; }
@@ -393,18 +398,13 @@ class GpioInF32 : public NativeBlock {
     u8 pinNumber_;
   };
 
-  class Start final : public Callback {
+  class Close final : public Callback {
    public:
-    explicit Start(GpioInF32& gpio) : gpio_(&gpio) {}
+    explicit Close(GpioInF32& gpio) : gpio_(&gpio) {}
     void operator()() override {
-      auto handles = Array<u32>{};
-      handles.reserve(gpio_->pins_.size());
-      for (u32 i = 0; i < gpio_->pins_.size() && i < kMaxPins; ++i) {
-        gpio_->handlers_[i] = new PinHandler(*gpio_, gpio_->pins_[i]);
-        handles.push_back(gpio_->setGpio(gpio_->port_, gpio_->pins_[i], *gpio_->handlers_[i]));
+      for (u32 i = 0; i < gpio_->handleCount_; ++i) {
+        clearGpio(gpio_->handles_[i]);
       }
-      gpio_->close_.emplace(static_cast<Array<u32>&&>(handles));
-      gpio_->onClose(*gpio_->close_);
     }
 
    private:
@@ -431,9 +431,10 @@ class GpioInF32 : public NativeBlock {
   Array<u8> pins_;
   VectorizedInput<Pss<F32>> pinConsumers_[kMaxPins]{};
   PinHandler* handlers_[kMaxPins]{};
+  u32 handles_[kMaxPins]{};
+  u32 handleCount_{0};
   u8 connected_{0};
-  Maybe<Start> start_{};
-  Maybe<ClearGpioHandlesCallback> close_{};
+  Maybe<Close> close_{};
 };
 
 class ConstF32 : public NativeBlock {
