@@ -40,7 +40,10 @@ describe("CppDiagramBuilder", () => {
     const files = builder.build(diagram);
     expect(files.get("bld.hpp")).toContain("class Block");
     expect(files.get("base.hpp")).toContain("class ScopeF32");
-    expect(files.get("wasm_host.cpp")).toContain("void start()");
+    expect(files.get("wasm_host.inc")).toContain("void start()");
+    expect(files.get("wasm_host.cpp")).toBeUndefined();
+    expect([...files.keys()].filter((name) => name.endsWith(".cpp"))).toEqual(["diagram.cpp"]);
+    expect(files.get("diagram.cpp")).toContain("#include \"wasm_host.inc\"");
     expect(files.get("diagram.cpp")).toContain("build_diagram");
   });
 
@@ -140,9 +143,9 @@ describe("CppDiagramBuilder", () => {
       connect(d, "g", "pin", 0, "s", "sink", 0);
       connect(d, "g", "pin", 1, "s", "sink", 1);
     });
-    expect(cpp).toContain("new push::f32::sources::GpioInF32(1u, 7, std::vector<u8>{1, 3})");
+    expect(cpp).toContain("new push::f32::sources::GpioInF32(1u, 7, Array<u8>{1, 3})");
     expect(cpp).toContain("g->apply({{s_in[0]}, {s_in[1]}})");
-    expect(cpp).toContain("register_gpio_block(1u, 7, std::vector<u8>{1, 3})");
+    expect(cpp).toContain("register_gpio_block(1u, 7, Array<u8>{1, 3})");
   });
 
   test("applies sinks before sources", () => {

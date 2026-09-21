@@ -7,7 +7,7 @@ export type ClangCompileOptions = {
 export class ClangArgumentBuilder {
   constructor(private readonly options: ClangCompileOptions = {
     resourceDir: "/sysroot/lib/clang/23",
-    std: "c++23",
+    std: "c++20",
     optimize: "2",
   }) {}
 
@@ -23,6 +23,7 @@ export class ClangArgumentBuilder {
       this.options.resourceDir,
       "-fno-exceptions",
       "-fno-rtti",
+      "-fno-threadsafe-statics",
       `-std=${this.options.std}`,
       `-O${this.options.optimize}`,
       "-fno-color-diagnostics",

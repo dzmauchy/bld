@@ -38,7 +38,10 @@ export class CppDiagramBuilder extends DiagramSourceBuilder {
   }
 
   override build(diagram: Diagram): Map<string, string> {
-    const files = new Map<string, string>(Object.entries(this.libraryFiles));
+    const files = new Map<string, string>();
+    for (const [name, content] of Object.entries(this.libraryFiles)) {
+      files.set(name === "wasm_host.cpp" ? "wasm_host.inc" : name, content);
+    }
     files.set("diagram.cpp", this.emitDiagram(diagram));
     return files;
   }
@@ -50,6 +53,7 @@ export class CppDiagramBuilder extends DiagramSourceBuilder {
     const lines: string[] = [
       "#include <base.hpp>",
       "#include \"wasm_host.hpp\"",
+      "#include \"wasm_host.inc\"",
       "",
       "extern \"C\" void build_diagram() {",
     ];
@@ -138,7 +142,7 @@ export class CppDiagramBuilder extends DiagramSourceBuilder {
         const pins = pinsConf(conf);
         return [
           `${item.ident}->apply({${pinGroups.join(", ")}});`,
-          `register_gpio_block(${u32Lit(item.numericId)}, ${u16Lit(port)}, std::vector<u8>{${pins.map((pin) => String(pin)).join(", ")}});`,
+          `register_gpio_block(${u32Lit(item.numericId)}, ${u16Lit(port)}, Array<u8>{${pins.map((pin) => String(pin)).join(", ")}});`,
         ];
       }
     }
@@ -193,7 +197,7 @@ export class CppDiagramBuilder extends DiagramSourceBuilder {
       case "f32":
         return f32Lit(numberConf(conf, arg.key, Number(arg.fallback)));
       case "u8[]":
-        return `std::vector<u8>{${pinsConf(conf).join(", ")}}`;
+        return `Array<u8>{${pinsConf(conf).join(", ")}}`;
     }
   }
 }

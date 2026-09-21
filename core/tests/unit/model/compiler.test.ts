@@ -90,8 +90,10 @@ describe("DiagramCompiler C++ generation", () => {
     expect(captured).toHaveLength(1);
     const files = captured[0];
     expect(files?.get("diagram.cpp")).toContain("build_diagram");
+    expect(files?.get("diagram.cpp")).toContain("#include \"wasm_host.inc\"");
     expect(files?.get("base.hpp")).toContain("class ScopeF32");
-    expect(files?.get("wasm_host.cpp")).toContain("void start()");
+    expect(files?.get("wasm_host.inc")).toContain("void start()");
+    expect(files?.get("wasm_host.cpp")).toBeUndefined();
   });
 
   test("run instantiates the wasm produced by the C++ backend", async () => {
