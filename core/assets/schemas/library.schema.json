@@ -46,10 +46,6 @@
       },
       "uniqueItems": true,
       "description": "List of file paths containing block definitions."
-    },
-    "assembly": {
-      "type": "string",
-      "description": "Path to a js library bundle file which implements blocks and namespaces."
     }
   },
   "required": [

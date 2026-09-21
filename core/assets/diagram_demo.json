@@ -31,7 +31,7 @@
       "y": 20
     },
     "gpio_in_0": {
-      "ref": "gpio_in",
+      "ref": "gpio_in_f32",
       "x": 90,
       "y": 300,
       "conf": {

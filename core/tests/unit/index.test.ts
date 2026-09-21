@@ -67,7 +67,7 @@ describe("core public API", () => {
 
   test("implements strong OOP class hierarchies and abstractions", async () => {
     // DiagramElement hierarchy
-    const { DiagramElement, Endpoint, InputPortEndpoint, OutputPortEndpoint, PropertyDefinition, PortDefinition, InputPortDefinition, OutputPortDefinition, ConfigPropertyDefinition, CompilerContext, BrowserCompilerContext, McuCompilerContext, AbstractAssetStore, AppAssetStore, DefaultDiagramPlanner } = await import("../../src/index.js") as any;
+    const { DiagramElement, Endpoint, InputPortEndpoint, OutputPortEndpoint, PropertyDefinition, PortDefinition, InputPortDefinition, OutputPortDefinition, ConfigPropertyDefinition, CompilerContext, BrowserCompilerContext, McuCompilerContext, AbstractAssetStore, AppAssetStore, CppDiagramBuilder } = await import("../../src/index.js") as any;
 
     expect(DiagramElement).toBeTypeOf("function");
     expect(Endpoint).toBeTypeOf("function");
@@ -96,7 +96,8 @@ describe("core public API", () => {
     expect(SchemaCatalog).toBeTypeOf("function");
     expect(CoreSchemaCatalog.prototype).toBeInstanceOf(SchemaCatalog);
 
-    const planner = new DefaultDiagramPlanner();
-    expect(planner.plan).toBeTypeOf("function");
+    expect(CppDiagramBuilder).toBeTypeOf("function");
+    const builder = new CppDiagramBuilder({});
+    expect(builder.build).toBeTypeOf("function");
   });
 });

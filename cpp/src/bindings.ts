@@ -11,12 +11,22 @@ function setU32(memory: WebAssembly.Memory, ptr: number, value: number): void {
 /**
  * Minimal WASI preview1 + env stubs so standalone clang/lld output can instantiate.
  */
+export type HostEnvCallbacks = {
+  sendPinF32?: (blockId: number, pin: number, value: number) => void;
+};
+
 export class DefaultWasmBindings {
-  constructor(private readonly getMemory: MemoryGetter) {}
+  constructor(
+    private readonly getMemory: MemoryGetter,
+    private readonly host: HostEnvCallbacks = {},
+  ) {}
 
   env(): WebAssembly.ModuleImports {
     return {
       host_add: (left: number, right: number) => left + right,
+      host_sendPinF32: (blockId: number, pin: number, value: number) => {
+        this.host.sendPinF32?.(blockId, pin, value);
+      },
       abort: () => {
         throw new Error("env.abort");
       },

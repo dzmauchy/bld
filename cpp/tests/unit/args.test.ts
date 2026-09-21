@@ -8,7 +8,7 @@ describe("toolchain argument builders", () => {
     expect(args).toContain("--sysroot=/sysroot");
     expect(args).toContain("-resource-dir");
     expect(args).toContain("/sysroot/lib/clang/23");
-    expect(args).toContain("-c");
+    expect(args).toContain("-std=c++23");
     expect(args.at(-3)).toBe("/work/add.cpp");
     expect(args.at(-1)).toBe("/work/add.o");
   });

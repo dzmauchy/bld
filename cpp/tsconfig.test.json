@@ -14,5 +14,8 @@
     "types": [
       "node"
     ]
-  }
+  },
+  "exclude": [
+    "./e2e"
+  ]
 }

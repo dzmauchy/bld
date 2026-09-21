@@ -3,23 +3,17 @@
  */
 import type { Diagram } from "./diagram";
 import { normalizeAssetPath } from "./appAssets";
-import {
-  BlockRegistry,
-  browserProfile,
-  defaultRegistry,
-  getWasmProfile,
-  mcuProfile,
-  planProgram,
-  WasmProfile,
-  type CompileOptions,
-  type DownstreamRef,
-  type PlannedBlock,
-  type WasmProgram,
-  type WasmProfileName,
-} from "runtime";
+import { CppDiagramBuilder, type ICppCompiler } from "./cppBuilder";
+import { defaultCppBlockCatalog } from "./cppBlockCatalog";
 
-export { browserProfile, mcuProfile, WasmProfile, getWasmProfile };
-export type { CompileOptions, PlannedBlock, WasmProgram, WasmProfileName, DownstreamRef };
+export type { ICppCompiler };
+export { CppDiagramBuilder } from "./cppBuilder";
+export {
+  CppBlockCatalog,
+  defaultCppBlockCatalog,
+  type CppBlockBinding,
+  type CppBlockKind,
+} from "./cppBlockCatalog";
 export {
   CompilerContext,
   BrowserCompilerContext,
@@ -30,7 +24,8 @@ export {
   getCompilerContext,
   registerCompilerContext,
 } from "./compilerContext";
-export { defaultBlockEmitters } from "./blockEmitters";
+
+export type WasmProfileName = "browser" | "mcu";
 
 export interface WasmSessionLike {
   tick(): Promise<number>;
@@ -51,8 +46,6 @@ export interface WasmSessionLike {
 
 export interface CompileOptionsLike {
   debug?: boolean;
-  optimizeLevel?: number;
-  registry?: BlockRegistry;
 }
 
 export interface WasmRuntimeLike<TSession extends WasmSessionLike = WasmSessionLike> {
@@ -60,16 +53,17 @@ export interface WasmRuntimeLike<TSession extends WasmSessionLike = WasmSessionL
 }
 
 export interface CompilerOptions {
-  profile?: WasmProfile | WasmProfileName;
+  profile?: WasmProfileName;
   files?: Record<string, string>;
+  cppCompiler?: ICppCompiler;
 }
 
 export class CompilationModel {
-  protected profile: WasmProfile;
+  protected profile: WasmProfileName;
   private readonly files = new Map<string, string>();
 
   constructor(
-    profileOrOptions?: WasmProfile | string | CompilerOptions | Record<string, string>,
+    profileOrOptions?: WasmProfileName | CompilerOptions | Record<string, string>,
     initialFiles?: Record<string, string>,
   ) {
     const parsed = CompilationModel.parseConstructorArgs(profileOrOptions);
@@ -79,45 +73,43 @@ export class CompilationModel {
   }
 
   private static parseConstructorArgs(
-    profileOrOptions?: WasmProfile | string | CompilerOptions | Record<string, string>,
-  ): { profile: WasmProfile; files?: Record<string, string> } {
-    if (typeof profileOrOptions === "string") {
-      return { profile: getWasmProfile(profileOrOptions as WasmProfileName) };
-    }
-    if (profileOrOptions instanceof WasmProfile) {
+    profileOrOptions?: WasmProfileName | CompilerOptions | Record<string, string>,
+  ): { profile: WasmProfileName; files?: Record<string, string>; cppCompiler?: ICppCompiler } {
+    if (profileOrOptions === "browser" || profileOrOptions === "mcu") {
       return { profile: profileOrOptions };
     }
     if (
       profileOrOptions &&
       typeof profileOrOptions === "object" &&
-      ("profile" in profileOrOptions || "files" in profileOrOptions)
+      ("profile" in profileOrOptions || "files" in profileOrOptions || "cppCompiler" in profileOrOptions)
     ) {
       const opts = profileOrOptions as CompilerOptions;
-      const profile = opts.profile ? getWasmProfile(opts.profile) : browserProfile;
-      if (opts.files) return { profile, files: opts.files };
-      return { profile };
+      return {
+        profile: opts.profile ?? "browser",
+        ...(opts.files ? { files: opts.files } : {}),
+        ...(opts.cppCompiler ? { cppCompiler: opts.cppCompiler } : {}),
+      };
     }
     if (profileOrOptions && typeof profileOrOptions === "object") {
-      return { profile: browserProfile, files: profileOrOptions as Record<string, string> };
+      return { profile: "browser", files: profileOrOptions as Record<string, string> };
     }
-    return { profile: browserProfile };
+    return { profile: "browser" };
   }
 
-  getProfile(): WasmProfile {
-    return this.profile;
+  getProfile(): { name: WasmProfileName } {
+    return { name: this.profile };
   }
 
-  /** @deprecated Use getProfile().name */
   getContext(): { name: string } {
-    return this.profile;
+    return this.getProfile();
   }
 
-  setProfile(profileOrName: WasmProfile | WasmProfileName): void {
-    this.profile = getWasmProfile(profileOrName);
+  setProfile(profile: WasmProfileName): void {
+    this.profile = profile;
   }
 
-  setContext(profileOrName: WasmProfile | string): void {
-    this.setProfile(profileOrName as WasmProfile | WasmProfileName);
+  setContext(profile: string): void {
+    this.setProfile(profile as WasmProfileName);
   }
 
   addFile(name: string, content: string): void {
@@ -144,74 +136,62 @@ export class CompilationModel {
   }
 }
 
-export interface IDiagramPlanner {
-  plan(diagram: Diagram): WasmProgram;
-}
-
-export class DefaultDiagramPlanner implements IDiagramPlanner {
-  constructor(readonly registry: BlockRegistry = defaultRegistry) {}
-
-  plan(diagram: Diagram): WasmProgram {
-    return planProgram(
-      {
-        blocks: diagram.getBlocks().map((b) => ({ id: b.id, ref: b.ref, conf: b.getAllConf() })),
-        connections: diagram.getConnections().map((c) => ({
-          from: { blockId: c.from.blockId, portId: c.from.portId, vectorIndex: c.from.vectorIndex },
-          to: { blockId: c.to.blockId, portId: c.to.portId, vectorIndex: c.to.vectorIndex },
-        })),
-      },
-      this.registry,
-    );
-  }
-}
-
-export const planDiagram = (diagram: Diagram): WasmProgram => new DefaultDiagramPlanner().plan(diagram);
-
 export class DiagramCompiler extends CompilationModel {
-  readonly registry: BlockRegistry;
+  protected readonly cppCompiler: ICppCompiler | undefined;
 
   constructor(
-    profileOrOptions?: WasmProfile | string | CompilerOptions | Record<string, string>,
+    profileOrOptions?: WasmProfileName | CompilerOptions | Record<string, string>,
     initialFiles?: Record<string, string>,
-    private readonly planner: IDiagramPlanner = new DefaultDiagramPlanner(),
-    registry?: BlockRegistry,
   ) {
     super(profileOrOptions, initialFiles);
-    this.registry = registry ?? (planner instanceof DefaultDiagramPlanner ? planner.registry : defaultRegistry);
+    const parsed = profileOrOptions && typeof profileOrOptions === "object" && "cppCompiler" in profileOrOptions
+      ? (profileOrOptions as CompilerOptions).cppCompiler
+      : undefined;
+    this.cppCompiler = parsed;
   }
 
-  plan(diagram: Diagram): WasmProgram {
-    return this.planner.plan(diagram);
+  emitFiles(diagram: Diagram): Map<string, string> {
+    return new CppDiagramBuilder(this.getFiles()).build(diagram);
   }
 
-  emitText(diagram: Diagram, options?: CompileOptionsLike): string {
-    return this.profile.emitText(this.plan(diagram), { registry: this.registry, ...options });
+  emitText(diagram: Diagram): string {
+    return this.emitFiles(diagram).get("diagram.cpp") ?? "";
   }
 
-  /** Compile through the runtime wasm profile (browser via Binaryen; MCU unimplemented). */
-  compile(diagram: Diagram, options?: CompileOptionsLike): Uint8Array {
-    return this.profile.compile(this.plan(diagram), { registry: this.registry, ...options });
+  async compile(diagram: Diagram, _options?: CompileOptionsLike): Promise<Uint8Array> {
+    if (this.profile === "mcu") {
+      throw new Error("MCU wasm profile is not implemented");
+    }
+    if (!this.cppCompiler) {
+      throw new Error("C++ compiler backend is required");
+    }
+    return this.cppCompiler.compile(this.emitFiles(diagram));
   }
 
-  /** Compile with the runtime, then instantiate the module on the given wasm runtime. */
   async run<TSession extends WasmSessionLike = WasmSessionLike>(
     diagram: Diagram,
     runtime: WasmRuntimeLike<TSession>,
     options?: CompileOptionsLike,
   ): Promise<TSession> {
-    const wasm = this.compile(diagram, options);
+    const wasm = await this.compile(diagram, options);
     return runtime.instantiate(wasm);
   }
 }
 
 export class BrowserCompiler extends DiagramCompiler {
-  constructor(initialFiles?: Record<string, string>) {
-    super(browserProfile, initialFiles);
+  constructor(libraryFiles: Record<string, string> = {}, cppCompiler?: ICppCompiler) {
+    super({ profile: "browser", files: libraryFiles, ...(cppCompiler ? { cppCompiler } : {}) });
   }
 }
 
 export class McuCompiler extends DiagramCompiler {
-  constructor(initialFiles?: Record<string, string>) {
-    super(mcuProfile, initialFiles);
+  constructor(libraryFiles: Record<string, string> = {}) {
+    super({ profile: "mcu", files: libraryFiles });
   }
 }
+
+export const defaultBlockEmitters = {
+  has(ref: string): boolean {
+    return defaultCppBlockCatalog.has(ref);
+  },
+};

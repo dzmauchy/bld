@@ -69,6 +69,7 @@ export interface RawBlockCatalogEntry {
   icon?: string;
   title?: string;
   description?: string;
+  cpp?: string;
   inputs?: Record<string, RawPortCatalogEntry>;
   outputs?: Record<string, RawPortCatalogEntry>;
   conf?: Record<string, RawConfigPropertyCatalogEntry>;
@@ -85,6 +86,7 @@ export class BlockDefinition {
     readonly inputs: ReadonlyMap<string, PortDefinition>,
     readonly outputs: ReadonlyMap<string, PortDefinition>,
     readonly config: ReadonlyMap<string, ConfigPropertyDefinition>,
+    readonly cppClass: string = "",
   ) {}
 
   getInput(id: string): PortDefinition | undefined {
@@ -140,6 +142,7 @@ export class BlockDefinition {
       buildPorts(raw.inputs, InputPortDefinition),
       buildPorts(raw.outputs, OutputPortDefinition),
       config,
+      raw.cpp ?? "",
     );
   }
 }
