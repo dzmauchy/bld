@@ -1,6 +1,7 @@
 /**
  * @title Diagram Block
  */
+import type { TypeInference, InferredPortType } from "../types/typeInference";
 import type { BlockDefinition, PortDefinition } from "./blockDefinition";
 
 export interface RawBlockJson {
@@ -85,6 +86,22 @@ export class DiagramBlock extends DiagramElement {
 
   getOutputPorts(): PortDefinition[] {
     return this.definition.outputs.values().toArray();
+  }
+
+  inferPort(inference: TypeInference, portId: string, direction?: "input" | "output"): InferredPortType | undefined {
+    const port = this.definition.getPort(portId, direction);
+    return port ? inference.inferPort(port, this.getAllConf()) : undefined;
+  }
+
+  inferPorts(inference: TypeInference): { inputs: Map<string, InferredPortType>; outputs: Map<string, InferredPortType> } {
+    const inferAll = (ports: ReadonlyMap<string, PortDefinition>) => {
+      const result = new Map<string, InferredPortType>();
+      for (const [id, port] of ports) {
+        result.set(id, inference.inferPort(port, this.getAllConf()));
+      }
+      return result;
+    };
+    return { inputs: inferAll(this.definition.inputs), outputs: inferAll(this.definition.outputs) };
   }
 
   override toJSON(): RawBlockJson {

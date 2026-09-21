@@ -6,12 +6,46 @@ import {
 } from "./types";
 import { TypeSystem } from "./typeSystem";
 
-export interface InferredPortType {
-  dataType: DataType;
-  payloadType?: DataType | undefined;
-  isStream: boolean;
-  isVector: boolean;
-  vectorLength?: number | undefined;
+export interface ConfLengthBind {
+  readonly type: string;
+  readonly id?: string;
+}
+
+export interface RawPortLike {
+  type: DataType;
+  vector?: boolean;
+  concept?: unknown;
+}
+
+export class InferredPortType {
+  constructor(
+    readonly dataType: DataType,
+    readonly payloadType: DataType | undefined,
+    readonly isStream: boolean,
+    readonly isVector: boolean,
+    readonly vectorLength?: number,
+  ) {}
+
+  withType(dataType: DataType, inference: TypeInference): InferredPortType {
+    return new InferredPortType(
+      dataType,
+      inference.inferPayloadType(dataType),
+      inference.isStreamType(dataType),
+      this.isVector,
+      this.vectorLength,
+    );
+  }
+
+  withVectorLength(length: number | undefined): InferredPortType {
+    const vectorLength = length !== undefined && length > 0 ? length : this.vectorLength;
+    return new InferredPortType(
+      this.dataType,
+      this.payloadType,
+      this.isStream,
+      this.isVector || (vectorLength !== undefined && vectorLength > 1),
+      vectorLength,
+    );
+  }
 }
 
 export interface UnificationResult {
@@ -27,10 +61,16 @@ export interface ConnectionInferenceResult {
   error?: string | undefined;
 }
 
-export interface RawPortLike {
-  type: DataType;
-  vector?: boolean;
-  concept?: unknown;
+export function confLengthBind(port: RawPortLike): ConfLengthBind | undefined {
+  const concept = port.concept as { length?: { bind?: ConfLengthBind } } | undefined;
+  const bind = concept?.length?.bind;
+  if (!bind || typeof bind.type !== "string") return undefined;
+  return bind;
+}
+
+export function confLengthBindId(port: RawPortLike): string | undefined {
+  const bind = confLengthBind(port);
+  return bind?.type === "conf" && bind.id ? bind.id : undefined;
 }
 
 export class TypeInference {
@@ -42,27 +82,20 @@ export class TypeInference {
    */
   inferPort(port: RawPortLike, blockConf?: Record<string, unknown>): InferredPortType {
     const dataType = port.type;
-    const isStream = this.isStreamType(dataType);
-    const payloadType = this.inferPayloadType(dataType);
+    const bindId = confLengthBindId(port);
     let vectorLength: number | undefined;
-
-    // Check if concept binds length to a configuration parameter (e.g. gpio_in pins array)
-    const concept = port.concept as { length?: { bind?: { type?: string; id?: string } } } | undefined;
-    const bind = concept?.length?.bind;
-    if (bind && bind.type === "conf" && bind.id && blockConf) {
-      const confVal = blockConf[bind.id];
-      if (Array.isArray(confVal)) {
-        vectorLength = confVal.length;
-      }
+    if (bindId && blockConf) {
+      const confVal = blockConf[bindId];
+      if (Array.isArray(confVal)) vectorLength = confVal.length;
     }
 
-    return {
+    return new InferredPortType(
       dataType,
-      payloadType,
-      isStream,
-      isVector: Boolean(port.vector || (vectorLength !== undefined && vectorLength > 1)),
+      this.inferPayloadType(dataType),
+      this.isStreamType(dataType),
+      Boolean(port.vector || (vectorLength !== undefined && vectorLength > 1)),
       vectorLength,
-    };
+    );
   }
 
   unwrapArray(type: DataType): DataType {
@@ -85,6 +118,24 @@ export class TypeInference {
    */
   isStreamType(type: DataType): boolean {
     return this.inferPayloadType(type) !== undefined;
+  }
+
+  /**
+   * Replaces bound type variables inside a type using unification bindings.
+   */
+  substitute(type: DataType, bindings: ReadonlyMap<string, DataType>): DataType {
+    if (type instanceof TypeVariable) {
+      const bound = bindings.get(type.name) ?? type.resolved;
+      return bound ? this.substitute(bound, bindings) : type;
+    }
+    if (type instanceof ParameterizedType) {
+      const args = new Map<string, DataType>();
+      for (const [name, arg] of type.args) {
+        args.set(name, this.substitute(arg, bindings));
+      }
+      return new ParameterizedType(type.raw, type.name, type.description, args);
+    }
+    return type;
   }
 
   /**
@@ -185,12 +236,17 @@ export class TypeInference {
       };
     }
 
-    for (const [primary, secondary] of [[fromType, toType], [toType, fromType]]) {
-      if (this.unify(primary, secondary).ok) {
+    for (const [primary, secondary] of [
+      [fromType, toType],
+      [toType, fromType],
+    ]) {
+      const unified = this.unify(primary, secondary);
+      if (unified.ok) {
+        const effective = this.substitute(primary, unified.bindings);
         return {
           ok: true,
-          effectiveType: primary,
-          payloadType: this.inferPayloadType(primary),
+          effectiveType: effective,
+          payloadType: this.inferPayloadType(effective),
         };
       }
     }

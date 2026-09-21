@@ -1,194 +1,178 @@
 /**
  * @title C++ Block Catalog
  *
- * Bindings from JSON block refs to `push::f32` classes in `base.hpp`.
+ * C++ view of the JSON block catalog. Types come from `types.json` via the
+ * palette TypeSystem; class names and ports come from `blocks.json`.
  */
-export type CppCtorArgType = "u32" | "u16" | "f32" | "u8[]";
+import { ParameterizedType, TypeSystem, type DataType } from "../types";
+import { confLengthBindId, TypeInference, type InferredPortType } from "../types/typeInference";
+import type { BlockDefinition, PortDefinition } from "./blockDefinition";
+import { Palette } from "./palette";
 
-export type CppCtorArg = {
-  readonly key: string;
-  readonly type: CppCtorArgType;
-  readonly fallback: number | readonly number[];
-};
+export class CppTypeNames {
+  static of(type: DataType): string {
+    if (type instanceof ParameterizedType) {
+      const inner = type.getArg("T");
+      const arg = inner ? CppTypeNames.of(inner) : "";
+      if (type.raw === "array") return `Array<${arg}>`;
+      if (type.raw === "pss") return `Pss<${arg}>`;
+      return arg ? `${type.raw}<${arg}>` : type.raw;
+    }
+    return type.raw;
+  }
 
-export type CppBlockKind = "sink" | "unary" | "aggregate" | "source" | "gpio";
+  static vectorizedInput(streamType: DataType): string {
+    return `VectorizedInput<${CppTypeNames.of(streamType)}>`;
+  }
 
-export abstract class CppBlockBinding {
-  abstract readonly ref: string;
-  abstract readonly cppClass: string;
-  abstract readonly kind: CppBlockKind;
-  abstract readonly ctorArgs: readonly CppCtorArg[];
-  abstract readonly inputPort: string | undefined;
-  abstract readonly outputPort: string | undefined;
+  static elementType(type: DataType): DataType | undefined {
+    return type instanceof ParameterizedType && type.raw === "array" ? type.getArg("T") : undefined;
+  }
+
+  static isArray(type: DataType): boolean {
+    return type instanceof ParameterizedType && type.raw === "array";
+  }
+
+  static literal(type: DataType, value: unknown): string {
+    const raw = type.raw;
+    if (raw === "bool") return value ? "true" : "false";
+    if (raw === "f32") return f32Lit(Number(value));
+    if (raw === "f64") {
+      const n = Number(value);
+      return Number.isInteger(n) ? `${n}.0` : String(n);
+    }
+    const n = Number(value);
+    if (raw === "u32" || raw === "u64") return `${Math.trunc(n)}u`;
+    return String(Math.trunc(n));
+  }
 }
 
-export class ScopeF32Binding extends CppBlockBinding {
-  readonly ref = "scope_f32";
-  readonly cppClass = "push::f32::sinks::ScopeF32";
-  readonly kind = "sink" as const;
-  readonly inputPort = undefined;
-  readonly outputPort = "sink";
-  readonly ctorArgs = [
-    { key: "period", type: "u32", fallback: 60 },
-    { key: "precision", type: "u32", fallback: 10 },
-  ] as const;
+function f32Lit(value: number): string {
+  if (Object.is(value, -0)) return "-0.f";
+  if (Number.isInteger(value)) return `${value}.f`;
+  return `${value}f`;
 }
 
-export class CosF32Binding extends CppBlockBinding {
-  readonly ref = "cos_f32";
-  readonly cppClass = "push::f32::transformers::CosF32";
-  readonly kind = "unary" as const;
-  readonly inputPort = "v";
-  readonly outputPort = "cos";
-  readonly ctorArgs = [] as const;
-}
+/**
+ * Port topology derived from JSON inputs/outputs rather than a closed block-kind union.
+ */
+export class BlockPortTopology {
+  constructor(
+    readonly definition: BlockDefinition,
+    readonly inference: TypeInference,
+    readonly conf: Record<string, unknown> = definition.getDefaultConfig(),
+  ) {}
 
-export class SinF32Binding extends CppBlockBinding {
-  readonly ref = "sin_f32";
-  readonly cppClass = "push::f32::transformers::SinF32";
-  readonly kind = "unary" as const;
-  readonly inputPort = "v";
-  readonly outputPort = "sin";
-  readonly ctorArgs = [] as const;
-}
+  inferInput(id: string): InferredPortType | undefined {
+    const port = this.definition.getInput(id);
+    return port ? this.inference.inferPort(port, this.conf) : undefined;
+  }
 
-export class ProductF32Binding extends CppBlockBinding {
-  readonly ref = "product_f32";
-  readonly cppClass = "push::f32::transformers::ProductF32";
-  readonly kind = "aggregate" as const;
-  readonly inputPort = "v";
-  readonly outputPort = "p";
-  readonly ctorArgs = [{ key: "precision", type: "u32", fallback: 10 }] as const;
-}
+  inferOutput(id: string): InferredPortType | undefined {
+    const port = this.definition.getOutput(id);
+    return port ? this.inference.inferPort(port, this.conf) : undefined;
+  }
 
-export class SumF32Binding extends CppBlockBinding {
-  readonly ref = "sum_f32";
-  readonly cppClass = "push::f32::transformers::SumF32";
-  readonly kind = "aggregate" as const;
-  readonly inputPort = "v";
-  readonly outputPort = "s";
-  readonly ctorArgs = [{ key: "precision", type: "u32", fallback: 10 }] as const;
-}
+  inferInputs(): Map<string, InferredPortType> {
+    const result = new Map<string, InferredPortType>();
+    for (const [id, port] of this.definition.inputs) {
+      result.set(id, this.inference.inferPort(port, this.conf));
+    }
+    return result;
+  }
 
-export class ConstF32Binding extends CppBlockBinding {
-  readonly ref = "const_f32";
-  readonly cppClass = "push::f32::sources::ConstF32";
-  readonly kind = "source" as const;
-  readonly inputPort = "v";
-  readonly outputPort = undefined;
-  readonly ctorArgs = [{ key: "v", type: "f32", fallback: 1 }] as const;
-}
+  inferOutputs(): Map<string, InferredPortType> {
+    const result = new Map<string, InferredPortType>();
+    for (const [id, port] of this.definition.outputs) {
+      result.set(id, this.inference.inferPort(port, this.conf));
+    }
+    return result;
+  }
 
-export class CosGenF32Binding extends CppBlockBinding {
-  readonly ref = "cos_gen_f32";
-  readonly cppClass = "push::f32::sources::CosGenF32";
-  readonly kind = "source" as const;
-  readonly inputPort = "v";
-  readonly outputPort = undefined;
-  readonly ctorArgs = [
-    { key: "precision", type: "u32", fallback: 10 },
-    { key: "frequency", type: "f32", fallback: 1 },
-    { key: "amplitude", type: "f32", fallback: 1 },
-    { key: "phase", type: "f32", fallback: 0 },
-  ] as const;
-}
+  pinBoundInput(): PortDefinition | undefined {
+    return this.definition.inputs.values().find((port) => confLengthBindId(port) !== undefined);
+  }
 
-export class SinGenF32Binding extends CppBlockBinding {
-  readonly ref = "sin_gen_f32";
-  readonly cppClass = "push::f32::sources::SinGenF32";
-  readonly kind = "source" as const;
-  readonly inputPort = "v";
-  readonly outputPort = undefined;
-  readonly ctorArgs = [
-    { key: "precision", type: "u32", fallback: 10 },
-    { key: "frequency", type: "f32", fallback: 1 },
-    { key: "amplitude", type: "f32", fallback: 1 },
-    { key: "phase", type: "f32", fallback: 0 },
-  ] as const;
-}
+  pinBindConfId(): string | undefined {
+    const port = this.pinBoundInput();
+    return port ? confLengthBindId(port) : undefined;
+  }
 
-export class RandGenF32Binding extends CppBlockBinding {
-  readonly ref = "rand_gen_f32";
-  readonly cppClass = "push::f32::sources::RandGenF32";
-  readonly kind = "source" as const;
-  readonly inputPort = "v";
-  readonly outputPort = undefined;
-  readonly ctorArgs = [
-    { key: "precision", type: "u32", fallback: 10 },
-    { key: "amplitude", type: "f32", fallback: 1 },
-  ] as const;
-}
+  streamType(): DataType | undefined {
+    for (const inferred of [...this.inferOutputs().values(), ...this.inferInputs().values()]) {
+      if (inferred.isStream) return inferred.dataType;
+    }
+    return undefined;
+  }
 
-export class PulseGenF32Binding extends CppBlockBinding {
-  readonly ref = "pulse_gen_f32";
-  readonly cppClass = "push::f32::sources::PulseGenF32";
-  readonly kind = "source" as const;
-  readonly inputPort = "v";
-  readonly outputPort = undefined;
-  readonly ctorArgs = [
-    { key: "duty_cycle", type: "f32", fallback: 0.5 },
-    { key: "amplitude", type: "f32", fallback: 1 },
-    { key: "frequency", type: "f32", fallback: 1 },
-    { key: "phase", type: "f32", fallback: 0 },
-  ] as const;
-}
+  exposesConsumerBank(): boolean {
+    return this.definition.outputs.size > 0 && this.definition.inputs.size === 0;
+  }
 
-export class GpioInF32Binding extends CppBlockBinding {
-  readonly ref = "gpio_in_f32";
-  readonly cppClass = "push::f32::sources::GpioInF32";
-  readonly kind = "gpio" as const;
-  readonly inputPort = "pin";
-  readonly outputPort = undefined;
-  readonly ctorArgs = [
-    { key: "port", type: "u16", fallback: 0 },
-    { key: "pins", type: "u8[]", fallback: [0] },
-  ] as const;
+  returnsScalarConsumer(): boolean {
+    return this.definition.inputs.size > 0 && this.inferOutputs().values().some((port) => port.isStream && !port.isVector);
+  }
+
+  returnsIndexedConsumers(): boolean {
+    return this.exposesConsumerBank() || (this.definition.outputs.size > 0 && !this.returnsScalarConsumer());
+  }
+
+  appliesDownstream(): boolean {
+    return this.definition.inputs.size > 0 && this.pinBoundInput() === undefined;
+  }
+
+  registersHostPins(): boolean {
+    return this.pinBoundInput() !== undefined;
+  }
 }
 
 export class CppBlockCatalog {
-  private static readonly sharedInstance = new CppBlockCatalog();
-  static get shared(): CppBlockCatalog {
-    return CppBlockCatalog.sharedInstance;
+  static readonly shared = new CppBlockCatalog(new Palette(new TypeSystem()));
+
+  constructor(private _palette: Palette) {}
+
+  get palette(): Palette {
+    return this._palette;
   }
 
-  private readonly byRef = new Map<string, CppBlockBinding>();
-
-  constructor(bindings: readonly CppBlockBinding[] = CppBlockCatalog.defaultBindings()) {
-    for (const binding of bindings) this.byRef.set(binding.ref, binding);
+  get typeSystem() {
+    return this._palette.typeSystem;
   }
 
-  static defaultBindings(): CppBlockBinding[] {
-    return [
-      new ScopeF32Binding(),
-      new CosF32Binding(),
-      new SinF32Binding(),
-      new ProductF32Binding(),
-      new SumF32Binding(),
-      new ConstF32Binding(),
-      new CosGenF32Binding(),
-      new SinGenF32Binding(),
-      new RandGenF32Binding(),
-      new PulseGenF32Binding(),
-      new GpioInF32Binding(),
-    ];
+  bind(palette: Palette): void {
+    this._palette = palette;
   }
 
-  get(ref: string): CppBlockBinding | undefined {
-    return this.byRef.get(ref);
+  static fromPalette(palette: Palette): CppBlockCatalog {
+    return new CppBlockCatalog(palette);
   }
 
-  require(ref: string): CppBlockBinding {
-    const binding = this.byRef.get(ref);
-    if (!binding) throw new Error(`Unknown C++ block "${ref}"`);
-    return binding;
+  static bindPalette(palette: Palette): void {
+    CppBlockCatalog.shared.bind(palette);
+  }
+
+  get(ref: string): BlockDefinition | undefined {
+    const def = this._palette.getBlock(ref);
+    return def?.cppClass ? def : undefined;
+  }
+
+  require(ref: string): BlockDefinition {
+    const def = this.get(ref);
+    if (!def) throw new Error(`Unknown C++ block "${ref}"`);
+    return def;
+  }
+
+  topology(ref: string, conf?: Record<string, unknown>): BlockPortTopology {
+    const def = this.require(ref);
+    return new BlockPortTopology(def, new TypeInference(this.typeSystem), conf ?? def.getDefaultConfig());
   }
 
   refs(): string[] {
-    return this.byRef.keys().toArray();
+    return this._palette.getBlocks().filter((block) => Boolean(block.cppClass)).map((block) => block.id);
   }
 
   has(ref: string): boolean {
-    return this.byRef.has(ref);
+    return this.get(ref) !== undefined;
   }
 }
 

@@ -9,10 +9,10 @@ import { defaultCppBlockCatalog } from "./cppBlockCatalog";
 export type { ICppCompiler };
 export { CppDiagramBuilder } from "./cppBuilder";
 export {
+  BlockPortTopology,
   CppBlockCatalog,
+  CppTypeNames,
   defaultCppBlockCatalog,
-  type CppBlockBinding,
-  type CppBlockKind,
 } from "./cppBlockCatalog";
 export {
   CompilerContext,
