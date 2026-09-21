@@ -68,7 +68,7 @@ describe("diagram C++ generation topologies", () => {
     });
     expect(cpp).toContain("theta_dn.push_back(c_in)");
     expect(cpp).toContain("theta_dn.push_back(n_in)");
-    expect(cpp).toContain("p->apply(static_cast<VectorizedInput<Pss<f32>>&&>(p_dn), static_cast<u8>(2))");
+    expect(cpp).toContain("p->apply(static_cast<VectorizedInput<Pss<F32>>&&>(p_dn), static_cast<u8>(2))");
   });
 
   test("gpio AND product into scope", () => {

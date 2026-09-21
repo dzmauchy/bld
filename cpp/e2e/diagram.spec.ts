@@ -10,6 +10,7 @@ import {
   PortEndpoint,
   registerAppAssets,
 } from "../../core/src/index.ts";
+import "../../core/src/model/hostClangAstDumper.ts";
 import type { CppPageApi } from "../src/browser/api.ts";
 
 declare global {

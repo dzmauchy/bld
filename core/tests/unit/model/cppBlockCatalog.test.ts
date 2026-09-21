@@ -26,6 +26,8 @@ describe("CppBlockCatalog", () => {
     expect(catalog.topology("product_f32").returnsIndexedConsumers()).toBe(true);
     expect(catalog.topology("sum_f32").returnsIndexedConsumers()).toBe(true);
     expect(catalog.topology("const_f32").appliesDownstream()).toBe(true);
+    expect(catalog.topology("cos_gen_f32").appliesDownstream()).toBe(true);
+    expect(catalog.topology("sin_gen_f32").appliesDownstream()).toBe(true);
     expect(catalog.topology("gpio_in_f32").registersHostPins()).toBe(true);
     expect(catalog.topology("gpio_in_f32").pinBindConfId()).toBe("pins");
     expect(catalog.topology("scope_f32").streamCppType()).toContain("VectorizedInput");

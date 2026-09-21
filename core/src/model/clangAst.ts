@@ -108,10 +108,21 @@ export class ClangTranslationUnit {
     const direct = record.method(methodName);
     if (direct) return direct;
     for (const base of record.bases) {
-      const inherited = this.resolveMethod(base, methodName, seen);
+      const inherited = this.resolveMethod(this.resolveBaseName(record, base), methodName, seen);
       if (inherited) return inherited;
     }
     return undefined;
+  }
+
+  private resolveBaseName(record: ClangRecord, base: string): string {
+    const dotted = base.replace(/::/g, ".");
+    if (this.record(dotted)) return dotted;
+    const parts = record.qualifiedName.split(".");
+    for (let i = parts.length - 1; i >= 0; i -= 1) {
+      const candidate = [...parts.slice(0, i), dotted].join(".");
+      if (this.record(candidate)) return candidate;
+    }
+    return dotted;
   }
 
   varType(name: string): ClangQualType | undefined {
