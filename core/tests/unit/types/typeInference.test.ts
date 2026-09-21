@@ -114,4 +114,17 @@ describe("TypeInference", () => {
     expect(arrType.raw).toBe("array");
     expect((arrType as ParameterizedType).getArg("T")?.raw).toBe("u8");
   });
+
+  test("substitutes unified type variables into parameterized types", () => {
+    const typeVarT = new TypeVariable("T");
+    const generic = new ParameterizedType("pss", "Push stream", "", new Map([["T", typeVarT]]));
+    const f32 = ts.parse("f32");
+    const concrete = new ParameterizedType("pss", "Push stream", "", new Map([["T", f32]]));
+
+    const unified = inference.unify(concrete, generic);
+    expect(unified.ok).toBe(true);
+    const substituted = inference.substitute(generic, unified.bindings);
+    expect(substituted.toString()).toBe("pss<T=f32>");
+    expect(inference.inferPayloadType(substituted)?.raw).toBe("f32");
+  });
 });

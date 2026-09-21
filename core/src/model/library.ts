@@ -5,6 +5,7 @@ import { TypeSystem, type TypeCatalogEntry } from "../types";
 import { loadAsset, resolveUrl } from "./appAssets";
 import type { RawBlockCatalogEntry } from "./blockDefinition";
 import { CompilationModel } from "./compiler";
+import { CppBlockCatalog } from "./cppBlockCatalog";
 import { Palette } from "./palette";
 
 export {
@@ -82,7 +83,10 @@ export class Library {
       blocks,
     );
 
-    if (manifest.id === "base") Library.base = lib;
+    if (manifest.id === "base") {
+      Library.base = lib;
+      CppBlockCatalog.bindPalette(lib.palette);
+    }
     return lib;
   }
 

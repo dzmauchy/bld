@@ -284,3 +284,56 @@ describe("Wasm Code Generation", () => {
     expect(capturedWasm).toBe(wasm);
   });
 });
+
+describe("Diagram port type inference", () => {
+  test("infers every input and output from JSON block types", () => {
+    const diagram = new Diagram("types", "types", palette);
+    const scope = diagram.addBlock("scope_f32", { x: 0, y: 0 }, "scope");
+    const cosine = diagram.addBlock("cos_f32", { x: 1, y: 0 }, "cos");
+    const constant = diagram.addBlock("const_f32", { x: 2, y: 0 }, "constant");
+    const gpio = diagram.addBlock("gpio_in_f32", { x: 3, y: 0 }, "gpio", { pins: [0, 2, 4] });
+
+    const sink = diagram.inferPortType(scope.id, "sink", "output");
+    expect(sink.isStream).toBe(true);
+    expect(sink.isVector).toBe(true);
+    expect(sink.payloadType?.raw).toBe("f32");
+    expect(sink.dataType.toString()).toBe("pss<T=f32>");
+
+    const cosOut = diagram.inferPortType(cosine.id, "cos", "output");
+    expect(cosOut.isStream).toBe(true);
+    expect(cosOut.isVector).toBe(false);
+    expect(cosOut.payloadType?.raw).toBe("f32");
+
+    const cosIn = diagram.inferPortType(cosine.id, "v", "input");
+    expect(cosIn.isVector).toBe(true);
+    expect(cosIn.payloadType?.raw).toBe("f32");
+
+    const constIn = diagram.inferPortType(constant.id, "v");
+    expect(constIn.isStream).toBe(true);
+    expect(constIn.payloadType?.raw).toBe("f32");
+
+    const pin = diagram.inferPortType(gpio.id, "pin", "input");
+    expect(pin.isVector).toBe(true);
+    expect(pin.vectorLength).toBe(3);
+    expect(pin.payloadType?.raw).toBe("f32");
+  });
+
+  test("unifies connected ports and records vector occupancy", () => {
+    const diagram = new Diagram("wired", "wired", palette);
+    const scope = diagram.addBlock("scope_f32", { x: 0, y: 0 }, "s");
+    const constant = diagram.addBlock("const_f32", { x: 1, y: 0 }, "c");
+    diagram.connect(
+      new PortEndpoint(constant.id, "input", "v", 0),
+      new PortEndpoint(scope.id, "output", "sink", 1),
+    );
+
+    const types = diagram.inferPortTypes();
+    const from = types.require(constant.id, "input", "v");
+    const to = types.require(scope.id, "output", "sink");
+    expect(from.payloadType?.raw).toBe("f32");
+    expect(to.payloadType?.raw).toBe("f32");
+    expect(from.dataType.equals(to.dataType)).toBe(true);
+    expect(to.vectorLength).toBe(2);
+    expect(from.vectorLength).toBe(1);
+  });
+});

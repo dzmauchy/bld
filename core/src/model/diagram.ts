@@ -8,7 +8,7 @@ import { DiagramBlock, type RawBlockJson } from "./diagramBlock";
 import { PortEndpoint } from "./endpoint";
 import { Palette } from "./palette";
 import { Library } from "./library";
-import { TypeInference, TypeSystem } from "../types";
+import { TypeInference, TypeSystem, type InferredPortType, type DataType } from "../types";
 import { diagramSchemaPath } from "../schemaAssets";
 
 export interface DiagramJson {
@@ -19,12 +19,54 @@ export interface DiagramJson {
   connections: Record<string, RawConnectionJson>;
 }
 
+export class DiagramPortTypes {
+  private readonly ports = new Map<string, InferredPortType>();
+
+  static key(blockId: string, direction: "input" | "output", portId: string): string {
+    return `${blockId}\0${direction}\0${portId}`;
+  }
+
+  get(blockId: string, direction: "input" | "output", portId: string): InferredPortType | undefined {
+    return this.ports.get(DiagramPortTypes.key(blockId, direction, portId));
+  }
+
+  require(blockId: string, direction: "input" | "output", portId: string): InferredPortType {
+    const inferred = this.get(blockId, direction, portId);
+    if (!inferred) throw new Error(`No inferred type for ${blockId}.${direction}.${portId}`);
+    return inferred;
+  }
+
+  set(blockId: string, direction: "input" | "output", portId: string, inferred: InferredPortType): void {
+    this.ports.set(DiagramPortTypes.key(blockId, direction, portId), inferred);
+  }
+
+  entries(): { blockId: string; direction: "input" | "output"; portId: string; inferred: InferredPortType }[] {
+    const result: { blockId: string; direction: "input" | "output"; portId: string; inferred: InferredPortType }[] = [];
+    for (const [key, inferred] of this.ports) {
+      const [blockId, direction, portId] = key.split("\0");
+      result.push({
+        blockId: blockId ?? "",
+        direction: direction === "output" ? "output" : "input",
+        portId: portId ?? "",
+        inferred,
+      });
+    }
+    return result;
+  }
+
+  streamType(blockId: string): DataType | undefined {
+    return this.entries().find((entry) => entry.blockId === blockId && entry.inferred.isStream)?.inferred.dataType;
+  }
+}
+
 export interface IDiagram {
   id: string;
   title: string;
   readonly palette: Palette;
   readonly typeSystem: TypeSystem;
   readonly typeInference: TypeInference;
+  inferPortType(blockId: string, portId: string, direction?: "input" | "output"): InferredPortType;
+  inferPortTypes(): DiagramPortTypes;
   addBlock(
     refOrDef: string | BlockDefinition,
     position: { x: number; y: number },
@@ -141,11 +183,75 @@ export class Diagram implements IDiagram {
       if (conn.matches(from, to)) return { ok: false, reason: "Connection already exists" };
     }
 
-    const inferenceResult = this.typeInference.inferConnection(fromPort.type, toPort.type);
+    const fromInferred = this.typeInference.inferPort(fromPort, fromBlock.getAllConf());
+    const toInferred = this.typeInference.inferPort(toPort, toBlock.getAllConf());
+    const inferenceResult = this.typeInference.inferConnection(fromInferred, toInferred);
     if (!inferenceResult.ok) {
-      return { ok: false, reason: inferenceResult.error ?? `Incompatible types: ${fromPort.type.toString()} and ${toPort.type.toString()}` };
+      return {
+        ok: false,
+        reason: inferenceResult.error ?? `Incompatible types: ${fromInferred.dataType.toString()} and ${toInferred.dataType.toString()}`,
+      };
     }
     return { ok: true };
+  }
+
+  inferPortType(blockId: string, portId: string, direction?: "input" | "output"): InferredPortType {
+    const block = this.getBlock(blockId);
+    if (!block) throw new Error(`Block with id "${blockId}" not found`);
+    const port = block.definition.getPort(portId, direction);
+    if (!port) {
+      const where = direction ? `${direction} "${portId}"` : `"${portId}"`;
+      throw new Error(`Port ${where} not found on block "${blockId}"`);
+    }
+    return this.inferPortTypes().require(blockId, port.direction, portId);
+  }
+
+  inferPortTypes(): DiagramPortTypes {
+    const types = new DiagramPortTypes();
+    for (const block of this.getBlocks()) {
+      const inferred = block.inferPorts(this.typeInference);
+      for (const [portId, portType] of inferred.inputs) types.set(block.id, "input", portId, portType);
+      for (const [portId, portType] of inferred.outputs) types.set(block.id, "output", portId, portType);
+    }
+
+    for (const connection of this.getConnections()) {
+      this.expandVectorLength(types, connection.from.blockId, connection.from.portType, connection.from.portId, connection.from.vectorIndex);
+      this.expandVectorLength(types, connection.to.blockId, connection.to.portType, connection.to.portId, connection.to.vectorIndex);
+    }
+
+    for (const connection of this.getConnections()) {
+      const from = types.get(connection.from.blockId, connection.from.portType, connection.from.portId);
+      const to = types.get(connection.to.blockId, connection.to.portType, connection.to.portId);
+      if (!from || !to) continue;
+      const unified = this.typeInference.inferConnection(from, to);
+      if (!unified.ok || !unified.effectiveType) continue;
+      types.set(
+        connection.from.blockId,
+        connection.from.portType,
+        connection.from.portId,
+        from.withType(unified.effectiveType, this.typeInference),
+      );
+      types.set(
+        connection.to.blockId,
+        connection.to.portType,
+        connection.to.portId,
+        to.withType(unified.effectiveType, this.typeInference),
+      );
+    }
+
+    return types;
+  }
+
+  private expandVectorLength(
+    types: DiagramPortTypes,
+    blockId: string,
+    direction: "input" | "output",
+    portId: string,
+    vectorIndex: number,
+  ): void {
+    const current = types.get(blockId, direction, portId);
+    if (!current) return;
+    types.set(blockId, direction, portId, current.withVectorLength(Math.max(current.vectorLength ?? 0, vectorIndex + 1)));
   }
 
   connect(from: PortEndpoint, to: PortEndpoint, id?: string): Connection {

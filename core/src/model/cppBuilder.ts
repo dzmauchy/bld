@@ -2,16 +2,18 @@
  * @title C++ Diagram Builder
  *
  * Emits C++ sources for a diagram that instantiate the base library and
- * delegate wasm compilation to the `cpp` package.
+ * delegate wasm compilation to the `cpp` package. Constructor arguments and
+ * wiring come from JSON port/conf types, not a closed block-kind union.
  */
 import type { Diagram } from "./diagram";
 import type { DiagramBlock } from "./diagramBlock";
 import type { Connection } from "./connection";
+import type { ConfigPropertyDefinition } from "./blockDefinition";
 import {
+  BlockPortTopology,
+  CppBlockCatalog,
+  CppTypeNames,
   defaultCppBlockCatalog,
-  type CppBlockBinding,
-  type CppBlockCatalog,
-  type CppCtorArg,
 } from "./cppBlockCatalog";
 
 export abstract class DiagramSourceBuilder {
@@ -26,7 +28,8 @@ type PlannedBlock = {
   block: DiagramBlock;
   numericId: number;
   ident: string;
-  binding: CppBlockBinding;
+  topology: BlockPortTopology;
+  streamCppType: string;
 };
 
 export class CppDiagramBuilder extends DiagramSourceBuilder {
@@ -71,12 +74,28 @@ export class CppDiagramBuilder extends DiagramSourceBuilder {
   }
 
   private plan(diagram: Diagram): PlannedBlock[] {
-    return diagram.getBlocks().map((block, index) => ({
-      block,
-      numericId: index,
-      ident: cppIdent(block.id),
-      binding: this.catalog.require(block.ref),
-    }));
+    const catalog = this.catalogFor(diagram);
+    const inferred = diagram.inferPortTypes();
+    return diagram.getBlocks().map((block, index) => {
+      if (!block.definition.cppClass) throw new Error(`Unknown C++ block "${block.ref}"`);
+      catalog.require(block.ref);
+      const topology = new BlockPortTopology(block.definition, diagram.typeInference, block.getAllConf());
+      const streamType = inferred.streamType(block.id) ?? topology.streamType();
+      if (!streamType) throw new Error(`Block "${block.ref}" has no inferable stream type`);
+      return {
+        block,
+        numericId: index,
+        ident: cppIdent(block.id),
+        topology,
+        streamCppType: CppTypeNames.vectorizedInput(streamType),
+      };
+    });
+  }
+
+  private catalogFor(diagram: Diagram): CppBlockCatalog {
+    return this.catalog.palette.getBlocks().length > 0
+      ? this.catalog
+      : CppBlockCatalog.fromPalette(diagram.palette);
   }
 
   private applyOrder(planned: PlannedBlock[], connections: Connection[]): PlannedBlock[] {
@@ -115,62 +134,72 @@ export class CppDiagramBuilder extends DiagramSourceBuilder {
     const conf = item.block.getAllConf();
     const args: string[] = [u32Lit(item.numericId)];
     const prefix: string[] = [];
-    for (const arg of item.binding.ctorArgs) {
-      if (arg.type === "u8[]") {
-        const ident = `${item.ident}_pins`;
-        prefix.push(...emitPushArray(ident, "Array<u8>", pinsConf(conf).map((pin) => String(pin))));
-        args.push(moveExpr("Array<u8>", ident));
+    for (const prop of item.block.definition.config.values()) {
+      if (CppTypeNames.isArray(prop.type)) {
+        const ident = `${item.ident}_${prop.id}`;
+        const values = arrayConf(conf, prop).map((entry) =>
+          CppTypeNames.literal(CppTypeNames.elementType(prop.type) ?? prop.type, entry),
+        );
+        prefix.push(...emitPushArray(ident, CppTypeNames.of(prop.type), values));
+        args.push(moveExpr(CppTypeNames.of(prop.type), ident));
       } else {
-        args.push(this.formatArg(conf, arg));
+        args.push(this.formatArg(conf, prop));
       }
     }
-    return [...prefix, `auto* ${item.ident} = new ${item.binding.cppClass}(${args.join(", ")});`];
+    return [...prefix, `auto* ${item.ident} = new ${item.block.definition.cppClass}(${args.join(", ")});`];
   }
 
   private emitApply(item: PlannedBlock, planned: PlannedBlock[], connections: Connection[]): string[] {
+    if (item.topology.registersHostPins()) {
+      return this.emitPinBoundApply(item, planned, connections);
+    }
     const downstream = this.downstreamExprs(item, planned, connections);
     const incoming = this.maxIncomingIndex(item.block.id, connections);
+    const width = Math.max(1, incoming + 1);
     const dn = `${item.ident}_dn`;
-    switch (item.binding.kind) {
-      case "sink": {
-        const width = Math.max(1, incoming + 1);
-        return [`auto ${item.ident}_in = ${item.ident}->apply(${u8Lit(width)});`];
-      }
-      case "unary":
-        return [
-          ...emitPushArray(dn, SINKS, downstream),
-          `auto ${item.ident}_in = ${item.ident}->apply(${moveExpr(SINKS, dn)});`,
-        ];
-      case "aggregate": {
-        const width = Math.max(1, incoming + 1);
-        return [
-          ...emitPushArray(dn, SINKS, downstream),
-          `auto ${item.ident}_in = ${item.ident}->apply(${moveExpr(SINKS, dn)}, ${u8Lit(width)});`,
-        ];
-      }
-      case "source":
-        return [
-          ...emitPushArray(dn, SINKS, downstream),
-          `${item.ident}->apply(${moveExpr(SINKS, dn)});`,
-        ];
-      case "gpio": {
-        const pinGroups = this.gpioPinGroups(item, planned, connections);
-        const conf = item.block.getAllConf();
-        const port = numberConf(conf, "port", 0);
-        const pins = pinsConf(conf);
-        const lines: string[] = [];
-        pinGroups.forEach((group, index) => {
-          const pin = `${item.ident}_p${index}`;
-          lines.push(...emitPushArray(pin, SINKS, group));
-          lines.push(`${item.ident}->connectPin(${u8Lit(index)}, ${moveExpr(SINKS, pin)});`);
-        });
-        const hw = `${item.ident}_hw`;
-        lines.push(`${item.ident}->apply();`);
-        lines.push(...emitPushArray(hw, "Array<u8>", pins.map((pin) => String(pin))));
-        lines.push(`register_gpio_block(${u32Lit(item.numericId)}, ${u16Lit(port)}, ${hw});`);
-        return lines;
-      }
+    if (item.topology.exposesConsumerBank()) {
+      return [`auto ${item.ident}_in = ${item.ident}->apply(${u8Lit(width)});`];
     }
+    if (item.topology.returnsScalarConsumer()) {
+      return [
+        ...emitPushArray(dn, item.streamCppType, downstream),
+        `auto ${item.ident}_in = ${item.ident}->apply(${moveExpr(item.streamCppType, dn)});`,
+      ];
+    }
+    if (item.topology.returnsIndexedConsumers()) {
+      return [
+        ...emitPushArray(dn, item.streamCppType, downstream),
+        `auto ${item.ident}_in = ${item.ident}->apply(${moveExpr(item.streamCppType, dn)}, ${u8Lit(width)});`,
+      ];
+    }
+    return [
+      ...emitPushArray(dn, item.streamCppType, downstream),
+      `${item.ident}->apply(${moveExpr(item.streamCppType, dn)});`,
+    ];
+  }
+
+  private emitPinBoundApply(item: PlannedBlock, planned: PlannedBlock[], connections: Connection[]): string[] {
+    const pinGroups = this.pinGroups(item, planned, connections);
+    const conf = item.block.getAllConf();
+    const lines: string[] = [];
+    pinGroups.forEach((group, index) => {
+      const pin = `${item.ident}_p${index}`;
+      lines.push(...emitPushArray(pin, item.streamCppType, group));
+      lines.push(`${item.ident}->connectPin(${u8Lit(index)}, ${moveExpr(item.streamCppType, pin)});`);
+    });
+    lines.push(`${item.ident}->apply();`);
+    const portProp = item.block.definition.getConfig("port");
+    const pinsId = item.topology.pinBindConfId();
+    const pinsProp = pinsId ? item.block.definition.getConfig(pinsId) : undefined;
+    if (portProp && pinsProp) {
+      const hw = `${item.ident}_hw`;
+      const pins = arrayConf(conf, pinsProp);
+      lines.push(...emitPushArray(hw, CppTypeNames.of(pinsProp.type), pins.map((pin) => String(pin))));
+      lines.push(
+        `register_gpio_block(${u32Lit(item.numericId)}, ${CppTypeNames.literal(portProp.type, conf[portProp.id] ?? portProp.defaultValue ?? 0)}, ${hw});`,
+      );
+    }
+    return lines;
   }
 
   private downstreamExprs(item: PlannedBlock, planned: PlannedBlock[], connections: Connection[]): string[] {
@@ -178,7 +207,7 @@ export class CppDiagramBuilder extends DiagramSourceBuilder {
     const exprs: string[] = [];
     for (const connection of connections) {
       if (connection.from.blockId !== item.block.id) continue;
-      if (item.binding.kind === "gpio") continue;
+      if (item.topology.registersHostPins()) continue;
       const target = byId.get(connection.to.blockId);
       if (!target) continue;
       exprs.push(this.consumerExpr(target, connection.to.vectorIndex));
@@ -186,10 +215,12 @@ export class CppDiagramBuilder extends DiagramSourceBuilder {
     return exprs;
   }
 
-  private gpioPinGroups(item: PlannedBlock, planned: PlannedBlock[], connections: Connection[]): string[][] {
+  private pinGroups(item: PlannedBlock, planned: PlannedBlock[], connections: Connection[]): string[][] {
     const byId = new Map(planned.map((entry) => [entry.block.id, entry]));
-    const pins = pinsConf(item.block.getAllConf());
-    const groups: string[][] = pins.map(() => []);
+    const bindId = item.topology.pinBindConfId();
+    const pinsProp = bindId ? item.block.definition.getConfig(bindId) : undefined;
+    const pinCount = pinsProp ? arrayConf(item.block.getAllConf(), pinsProp).length : 0;
+    const groups: string[][] = Array.from({ length: pinCount }, () => []);
     for (const connection of connections) {
       if (connection.from.blockId !== item.block.id) continue;
       const target = byId.get(connection.to.blockId);
@@ -202,7 +233,7 @@ export class CppDiagramBuilder extends DiagramSourceBuilder {
   }
 
   private consumerExpr(target: PlannedBlock, vectorIndex: number): string {
-    if (target.binding.kind === "unary") return `${target.ident}_in`;
+    if (target.topology.returnsScalarConsumer()) return `${target.ident}_in`;
     return `${target.ident}_in[${vectorIndex}]`;
   }
 
@@ -213,17 +244,10 @@ export class CppDiagramBuilder extends DiagramSourceBuilder {
     }, -1);
   }
 
-  private formatArg(conf: Record<string, unknown>, arg: CppCtorArg): string {
-    switch (arg.type) {
-      case "u32":
-        return u32Lit(numberConf(conf, arg.key, Number(arg.fallback)));
-      case "u16":
-        return u16Lit(numberConf(conf, arg.key, Number(arg.fallback)));
-      case "f32":
-        return f32Lit(numberConf(conf, arg.key, Number(arg.fallback)));
-      case "u8[]":
-        return `Array<u8>{${pinsConf(conf).join(", ")}}`;
-    }
+  private formatArg(conf: Record<string, unknown>, prop: ConfigPropertyDefinition): string {
+    const fallback = prop.defaultValue;
+    const value = conf[prop.id] !== undefined ? conf[prop.id] : fallback;
+    return CppTypeNames.literal(prop.type, value ?? 0);
   }
 }
 
@@ -232,14 +256,12 @@ export function cppIdent(id: string): string {
   return /^[A-Za-z_]/.test(cleaned) ? cleaned : `b_${cleaned}`;
 }
 
-function numberConf(conf: Record<string, unknown>, key: string, fallback: number): number {
-  const value = conf[key];
-  return typeof value === "number" && Number.isFinite(value) ? value : fallback;
-}
-
-function pinsConf(conf: Record<string, unknown>): number[] {
-  const raw = conf.pins;
-  if (Array.isArray(raw) && raw.length > 0) return raw.map((pin) => Number(pin));
+function arrayConf(conf: Record<string, unknown>, prop: ConfigPropertyDefinition): number[] {
+  const raw = conf[prop.id];
+  if (Array.isArray(raw) && raw.length > 0) return raw.map((entry) => Number(entry));
+  if (Array.isArray(prop.defaultValue) && prop.defaultValue.length > 0) {
+    return prop.defaultValue.map((entry) => Number(entry));
+  }
   return [0];
 }
 
@@ -247,21 +269,9 @@ function u32Lit(value: number): string {
   return `${Math.trunc(value)}u`;
 }
 
-function u16Lit(value: number): string {
-  return String(Math.trunc(value));
-}
-
 function u8Lit(value: number): string {
   return `static_cast<u8>(${Math.trunc(value)})`;
 }
-
-function f32Lit(value: number): string {
-  if (Object.is(value, -0)) return "-0.f";
-  if (Number.isInteger(value)) return `${value}.f`;
-  return `${value}f`;
-}
-
-const SINKS = "VectorizedInput<Pss<f32>>";
 
 function emitPushArray(ident: string, type: string, values: string[]): string[] {
   const lines = [`auto ${ident} = ${type}{};`];
