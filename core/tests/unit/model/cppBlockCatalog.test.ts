@@ -13,7 +13,7 @@ describe("CppBlockCatalog", () => {
     catalog = CppBlockCatalog.fromPalette(lib.palette);
   });
 
-  test("reads C++ class names from blocks.json", () => {
+  test("reads C++ class names from header comments", () => {
     expect(catalog.require("scope_f32").cppClass).toBe("push::f32::sinks::ScopeF32");
     expect(catalog.require("cos_f32").cppClass).toBe("push::f32::transformers::CosF32");
     expect(catalog.require("gpio_in_f32").cppClass).toBe("push::f32::sources::GpioInF32");

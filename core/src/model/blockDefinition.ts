@@ -79,6 +79,7 @@ export interface RawBlockCatalogEntry {
   inputs?: Record<string, RawPortCatalogEntry>;
   outputs?: Record<string, RawPortCatalogEntry>;
   conf?: Record<string, RawConfigPropertyCatalogEntry>;
+  implementation?: readonly string[];
 }
 
 export class BlockDefinition {

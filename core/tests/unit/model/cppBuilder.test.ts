@@ -40,11 +40,12 @@ describe("CppDiagramBuilder", () => {
     const files = builder.build(diagram);
     expect(files.get("bld.hpp")).toContain("class Block");
     expect(files.get("base.hpp")).toContain("class ScopeF32");
-    expect(files.get("wasm_host.inc")).toContain("void start()");
+    expect(files.get("wasm_host.hpp")).toContain("void start()");
     expect(files.get("wasm_host.cpp")).toBeUndefined();
     expect([...files.keys()].filter((name) => name.endsWith(".cpp"))).toEqual(["diagram.cpp"]);
-    expect(files.get("diagram.cpp")).toContain("#include \"wasm_host.inc\"");
-    expect(files.get("diagram.cpp")).toContain("build_diagram");
+    expect(files.get("diagram.cpp")).toContain("#include \"wasm_host.hpp\"");
+    expect(files.get("diagram.cpp")).toContain("void mount()");
+    expect(files.get("diagram.cpp")).not.toContain("start(");
   });
 
   test("emits const to scope wiring", () => {

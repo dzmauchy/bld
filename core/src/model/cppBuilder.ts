@@ -41,7 +41,7 @@ export class CppDiagramBuilder extends DiagramSourceBuilder {
   override build(diagram: Diagram): Map<string, string> {
     const files = new Map<string, string>();
     for (const [name, content] of Object.entries(this.libraryFiles)) {
-      files.set(name === "wasm_host.cpp" ? "wasm_host.inc" : name, content);
+      files.set(name, content);
     }
     files.set("diagram.cpp", this.emitDiagram(diagram));
     return files;
@@ -51,14 +51,15 @@ export class CppDiagramBuilder extends DiagramSourceBuilder {
     const planned = this.plan(diagram);
     const connections = diagram.getConnections();
     const applyOrder = this.applyOrder(planned, connections);
+    const meta = diagram.toJSON();
     const lines: string[] = [
       "#include <base.hpp>",
       "#include \"wasm_host.hpp\"",
-      "#include \"wasm_host.inc\"",
       "",
       "using push::f32::F32;",
       "",
-      "extern \"C\" void build_diagram() {",
+      `/*${JSON.stringify({ id: meta.id, title: meta.title, blocks: meta.blocks, connections: meta.connections }, null, 2)}*/`,
+      "extern \"C\" void mount() {",
     ];
 
     for (const item of planned) {

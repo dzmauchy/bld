@@ -1,8 +1,8 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://bld.d-ovchinnikow.workers.dev/schemas/library.schema.json",
-  "title": "PackageManifest",
-  "description": "Schema definition for package or library manifest configuration.",
+  "title": "Library",
+  "description": "A library is the list of header URLs that define its types and blocks. Relative URLs are internal resources.",
   "type": "object",
   "properties": {
     "$schema": {
@@ -12,7 +12,7 @@
     "id": {
       "type": "string",
       "pattern": "^[a-z0-9-_]+$",
-      "description": "Unique identifier for the package."
+      "description": "Unique identifier for the library."
     },
     "name": {
       "type": "string",
@@ -21,36 +21,22 @@
     },
     "icon": {
       "type": "string",
-      "description": "Path or filename of the icon asset (e.g., SVG, PNG)."
+      "description": "Path or filename of the icon asset."
     },
-    "types": {
+    "headers": {
       "type": "array",
       "items": {
-        "type": "string"
+        "type": "string",
+        "minLength": 1
       },
       "uniqueItems": true,
-      "description": "List of file paths containing type definitions."
-    },
-    "namespaces": {
-      "type": "array",
-      "items": {
-        "type": "string"
-      },
-      "uniqueItems": true,
-      "description": "List of file paths containing namespace configurations."
-    },
-    "blocks": {
-      "type": "array",
-      "items": {
-        "type": "string"
-      },
-      "uniqueItems": true,
-      "description": "List of file paths containing block definitions."
+      "description": "URLs of every hpp file in this library. Relative URLs load from internal resources."
     }
   },
   "required": [
     "id",
-    "name"
+    "name",
+    "headers"
   ],
   "additionalProperties": false
 }

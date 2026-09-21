@@ -105,8 +105,7 @@ describe("diagram C++ generation topologies", () => {
     const { dirname, join } = await import("node:path");
     const { fileURLToPath } = await import("node:url");
     const here = dirname(fileURLToPath(import.meta.url));
-    const json = JSON.parse(readFileSync(join(here, "../../assets/diagram_demo.json"), "utf8"));
-    const diagram = Diagram.fromJSON(json, palette);
+    const diagram = await Diagram.fromCpp(readFileSync(join(here, "../../assets/diagram_demo.cpp"), "utf8"), palette);
     const cpp = builder.emitDiagram(diagram);
     expect(cpp).toContain("CosGenF32");
     expect(cpp).toContain("ScopeF32");

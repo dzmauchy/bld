@@ -18,19 +18,19 @@ import {
 
 describe("Library and Asset Loader", () => {
   test("resolves relative URLs against base URLs", () => {
-    expect(resolveUrl("types.json", "https://example.com/libs/base.json")).toBe(
-      "https://example.com/libs/types.json",
+    expect(resolveUrl("include/bld.hpp", "https://example.com/libs/base.json")).toBe(
+      "https://example.com/libs/include/bld.hpp",
     );
-    expect(resolveUrl("sub/blocks.json", "https://example.com/lib/manifest.json")).toBe(
-      "https://example.com/lib/sub/blocks.json",
+    expect(resolveUrl("native/base.hpp", "https://example.com/lib/manifest.json")).toBe(
+      "https://example.com/lib/native/base.hpp",
     );
-    expect(resolveUrl("https://other.com/blocks.json", "https://example.com/base.json")).toBe(
-      "https://other.com/blocks.json",
+    expect(resolveUrl("https://other.com/base.hpp", "https://example.com/base.json")).toBe(
+      "https://other.com/base.hpp",
     );
-    expect(resolveUrl("https://other.com/blocks.json")).toBe(
-      "https://other.com/blocks.json",
+    expect(resolveUrl("https://other.com/base.hpp")).toBe(
+      "https://other.com/base.hpp",
     );
-    expect(resolveUrl("types.json")).toBe("types.json");
+    expect(resolveUrl("include/bld.hpp")).toBe("include/bld.hpp");
     expect(resolveUrl("//cdn.example.com/lib.json", "https://example.com/")).toBe(
       "https://cdn.example.com/lib.json",
     );
@@ -80,44 +80,22 @@ describe("Library and Asset Loader", () => {
           JSON.stringify({
             id: "remote_plugin",
             name: "Remote Plugin",
-            types: ["https://my-plugin.org/dsp/types.json"],
-            namespaces: ["https://my-plugin.org/dsp/namespaces.json"],
-            blocks: ["https://my-plugin.org/dsp/blocks.json"],
+            headers: ["plugin.hpp"],
           }),
           { status: 200 },
         );
       }
-      if (u === "https://my-plugin.org/dsp/types.json") {
+      if (u === "https://my-plugin.org/dsp/plugin.hpp") {
         return new Response(
-          JSON.stringify({
-            custom_t: {
-              name: "Custom Type",
-              description: "A custom test type",
-            },
-          }),
-          { status: 200 },
-        );
-      }
-      if (u === "https://my-plugin.org/dsp/namespaces.json") {
-        return new Response(
-          JSON.stringify({
-            custom_ns: {
-              name: "Custom NS",
-            },
-          }),
-          { status: 200 },
-        );
-      }
-      if (u === "https://my-plugin.org/dsp/blocks.json") {
-        return new Response(
-          JSON.stringify({
-            custom_block: {
-              ns: ["custom_ns"],
-              icon: "custom.svg",
-              title: "Custom Block",
-              description: "A custom test block",
-            },
-          }),
+          [
+            '/*{"kind":"type","id":"custom_t","name":"Custom Type","description":"A custom test type"}*/',
+            "using custom_t = int;",
+            '/*{"kind":"namespace","name":"Custom NS"}*/',
+            "namespace custom_ns {",
+            '/*{"kind":"block","id":"custom_block","ns":["custom_ns"],"icon":"custom.svg","title":"Custom Block","description":"A custom test block"}*/',
+            "class CustomBlock {};",
+            "}",
+          ].join("\n"),
           { status: 200 },
         );
       }
@@ -134,9 +112,9 @@ describe("Library and Asset Loader", () => {
       expect(lib.palette.getBlock("custom_block")).toBeDefined();
 
       expect(fetchMock).toHaveBeenCalledWith("https://my-plugin.org/dsp/library.json");
-      expect(fetchMock).toHaveBeenCalledWith("https://my-plugin.org/dsp/types.json");
-      expect(fetchMock).toHaveBeenCalledWith("https://my-plugin.org/dsp/namespaces.json");
-      expect(fetchMock).toHaveBeenCalledWith("https://my-plugin.org/dsp/blocks.json");
+      expect(fetchMock).toHaveBeenCalledWith("https://my-plugin.org/dsp/plugin.hpp");
+      expect(lib.palette.getBlock("custom_block")?.cppClass).toBe("custom_ns::CustomBlock");
+      expect(lib.compilationModel.getFile("plugin.hpp")).toContain("class CustomBlock");
     } finally {
       globalThis.fetch = originalFetch;
     }
@@ -212,7 +190,35 @@ describe("Library and Asset Loader", () => {
     expect(palette.getBlock("scope_f32")?.title).toBe("Scope");
   });
 
-  test("JSON block cpp fields match the C++ catalog", async () => {
+  test("relative header URLs load from internal resources", async () => {
+    registerAppAssets({
+      "internal.json": JSON.stringify({
+        id: "internal",
+        name: "Internal",
+        headers: ["samples/block.hpp"],
+      }),
+      "samples/block.hpp": [
+        "namespace samples {",
+        '/*{"kind":"block","id":"local_block","ns":["samples"],"icon":"local.svg","title":"Local","description":"Loaded from an internal header"}*/',
+        "class Local {};",
+        "}",
+      ].join("\n"),
+    });
+    const fetchMock = vi.fn();
+    const originalFetch = globalThis.fetch;
+    globalThis.fetch = fetchMock as unknown as typeof fetch;
+    try {
+      const lib = await Library.load("internal.json");
+      expect(fetchMock).not.toHaveBeenCalled();
+      expect(lib.palette.getBlock("local_block")?.title).toBe("Local");
+      expect(lib.compilationModel.getFile("block.hpp")).toContain("class Local");
+    } finally {
+      globalThis.fetch = originalFetch;
+      clearRegisteredAppAssets();
+    }
+  });
+
+  test("header block classes match the C++ catalog", async () => {
     const lib = await Library.loadBase();
     for (const [id, raw] of Object.entries(lib.blocks)) {
       expect(raw.cpp, id).toBe(lib.palette.getBlock(id)?.cppClass);
