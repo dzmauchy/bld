@@ -2,6 +2,15 @@ import { describe, expect, test } from "vitest";
 import { ClangArgumentBuilder, LldArgumentBuilder } from "../../src/args.ts";
 
 describe("toolchain argument builders", () => {
+  test("clang dumps a JSON AST without compiling an object", () => {
+    const args = new ClangArgumentBuilder().syntaxOnlyAstDump("/work/add.cpp");
+    expect(args).toContain("-fsyntax-only");
+    expect(args).toContain("-Xclang");
+    expect(args).toContain("-ast-dump=json");
+    expect(args.at(-1)).toBe("/work/add.cpp");
+    expect(args).not.toContain("-c");
+  });
+
   test("clang compiles one source to an object with the emscripten sysroot", () => {
     const args = new ClangArgumentBuilder().build("/work/add.cpp", "/work/add.o");
     expect(args).toContain("--target=wasm32-unknown-emscripten");

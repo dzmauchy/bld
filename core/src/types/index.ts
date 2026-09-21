@@ -1,6 +1,5 @@
 /**
- * @title Type System & Inference
+ * @title Type System
  */
 export * from "./types";
 export * from "./typeSystem";
-export * from "./typeInference";

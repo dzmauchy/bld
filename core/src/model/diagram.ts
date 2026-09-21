@@ -1,15 +1,22 @@
 /**
  * @title Diagram
  */
+import { TypeSystem } from "../types";
+import { diagramSchemaPath } from "../schemaAssets";
 import { BlockDefinition } from "./blockDefinition";
+import {
+  ClangTranslationUnit,
+  InferredPortType,
+  type ClangTypeCatalog,
+} from "./clangAst";
 import { DiagramCompiler, type WasmRuntimeLike, type WasmSessionLike, type CompileOptionsLike } from "./compiler";
 import { Connection, type RawConnectionJson } from "./connection";
+import { CppBlockCatalog, CppTypeNames, defaultCppBlockCatalog, type BlockPortTopology } from "./cppBlockCatalog";
+import { cppIdent } from "./cppBuilder";
 import { DiagramBlock, type RawBlockJson } from "./diagramBlock";
 import { PortEndpoint } from "./endpoint";
-import { Palette } from "./palette";
 import { Library } from "./library";
-import { TypeInference, TypeSystem, type InferredPortType, type DataType } from "../types";
-import { diagramSchemaPath } from "../schemaAssets";
+import { Palette } from "./palette";
 
 export interface DiagramJson {
   $schema?: string;
@@ -54,8 +61,8 @@ export class DiagramPortTypes {
     return result;
   }
 
-  streamType(blockId: string): DataType | undefined {
-    return this.entries().find((entry) => entry.blockId === blockId && entry.inferred.isStream)?.inferred.dataType;
+  streamType(blockId: string): string | undefined {
+    return this.entries().find((entry) => entry.blockId === blockId)?.inferred.qualType;
   }
 }
 
@@ -64,7 +71,6 @@ export interface IDiagram {
   title: string;
   readonly palette: Palette;
   readonly typeSystem: TypeSystem;
-  readonly typeInference: TypeInference;
   inferPortType(blockId: string, portId: string, direction?: "input" | "output"): InferredPortType;
   inferPortTypes(): DiagramPortTypes;
   addBlock(
@@ -92,20 +98,21 @@ export class Diagram implements IDiagram {
   private readonly blocks = new Map<string, DiagramBlock>();
   private readonly connections = new Map<string, Connection>();
   private readonly nextBlockSeq = new Map<string, number>();
-  private _typeInference?: TypeInference;
+  private inferredPortTypes: DiagramPortTypes | undefined;
 
   constructor(
     public id: string,
     public title: string,
     readonly palette: Palette = Library.getBaseSync()?.palette ?? new Palette(new TypeSystem()),
+    readonly catalog: CppBlockCatalog = defaultCppBlockCatalog,
   ) {}
 
   get typeSystem(): TypeSystem {
     return this.palette.typeSystem;
   }
 
-  get typeInference(): TypeInference {
-    return (this._typeInference ??= new TypeInference(this.typeSystem));
+  private get clangTypes(): ClangTypeCatalog {
+    return this.catalog.clangTypeCatalog;
   }
 
   // --- Block Operations ---
@@ -135,6 +142,7 @@ export class Diagram implements IDiagram {
 
     const block = new DiagramBlock(blockId, def, position.x, position.y, conf);
     this.blocks.set(blockId, block);
+    this.inferredPortTypes = undefined;
     return block;
   }
 
@@ -143,6 +151,7 @@ export class Diagram implements IDiagram {
     for (const [connId, conn] of this.connections) {
       if (conn.connectsBlock(blockId)) this.connections.delete(connId);
     }
+    this.inferredPortTypes = undefined;
     return true;
   }
 
@@ -183,16 +192,13 @@ export class Diagram implements IDiagram {
       if (conn.matches(from, to)) return { ok: false, reason: "Connection already exists" };
     }
 
-    const fromInferred = this.typeInference.inferPort(fromPort, fromBlock.getAllConf());
-    const toInferred = this.typeInference.inferPort(toPort, toBlock.getAllConf());
-    const inferenceResult = this.typeInference.inferConnection(fromInferred, toInferred);
-    if (!inferenceResult.ok) {
-      return {
-        ok: false,
-        reason: inferenceResult.error ?? `Incompatible types: ${fromInferred.dataType.toString()} and ${toInferred.dataType.toString()}`,
-      };
+    const dump = this.clangTypes.dumpProbe(this.emitConnectionProbe(from, to));
+    if (dump.ok) return { ok: true };
+    if (dump.hasTypeError) {
+      const first = dump.diagnostics.split("\n").find((line) => /error:/.test(line));
+      return { ok: false, reason: first?.replace(/^.*error: /, "") ?? dump.diagnostics };
     }
-    return { ok: true };
+    throw new Error(`clang++ failed while checking connection\n${dump.diagnostics}`);
   }
 
   inferPortType(blockId: string, portId: string, direction?: "input" | "output"): InferredPortType {
@@ -207,39 +213,187 @@ export class Diagram implements IDiagram {
   }
 
   inferPortTypes(): DiagramPortTypes {
+    if (this.inferredPortTypes) return this.inferredPortTypes;
+    const dump = this.clangTypes.dumpProbe(this.emitInferProbe());
+    if (!dump.ok || dump.ast === undefined) {
+      throw new Error(`clang++ AST dump failed while inferring port types\n${dump.diagnostics}`);
+    }
+    const unit = ClangTranslationUnit.parse(dump.ast);
     const types = new DiagramPortTypes();
     for (const block of this.getBlocks()) {
-      const inferred = block.inferPorts(this.typeInference);
-      for (const [portId, portType] of inferred.inputs) types.set(block.id, "input", portId, portType);
-      for (const [portId, portType] of inferred.outputs) types.set(block.id, "output", portId, portType);
+      const conf = block.getAllConf();
+      for (const port of [...block.getInputPorts(), ...block.getOutputPorts()]) {
+        const varName = portVarName(block.id, port.direction, port.id);
+        const clangType = unit.varType(varName);
+        if (!clangType) throw new Error(`clang AST is missing ${varName}`);
+        let vectorLength: number | undefined;
+        if (port.lengthBindConfId) {
+          const bound = conf[port.lengthBindConfId];
+          if (Array.isArray(bound)) vectorLength = bound.length;
+        }
+        types.set(
+          block.id,
+          port.direction,
+          port.id,
+          new InferredPortType(clangType, Boolean(port.vector || clangType.isVectorized), vectorLength),
+        );
+      }
     }
 
     for (const connection of this.getConnections()) {
       this.expandVectorLength(types, connection.from.blockId, connection.from.portType, connection.from.portId, connection.from.vectorIndex);
       this.expandVectorLength(types, connection.to.blockId, connection.to.portType, connection.to.portId, connection.to.vectorIndex);
     }
+    this.inferredPortTypes = types;
+    return types;
+  }
 
-    for (const connection of this.getConnections()) {
-      const from = types.get(connection.from.blockId, connection.from.portType, connection.from.portId);
-      const to = types.get(connection.to.blockId, connection.to.portType, connection.to.portId);
-      if (!from || !to) continue;
-      const unified = this.typeInference.inferConnection(from, to);
-      if (!unified.ok || !unified.effectiveType) continue;
-      types.set(
-        connection.from.blockId,
-        connection.from.portType,
-        connection.from.portId,
-        from.withType(unified.effectiveType, this.typeInference),
-      );
-      types.set(
-        connection.to.blockId,
-        connection.to.portType,
-        connection.to.portId,
-        to.withType(unified.effectiveType, this.typeInference),
-      );
+  private emitInferProbe(): string {
+    const lines = ['#include "base.hpp"', "", "void infer_ports() {"];
+    this.getBlocks().forEach((block, index) => {
+      const topology = this.catalog.topology(block.ref, block.getAllConf());
+      const ident = cppIdent(block.id);
+      lines.push(...this.emitProbeConstruct(ident, block, topology, index).map((line) => `  ${line}`));
+      lines.push(...this.emitProbePortVars(ident, block, topology).map((line) => `  ${line}`));
+    });
+    lines.push("}");
+    lines.push("");
+    return lines.join("\n");
+  }
+
+  private emitConnectionProbe(from: PortEndpoint, to: PortEndpoint): string {
+    const fromBlock = this.getBlock(from.blockId);
+    const toBlock = this.getBlock(to.blockId);
+    if (!fromBlock || !toBlock) throw new Error("missing block");
+    const fromTop = this.catalog.topology(fromBlock.ref, fromBlock.getAllConf());
+    const toTop = this.catalog.topology(toBlock.ref, toBlock.getAllConf());
+    const fromIdent = cppIdent(fromBlock.id);
+    const toIdent = cppIdent(toBlock.id);
+    const lines = ['#include "base.hpp"', "", "void check_connection() {"];
+    lines.push(...this.emitProbeConstruct(fromIdent, fromBlock, fromTop, 0).map((line) => `  ${line}`));
+    lines.push(...this.emitProbeConstruct(toIdent, toBlock, toTop, 1).map((line) => `  ${line}`));
+    lines.push(...this.emitProbeApply(toIdent, toTop, "to_in").map((line) => `  ${line}`));
+    const toConsumer = toTop.returnsScalarConsumer() ? "to_in" : `to_in[${to.vectorIndex}]`;
+    const stream = fromTop.streamCppType();
+    lines.push(`  auto from_dn = ${stream}{};`);
+    lines.push(`  from_dn.push_back(${toConsumer});`);
+    if (fromTop.registersHostPins()) {
+      lines.push(`  ${fromIdent}->connectPin(static_cast<u8>(${from.vectorIndex}), static_cast<${stream}&&>(from_dn));`);
+      lines.push(`  ${fromIdent}->apply();`);
+    } else if (fromTop.exposesConsumerBank()) {
+      lines.push(`  auto from_in = ${fromIdent}->apply(static_cast<u8>(1));`);
+      lines.push(`  from_in[${from.vectorIndex}] = ${toConsumer};`);
+    } else if (fromTop.returnsIndexedConsumers() && !fromTop.exposesConsumerBank()) {
+      lines.push(`  auto from_in = ${fromIdent}->apply(static_cast<${stream}&&>(from_dn), static_cast<u8>(1));`);
+    } else if (fromTop.returnsScalarConsumer()) {
+      lines.push(`  auto from_in = ${fromIdent}->apply(static_cast<${stream}&&>(from_dn));`);
+    } else {
+      lines.push(`  ${fromIdent}->apply(static_cast<${stream}&&>(from_dn));`);
+    }
+    lines.push("}");
+    lines.push("");
+    return lines.join("\n");
+  }
+
+  private emitProbeConstruct(
+    ident: string,
+    block: DiagramBlock,
+    topology: BlockPortTopology,
+    numericId: number,
+  ): string[] {
+    const conf = block.getAllConf();
+    const args: string[] = [`${Math.trunc(numericId)}u`];
+    const prefix: string[] = [];
+    const ctorParams = topology.constructorParameters().slice(1);
+    const confProps = [...block.definition.config.values()];
+    ctorParams.forEach((param, index) => {
+      const prop = confProps[index];
+      if (!prop) return;
+      if (CppTypeNames.isArrayQualType(param.qualType)) {
+        const arr = `${ident}_${prop.id}`;
+        const values = arrayValues(conf, prop.id, prop.defaultValue);
+        prefix.push(`auto ${arr} = ${param.qualType}{};`);
+        for (const value of values) prefix.push(`${arr}.push_back(${value});`);
+        args.push(`static_cast<${param.qualType}&&>(${arr})`);
+      } else {
+        args.push(CppTypeNames.literalFromClang(param.qualType, conf[prop.id] ?? prop.defaultValue ?? 0));
+      }
+    });
+    return [...prefix, `auto* ${ident} = new ${block.definition.cppClass}(${args.join(", ")});`];
+  }
+
+  private emitProbePortVars(
+    ident: string,
+    block: DiagramBlock,
+    topology: BlockPortTopology,
+  ): string[] {
+    const stream = topology.streamCppType();
+    const dn = `${ident}_dn`;
+    const lines: string[] = [`auto ${dn} = ${stream}{};`];
+    const bind = (direction: "input" | "output", portId: string, expr: string) => {
+      lines.push(`auto ${portVarName(block.id, direction, portId)} = ${expr};`);
+    };
+
+    if (topology.exposesConsumerBank()) {
+      lines.push(`auto ${ident}_in = ${ident}->apply(static_cast<u8>(1));`);
+      for (const port of block.getOutputPorts()) bind("output", port.id, `${ident}_in`);
+      return lines;
     }
 
-    return types;
+    if (topology.registersHostPins()) {
+      lines.push(`${ident}->connectPin(static_cast<u8>(0), static_cast<${stream}&&>(${dn}));`);
+      lines.push(`${ident}->apply();`);
+      for (const port of block.getInputPorts()) bind("input", port.id, dn);
+      return lines;
+    }
+
+    if (topology.returnsScalarConsumer()) {
+      lines.push(`auto ${ident}_in = ${ident}->apply(static_cast<${stream}&&>(${dn}));`);
+      for (const port of block.getInputPorts()) bind("input", port.id, `${ident}_in`);
+      for (const port of block.getOutputPorts()) bind("output", port.id, `${dn}[0]`);
+      return lines;
+    }
+
+    if (topology.returnsIndexedConsumers()) {
+      lines.push(`auto ${ident}_in = ${ident}->apply(static_cast<${stream}&&>(${dn}), static_cast<u8>(1));`);
+      for (const port of block.getInputPorts()) bind("input", port.id, `${ident}_in`);
+      for (const port of block.getOutputPorts()) bind("output", port.id, dn);
+      return lines;
+    }
+
+    lines.push(`${ident}->apply(static_cast<${stream}&&>(${dn}));`);
+    for (const port of block.getInputPorts()) bind("input", port.id, dn);
+    return lines;
+  }
+
+  private emitProbeApply(
+    ident: string,
+    topology: BlockPortTopology,
+    resultIdent: string,
+  ): string[] {
+    const stream = topology.streamCppType();
+    const dn = `${ident}_dn`;
+    if (topology.exposesConsumerBank()) {
+      return [`auto ${resultIdent} = ${ident}->apply(static_cast<u8>(1));`];
+    }
+    if (topology.registersHostPins()) {
+      return [
+        `auto ${dn} = ${stream}{};`,
+        `${ident}->connectPin(static_cast<u8>(0), static_cast<${stream}&&>(${dn}));`,
+        `${ident}->apply();`,
+        `auto ${resultIdent} = ${dn};`,
+      ];
+    }
+    if (topology.returnsScalarConsumer()) {
+      return [`auto ${dn} = ${stream}{};`, `auto ${resultIdent} = ${ident}->apply(static_cast<${stream}&&>(${dn}));`];
+    }
+    if (topology.returnsIndexedConsumers()) {
+      return [
+        `auto ${dn} = ${stream}{};`,
+        `auto ${resultIdent} = ${ident}->apply(static_cast<${stream}&&>(${dn}), static_cast<u8>(1));`,
+      ];
+    }
+    return [`auto ${dn} = ${stream}{};`, `${ident}->apply(static_cast<${stream}&&>(${dn}));`, `auto ${resultIdent} = ${dn};`];
   }
 
   private expandVectorLength(
@@ -269,11 +423,14 @@ export class Diagram implements IDiagram {
 
     const conn = new Connection(connId, from, to);
     this.connections.set(connId, conn);
+    this.inferredPortTypes = undefined;
     return conn;
   }
 
   disconnect(connectionId: string): boolean {
-    return this.connections.delete(connectionId);
+    const removed = this.connections.delete(connectionId);
+    if (removed) this.inferredPortTypes = undefined;
+    return removed;
   }
 
   getConnection(connectionId: string): Connection | undefined {
@@ -353,4 +510,15 @@ export class Diagram implements IDiagram {
     const { compiler: comp, options } = this.resolveCompiler(optionsOrCompiler, compiler);
     return comp.run(this, runtime, options);
   }
+}
+
+function portVarName(blockId: string, direction: "input" | "output", portId: string): string {
+  return `port_${cppIdent(blockId)}_${direction}_${cppIdent(portId)}`;
+}
+
+function arrayValues(conf: Record<string, unknown>, key: string, fallback: unknown): number[] {
+  const raw = conf[key];
+  if (Array.isArray(raw) && raw.length > 0) return raw.map((entry) => Number(entry));
+  if (Array.isArray(fallback) && fallback.length > 0) return fallback.map((entry) => Number(entry));
+  return [0];
 }

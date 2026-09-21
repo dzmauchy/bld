@@ -28,6 +28,12 @@ export class PortDefinition extends PropertyDefinition {
   get isOutput(): boolean {
     return this.direction === "output";
   }
+
+  get lengthBindConfId(): string | undefined {
+    const concept = this.concept as { length?: { bind?: { type?: string; id?: string } } } | undefined;
+    const bind = concept?.length?.bind;
+    return bind?.type === "conf" && bind.id ? bind.id : undefined;
+  }
 }
 
 export class InputPortDefinition extends PortDefinition {
