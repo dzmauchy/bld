@@ -8,9 +8,6 @@ using Pss = Consumer<T>;
 template <typename T>
 using VectorizedInput = Array<T*>;
 
-template <typename T>
-using VectorizedOutput = Function<VectorizedInput<T>, u8>;
-
 class NativeBlock : public Block {
  public:
   using Block::Block;
@@ -126,19 +123,9 @@ class AggregateF32 : public NativeBlock {
  public:
   ~AggregateF32() override = default;
 
-  class Apply final : public VectorizedOutput<Pss<F32>> {
-   public:
-    explicit Apply(AggregateF32& aggregate) : aggregate_(&aggregate) {}
-
-    VectorizedInput<Pss<F32>> operator()(u8 n) override { return aggregate_->bindInputs(n); }
-
-   private:
-    AggregateF32* aggregate_;
-  };
-
-  [[nodiscard]] auto apply(VectorizedInput<Pss<F32>> downstream) {
+  [[nodiscard]] auto apply(VectorizedInput<Pss<F32>> downstream, u8 n) {
     downstream_ = static_cast<VectorizedInput<Pss<F32>>&&>(downstream);
-    return Apply(*this);
+    return bindInputs(n);
   }
 
   [[nodiscard]] auto precision() const { return precision_; }
@@ -177,7 +164,7 @@ class AggregateF32 : public NativeBlock {
     AggregateF32* aggregate_;
   };
 
-  [[nodiscard]] auto bindInputs(auto n) -> VectorizedInput<Pss<F32>> {
+  [[nodiscard]] auto bindInputs(u8 n) -> VectorizedInput<Pss<F32>> {
     values_.assign(n, nan_f32());
     inputs_.clear();
     inputs_.reserve(n);
@@ -336,17 +323,7 @@ class ScopeF32 : public NativeBlock {
  public:
   explicit ScopeF32(u32 blockId, u32 period = 60, u32 precision = 10) : NativeBlock(blockId), period_(period), precision_(precision) {}
 
-  class Apply final : public VectorizedOutput<Pss<F32>> {
-   public:
-    explicit Apply(ScopeF32& scope) : scope_(&scope) {}
-
-    VectorizedInput<Pss<F32>> operator()(u8 n) override { return scope_->makeChannels(n); }
-
-   private:
-    ScopeF32* scope_;
-  };
-
-  [[nodiscard]] auto apply() { return Apply(*this); }
+  [[nodiscard]] auto apply(u8 n) { return makeChannels(n); }
 
   [[nodiscard]] auto period() const { return period_; }
   [[nodiscard]] auto precision() const { return precision_; }
@@ -363,7 +340,7 @@ class ScopeF32 : public NativeBlock {
     u8 channel_;
   };
 
-  [[nodiscard]] auto makeChannels(auto n) -> VectorizedInput<Pss<F32>> {
+  [[nodiscard]] auto makeChannels(u8 n) -> VectorizedInput<Pss<F32>> {
     channels_.clear();
     channels_.reserve(n);
     for (u8 i = 0; i < n; ++i) {

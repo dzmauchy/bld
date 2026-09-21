@@ -55,7 +55,7 @@ describe("CppDiagramBuilder", () => {
     });
     expect(cpp).toContain("new push::f32::sinks::ScopeF32(0u, 60u, 10u)");
     expect(cpp).toContain("new push::f32::sources::ConstF32(1u, 3.5f)");
-    expect(cpp).toContain("s_in = s->apply()(static_cast<u8>(1))");
+    expect(cpp).toContain("s_in = s->apply(static_cast<u8>(1))");
     expect(cpp).toContain("c->apply({s_in[0]})");
   });
 
@@ -66,7 +66,7 @@ describe("CppDiagramBuilder", () => {
       connect(d, "c", "v", 0, "s", "sink", 0);
       connect(d, "c", "v", 0, "s", "sink", 1);
     });
-    expect(cpp).toContain("s->apply()(static_cast<u8>(2))");
+    expect(cpp).toContain("s->apply(static_cast<u8>(2))");
     expect(cpp).toContain("c->apply({s_in[0], s_in[1]})");
   });
 
@@ -80,7 +80,7 @@ describe("CppDiagramBuilder", () => {
       connect(d, "cs", "cos", 0, "sn", "v", 0);
       connect(d, "sn", "sin", 0, "s", "sink", 0);
     });
-    expect(cpp.indexOf("s->apply()")).toBeLessThan(cpp.indexOf("sn->apply"));
+    expect(cpp.indexOf("s->apply(")).toBeLessThan(cpp.indexOf("sn->apply"));
     expect(cpp.indexOf("sn->apply")).toBeLessThan(cpp.indexOf("cs->apply"));
     expect(cpp.indexOf("cs->apply")).toBeLessThan(cpp.indexOf("zero->apply"));
     expect(cpp).toContain("sn_in = sn->apply({s_in[0]})");
@@ -98,8 +98,7 @@ describe("CppDiagramBuilder", () => {
       connect(d, "a", "v", 0, "p", "v", 0);
       connect(d, "b", "v", 0, "p", "v", 1);
     });
-    expect(cpp).toContain("p_out = p->apply({s_in[0]})");
-    expect(cpp).toContain("p_in = p_out(static_cast<u8>(2))");
+    expect(cpp).toContain("p_in = p->apply({s_in[0]}, static_cast<u8>(2))");
     expect(cpp).toContain("a->apply({p_in[0]})");
     expect(cpp).toContain("b->apply({p_in[1]})");
   });
@@ -154,7 +153,7 @@ describe("CppDiagramBuilder", () => {
       d.addBlock("scope_f32", { x: 0, y: 0 }, "s");
       connect(d, "c", "v", 0, "s", "sink", 0);
     });
-    expect(cpp.indexOf("s->apply()")).toBeLessThan(cpp.indexOf("c->apply"));
+    expect(cpp.indexOf("s->apply(")).toBeLessThan(cpp.indexOf("c->apply"));
   });
 
   test("rejects diagrams with cycles", () => {

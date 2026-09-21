@@ -67,7 +67,7 @@ describe("diagram C++ generation topologies", () => {
       connect(d, "p", "p", 0, "s", "sink", 0);
     });
     expect(cpp).toContain("theta->apply({c_in, n_in})");
-    expect(cpp).toContain("p_in = p_out(static_cast<u8>(2))");
+    expect(cpp).toContain("p_in = p->apply({s_in[0]}, static_cast<u8>(2))");
   });
 
   test("gpio AND product into scope", () => {

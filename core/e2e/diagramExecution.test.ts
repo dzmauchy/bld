@@ -154,7 +154,7 @@ describe("E2E diagram C++ generation", () => {
     );
     expect(cpp).toContain("CosGenF32");
     expect(cpp).toContain("SinGenF32");
-    expect(cpp).toContain("s->apply()(static_cast<u8>(2))");
+    expect(cpp).toContain("s->apply(static_cast<u8>(2))");
   });
 
   test("rand and pulse generators", () => {
@@ -184,7 +184,7 @@ describe("E2E diagram C++ generation", () => {
         .connect("sn", "sin", 0, "s", "sink", 0)
         .build(),
     );
-    expect(cpp.indexOf("s->apply()")).toBeLessThan(cpp.indexOf("sn->apply"));
+    expect(cpp.indexOf("s->apply(")).toBeLessThan(cpp.indexOf("sn->apply"));
     expect(cpp).toContain("zero->apply({c_in})");
   });
 
@@ -201,7 +201,7 @@ describe("E2E diagram C++ generation", () => {
         .build(),
     );
     expect(cpp).toContain("ProductF32");
-    expect(cpp).toContain("p_in = p_out(static_cast<u8>(2))");
+    expect(cpp).toContain("p_in = p->apply({s_in[0]}, static_cast<u8>(2))");
   });
 
   test("sum of three constants", () => {
@@ -292,9 +292,9 @@ describe("E2E diagram C++ generation", () => {
         .connect("p_root", "p", 0, "s", "sink", 0)
         .build(),
     );
-    expect(cpp).toContain("p_left_out");
-    expect(cpp).toContain("p_right_out");
-    expect(cpp).toContain("p_root_out");
+    expect(cpp).toContain("p_left_in");
+    expect(cpp).toContain("p_right_in");
+    expect(cpp).toContain("p_root_in");
   });
 
   test("gpio into product with a constant", () => {

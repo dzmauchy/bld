@@ -122,16 +122,13 @@ export class CppDiagramBuilder extends DiagramSourceBuilder {
     switch (item.binding.kind) {
       case "sink": {
         const width = Math.max(1, incoming + 1);
-        return [`auto ${item.ident}_in = ${item.ident}->apply()(${u8Lit(width)});`];
+        return [`auto ${item.ident}_in = ${item.ident}->apply(${u8Lit(width)});`];
       }
       case "unary":
         return [`auto ${item.ident}_in = ${item.ident}->apply({${downstream.join(", ")}});`];
       case "aggregate": {
         const width = Math.max(1, incoming + 1);
-        return [
-          `auto ${item.ident}_out = ${item.ident}->apply({${downstream.join(", ")}});`,
-          `auto ${item.ident}_in = ${item.ident}_out(${u8Lit(width)});`,
-        ];
+        return [`auto ${item.ident}_in = ${item.ident}->apply({${downstream.join(", ")}}, ${u8Lit(width)});`];
       }
       case "source":
         return [`${item.ident}->apply({${downstream.join(", ")}});`];
