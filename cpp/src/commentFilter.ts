@@ -1,11 +1,13 @@
 /**
  * Removes the diagram's JSON metadata comment before in-browser clang sees it.
  * The comment stays in the original diagram source that core parses. An inert
- * declaration stabilizes generated bodies below the proven-safe size floor.
+ * declaration then snaps the file to a source size this clang accepts for
+ * wasm32-unknown-emscripten.
  */
 export class DiagramMetaCommentFilter {
-  private static readonly shortSourceLimitBytes = 512;
-  private static readonly shortSourceTargetBytes = 857;
+  // wasm32-unknown-emscripten clang aborts on some source sizes. After the
+  // diagram comment is removed, snap the file to the next size that frontend accepts.
+  private static readonly safeSourceSizes = [1400, 2400, 3600, 4800];
 
   apply(source: string): string {
     const normalized = this.stripLineRuns(this.stripBlockComments(source));
@@ -49,15 +51,17 @@ export class DiagramMetaCommentFilter {
 
   private addShortSourcePreamble(source: string): string {
     const byteLength = new TextEncoder().encode(source).byteLength;
-    if (byteLength > DiagramMetaCommentFilter.shortSourceLimitBytes) return source;
     const mountOffset = source.indexOf('extern "C" void mount()');
     if (mountOffset < 0) return source;
     const prefix = 'static constexpr char bld_clang_source_padding[] = "';
     const suffix = '";\n';
-    const payloadBytes = DiagramMetaCommentFilter.shortSourceTargetBytes - byteLength - prefix.length - suffix.length;
-    if (payloadBytes < 0) return source;
-    const declaration = `${prefix}${"x".repeat(payloadBytes)}${suffix}`;
-    return `${source.slice(0, mountOffset)}${declaration}${source.slice(mountOffset)}`;
+    for (const target of DiagramMetaCommentFilter.safeSourceSizes) {
+      const payloadBytes = target - byteLength - prefix.length - suffix.length;
+      if (payloadBytes < 1) continue;
+      const declaration = `${prefix}${"x".repeat(payloadBytes)}${suffix}`;
+      return `${source.slice(0, mountOffset)}${declaration}${source.slice(mountOffset)}`;
+    }
+    return source;
   }
 
   private isLineComment(line: string): boolean {

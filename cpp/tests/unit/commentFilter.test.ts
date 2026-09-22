@@ -19,7 +19,7 @@ describe("DiagramMetaCommentFilter", () => {
     expect(filtered).toContain("#include <base.hpp>");
     expect(filtered).toContain("static constexpr char bld_clang_source_padding[]");
     expect(filtered.indexOf("bld_clang_source_padding")).toBeLessThan(filtered.indexOf('extern "C" void mount()'));
-    expect(new TextEncoder().encode(filtered)).toHaveLength(857);
+    expect(new TextEncoder().encode(filtered)).toHaveLength(1400);
   });
 
   test("drops a block-comment diagram and keeps header kind comments", () => {
@@ -38,7 +38,7 @@ describe("DiagramMetaCommentFilter", () => {
   });
 
   test("does not pad a metadata-free body above the short-source limit", () => {
-    const body = `extern "C" void mount() { static constexpr char payload[] = "${"x".repeat(600)}"; }`;
+    const body = `extern "C" void mount() { static constexpr char payload[] = "${"x".repeat(5000)}"; }`;
     const source = [
       "// {\"id\":\"large\",\"blocks\":{},\"connections\":{}}",
       body,

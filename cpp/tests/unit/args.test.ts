@@ -31,6 +31,7 @@ describe("toolchain argument builders", () => {
   test("clang compiles one source to an object for the browser Emscripten target", () => {
     const args = new ClangArgumentBuilder().build("/work/add.cpp", "/work/add.o");
     expect(args).toContain("--target=wasm32-unknown-emscripten");
+    expect(args).toContain("-O2");
     expect(args).toContain("--sysroot=/sysroot");
     expect(args).toContain("-resource-dir");
     expect(args).toContain("/sysroot/lib/clang/23");
