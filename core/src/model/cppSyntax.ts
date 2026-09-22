@@ -4,9 +4,7 @@
  * Tree-sitter C++ front end. Header and diagram comments are read from this
  * tree instead of a hand-written scanner.
  */
-import { createRequire } from "node:module";
-import { readFileSync } from "node:fs";
-import { dirname, join } from "node:path";
+import { cppParserAssets } from "#parser-assets";
 import Parser from "web-tree-sitter";
 
 export class JsonComment {
@@ -162,16 +160,10 @@ export class TreeSitterCppSyntax extends CppSyntax {
   }
 
   private static async load(): Promise<TreeSitterCppSyntax> {
-    await Parser.init();
-    const language = await Parser.Language.load(cppWasmBytes());
+    await Parser.init(cppParserAssets.initOptions());
+    const language = await Parser.Language.load(await cppParserAssets.language());
     const parser = new Parser();
     parser.setLanguage(language);
     return new TreeSitterCppSyntax(parser);
   }
-}
-
-function cppWasmBytes(): Uint8Array {
-  const require = createRequire(import.meta.url);
-  const pkg = require.resolve("tree-sitter-cpp/package.json");
-  return new Uint8Array(readFileSync(join(dirname(pkg), "tree-sitter-cpp.wasm")));
 }

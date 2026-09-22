@@ -4,6 +4,12 @@
   "private": true,
   "type": "module",
   "license": "AGPL-3.0-only",
+  "imports": {
+    "#parser-assets": {
+      "browser": "./src/parser/browserCppParserAssets.ts",
+      "default": "./src/parser/nodeCppParserAssets.ts"
+    }
+  },
   "exports": {
     ".": {
       "types": "./dist/index.d.ts",
