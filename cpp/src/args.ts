@@ -1,5 +1,6 @@
 export type ClangCompileOptions = {
   resourceDir: string;
+  target: string;
   std: string;
   optimize: string;
 };
@@ -7,7 +8,8 @@ export type ClangCompileOptions = {
 export class ClangArgumentBuilder {
   constructor(private readonly options: ClangCompileOptions = {
     resourceDir: "/sysroot/lib/clang/23",
-    std: "c++20",
+    target: "wasm32-unknown-unknown",
+    std: "c++23",
     optimize: "2",
   }) {}
 
@@ -17,7 +19,7 @@ export class ClangArgumentBuilder {
 
   syntaxOnlyAstDump(sourcePath: string): string[] {
     return [
-      "--target=wasm32-unknown-emscripten",
+      `--target=${this.options.target}`,
       "--sysroot=/sysroot",
       "-resource-dir",
       this.options.resourceDir,
@@ -37,7 +39,7 @@ export class ClangArgumentBuilder {
 
   emitAst(sourcePath: string): string[] {
     return [
-      "--target=wasm32-unknown-emscripten",
+      `--target=${this.options.target}`,
       "--sysroot=/sysroot",
       "-resource-dir",
       this.options.resourceDir,
@@ -57,7 +59,7 @@ export class ClangArgumentBuilder {
 
   build(sourcePath: string, objectPath: string): string[] {
     return [
-      "--target=wasm32-unknown-emscripten",
+      `--target=${this.options.target}`,
       "--sysroot=/sysroot",
       "-resource-dir",
       this.options.resourceDir,

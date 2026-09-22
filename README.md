@@ -179,7 +179,7 @@ flowchart TD
     
     subgraph ClangLld["cpp clang/lld"]
         C --> D["ICppCompiler.compile(files)"]
-        D --> E["clang++ -std=c++23 wasm32-emscripten"]
+        D --> E["clang++ -std=c++23 wasm32-unknown-unknown"]
         E --> F["wasm-ld --export-all"]
     end
     
