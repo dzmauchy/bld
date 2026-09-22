@@ -1,6 +1,6 @@
 # BASE block library (C++)
 
-A header-only C++ library. Exposed types, namespaces, blocks, ports, and config carry a JSON comment that core parses with tree-sitter-cpp. Production sources are headers; the Meson target only builds the native tests.
+A header-only C++ library. Exposed types, namespaces, blocks, ports, and config carry a JSON comment that core reads from the clang AST. Production sources are headers; the Meson target only builds the native tests.
 
 ## Building
 

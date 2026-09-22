@@ -1,7 +1,9 @@
 /**
  * @title Clang AST Dumper
  *
- * Invokes `clang++ -fsyntax-only -Xclang -ast-dump=json` and returns the dump.
+ * Invokes `clang++ -fsyntax-only -Xclang -ast-dump=json -fparse-all-comments`
+ * and returns the dump. Comments ride the AST as FullComment nodes, so header
+ * and diagram metadata needs no separate C++ parser.
  * Host (Node) and wasm dumpers register themselves against this contract.
  */
 export class ClangDumpResult {
@@ -43,4 +45,8 @@ export abstract class ClangAstDumper {
   }
 
   abstract dump(files: Map<string, string>, mainFile: string): ClangDumpResult;
+
+  dumpAsync(files: Map<string, string>, mainFile: string): Promise<ClangDumpResult> {
+    return Promise.resolve(this.dump(files, mainFile));
+  }
 }

@@ -6,7 +6,6 @@ import { loadAsset, resolveUrl } from "./appAssets";
 import type { RawBlockCatalogEntry } from "./blockDefinition";
 import { CompilationModel } from "./compiler";
 import { CppBlockCatalog } from "./cppBlockCatalog";
-import { TreeSitterCppSyntax } from "./cppSyntax";
 import { HeaderCatalog } from "./headerCatalog";
 import { Palette } from "./palette";
 
@@ -96,16 +95,18 @@ export class Library {
       ? JSON.parse(await loadAsset(manifestOrUrl))
       : manifestOrUrl;
 
-    const sources: string[] = [];
+    const files = new Map<string, string>();
+    const mains: string[] = [];
     const compilationModel = new CompilationModel();
     for (const headerUrl of manifest.headers ?? []) {
       const url = baseUrl ? resolveUrl(headerUrl, baseUrl) : headerUrl;
       const source = await loadAsset(url);
-      sources.push(source);
-      compilationModel.addFile(headerFileName(url), source);
+      const name = headerFileName(url);
+      files.set(name, source);
+      mains.push(name);
+      compilationModel.addFile(name, source);
     }
-    const syntax = await TreeSitterCppSyntax.create();
-    const catalog = HeaderCatalog.parse(sources, syntax);
+    const catalog = await HeaderCatalog.parse(files, mains);
     return Library.fromManifest(manifest, {
       types: catalog.types,
       namespaces: catalog.namespaces,

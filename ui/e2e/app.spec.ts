@@ -29,25 +29,13 @@ test("copies all JSON schemas into ui/dist/schemas", () => {
   expect(readdirSync(distSchemas).sort()).toEqual(CoreSchemaCatalog.shared.publishedFiles());
 });
 
-test("client bundle loads tree-sitter from wasm assets", () => {
+test("client bundle has no C++ parser wasm assets", () => {
   const scripts = collect(distDir, ".js")
     .map((path) => readFileSync(path, "utf8"))
     .join("\n");
-  expect(scripts).toContain("locateFile");
-  expect(scripts).not.toContain("tree-sitter-cpp/package.json");
-  expect(scripts).not.toContain("createRequire");
-  expect(collect(distDir, ".wasm").length).toBeGreaterThanOrEqual(2);
-});
-
-test("serves tree-sitter wasm assets", async ({ request }) => {
-  const wasmFiles = collect(distDir, ".wasm").map((path) => path.slice(distDir.length).split("\\").join("/"));
-  expect(wasmFiles.length).toBeGreaterThanOrEqual(2);
-  for (const file of wasmFiles) {
-    const response = await request.get(file);
-    expect(response.ok(), file).toBeTruthy();
-    const body = Buffer.from(await response.body());
-    expect(body.subarray(0, 4).toString("utf8"), file).toBe("\0asm");
-  }
+  expect(scripts).not.toContain("tree-sitter");
+  expect(scripts).not.toContain("TreeSitter");
+  expect(collect(distDir, ".wasm")).toHaveLength(0);
 });
 
 test("serves JSON schemas from /schemas", async ({ request }) => {

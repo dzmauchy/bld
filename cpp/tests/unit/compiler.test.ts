@@ -100,6 +100,32 @@ describe("CppWasmCompiler", () => {
     expect(lld.runs[0]).toContain("/work/add.o");
     expect(lldFs.exists("/work/add.o")).toBe(true);
   });
+
+  test("emits JSON and text ASTs without stripping comments", async () => {
+    const clangFs = new MemoryFileSystem();
+    const lldFs = new MemoryFileSystem();
+    const clang = new ScriptedModuleFactory(clangFs, () => {});
+    const lld = new ScriptedModuleFactory(lldFs, () => {});
+
+    const frontend = new ClangFrontend(clang.create, "clang.wasm");
+    const linker = new WasmLinker(lld.create, "lld.wasm");
+    await frontend.boot();
+    await linker.boot();
+    const compiler = new CppWasmCompiler(frontend, linker, "sysroot.tgz");
+
+    const source = '/*{"blocks":{},"connections":{}}*/\nextern "C" void mount() {}';
+    const json = await compiler.dumpAst(new Map([["demo.cpp", source]]), "demo.cpp");
+    expect(json.ok).toBe(true);
+    expect(clang.runs.at(-1)).toContain("-ast-dump=json");
+    expect(clang.runs.at(-1)).toContain("-fparse-all-comments");
+    expect(new TextDecoder().decode(clangFs.readFile("/work/demo.cpp"))).toContain('"blocks"');
+
+    const text = await compiler.emitAst(new Map([["demo.cpp", source]]), "demo.cpp");
+    expect(text.ok).toBe(true);
+    expect(clang.runs.at(-1)).toContain("-ast-dump");
+    expect(clang.runs.at(-1)).toContain("-fparse-all-comments");
+    expect(new TextDecoder().decode(clangFs.readFile("/work/demo.cpp"))).toContain('"blocks"');
+  });
 });
 
 describe("WorkerCppWasmCompiler", () => {
@@ -122,5 +148,36 @@ describe("WorkerCppWasmCompiler", () => {
     expect(thread.posted.filter((message) => message.type === "init")).toHaveLength(1);
     expect(thread.posted.filter((message) => message.type === "compile")).toHaveLength(2);
     expect(thread.posted[0]).toMatchObject({ type: "init" });
+  });
+
+  test("dumps a JSON AST through the compiler worker", async () => {
+    const ast = { kind: "TranslationUnitDecl" };
+    const thread = new ScriptedThread((request) => {
+      if (request.type === "init") return { id: request.id as number, type: "ok" };
+      expect(request.type).toBe("dump-ast");
+      expect(request.mainFile).toBe("add.cpp");
+      return { id: request.id as number, type: "ok", result: 0, ast, stdout: "{}", stderr: "" };
+    });
+
+    const compiler = new WorkerCppWasmCompiler(thread);
+    const dump = await compiler.dumpAst(new Map([["add.cpp", "int add(int a, int b) { return a + b; }"]]), "add.cpp");
+
+    expect(dump.ok).toBe(true);
+    expect(dump.ast).toEqual(ast);
+  });
+
+  test("emits a text AST through the compiler worker", async () => {
+    const thread = new ScriptedThread((request) => {
+      if (request.type === "init") return { id: request.id as number, type: "ok" };
+      expect(request.type).toBe("emit-ast");
+      expect(request.mainFile).toBe("add.cpp");
+      return { id: request.id as number, type: "ok", result: 0, astText: "TranslationUnitDecl", stdout: "TranslationUnitDecl", stderr: "" };
+    });
+
+    const compiler = new WorkerCppWasmCompiler(thread);
+    const dump = await compiler.emitAst(new Map([["add.cpp", "int add(int a, int b) { return a + b; }"]]), "add.cpp");
+
+    expect(dump.ok).toBe(true);
+    expect(dump.astText).toBe("TranslationUnitDecl");
   });
 });
