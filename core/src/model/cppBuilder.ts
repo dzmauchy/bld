@@ -58,7 +58,7 @@ export class CppDiagramBuilder extends DiagramSourceBuilder {
       "",
       "using push::f32::F32;",
       "",
-      `/*${JSON.stringify({ id: meta.id, title: meta.title, blocks: meta.blocks, connections: meta.connections }, null, 2)}*/`,
+      diagramComment(meta),
       "extern \"C\" void mount() {",
     ];
 
@@ -267,11 +267,59 @@ function u8Lit(value: number): string {
 }
 
 function emitPushArray(ident: string, type: string, values: string[]): string[] {
-  const lines = [`auto ${ident} = ${type}{};`];
-  for (const value of values) {
-    lines.push(`${ident}.push_back(${value});`);
+  if (values.length === 0) return [`auto ${ident} = ${type}{};`];
+  // mount() must not call push_back. More than one call in that function
+  // crashes the in-browser clang worker, so every array is filled by arrayFrom.
+  const items = `${ident}_items`;
+  return [
+    `${elementType(type)} ${items}[${values.length}] = {${values.join(", ")}};`,
+    `auto ${ident} = arrayFrom(${items}, ${values.length}u);`,
+  ];
+}
+
+function diagramComment(meta: { id: string; title: string; blocks: unknown; connections: unknown }): string {
+  // Block comments of this JSON crash or hang in-browser clang. Short // lines do not.
+  const json = JSON.stringify({ id: meta.id, title: meta.title, blocks: meta.blocks, connections: meta.connections });
+  return wrapJson(json)
+    .split("\n")
+    .map((line) => `// ${line}`)
+    .join("\n");
+}
+
+function wrapJson(json: string, width = 16): string {
+  let line = "";
+  let inString = false;
+  let escaped = false;
+  const lines: string[] = [];
+  for (const ch of json) {
+    line += ch;
+    if (escaped) {
+      escaped = false;
+      continue;
+    }
+    if (ch === "\\") {
+      escaped = true;
+      continue;
+    }
+    if (ch === '"') {
+      inString = !inString;
+      continue;
+    }
+    if (!inString && (ch === "," || ch === "{" || ch === "}") && line.length >= width) {
+      lines.push(line);
+      line = "";
+    }
   }
-  return lines;
+  if (line.length > 0) lines.push(line);
+  return lines.join("\n");
+}
+
+function elementType(type: string): string {
+  const open = type.indexOf("<");
+  const close = type.lastIndexOf(">");
+  if (open === -1 || close <= open) return type;
+  const inner = type.slice(open + 1, close);
+  return type.startsWith("VectorizedInput<") ? `${inner}*` : inner;
 }
 
 function moveExpr(type: string, ident: string): string {

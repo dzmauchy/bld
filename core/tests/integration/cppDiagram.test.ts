@@ -66,8 +66,8 @@ describe("diagram C++ generation topologies", () => {
       connect(d, "n", "sin", 0, "p", "v", 1);
       connect(d, "p", "p", 0, "s", "sink", 0);
     });
-    expect(cpp).toContain("theta_dn.push_back(c_in)");
-    expect(cpp).toContain("theta_dn.push_back(n_in)");
+    expect(cpp).toContain("theta_dn_items[2] = {c_in, n_in}");
+    expect(cpp).toContain("auto theta_dn = arrayFrom(theta_dn_items, 2u)");
     expect(cpp).toContain("p->apply(static_cast<VectorizedInput<Pss<F32>>&&>(p_dn), static_cast<u8>(2))");
   });
 
@@ -80,8 +80,8 @@ describe("diagram C++ generation topologies", () => {
       connect(d, "gpio", "pin", 1, "p", "v", 1);
       connect(d, "p", "p", 0, "s", "sink", 0);
     });
-    expect(cpp).toContain("gpio_p0.push_back(p_in[0])");
-    expect(cpp).toContain("gpio_p1.push_back(p_in[1])");
+    expect(cpp).toContain("gpio_p0_items[1] = {p_in[0]}");
+    expect(cpp).toContain("gpio_p1_items[1] = {p_in[1]}");
     expect(cpp).toContain("register_gpio_block");
   });
 
@@ -96,8 +96,8 @@ describe("diagram C++ generation topologies", () => {
       connect(d, "c", "cos", 0, "s", "sink", 0);
       connect(d, "n", "sin", 0, "s", "sink", 1);
     });
-    expect(cpp).toContain("gpio_p0.push_back(c_in)");
-    expect(cpp).toContain("gpio_p0.push_back(n_in)");
+    expect(cpp).toContain("gpio_p0_items[2] = {c_in, n_in}");
+    expect(cpp).toContain("auto gpio_p0 = arrayFrom(gpio_p0_items, 2u)");
   });
 
   test("demo asset emits cos_gen into scope", async () => {
@@ -129,8 +129,8 @@ describe("diagram C++ generation topologies", () => {
       connect(d, "sum", "s", 0, "s", "sink", 0);
     });
     expect(cpp).toContain("SumF32");
-    expect(cpp).toContain("gpio_p0.push_back(sum_in[0])");
-    expect(cpp).toContain("gpio_p1.push_back(sum_in[1])");
+    expect(cpp).toContain("gpio_p0_items[1] = {sum_in[0]}");
+    expect(cpp).toContain("gpio_p1_items[1] = {sum_in[1]}");
   });
 
   test("wave generators wire into independent scope channels", () => {
@@ -141,7 +141,7 @@ describe("diagram C++ generation topologies", () => {
       connect(d, "cg", "v", 0, "s", "sink", 0);
       connect(d, "pg", "v", 0, "s", "sink", 1);
     });
-    expect(cpp).toContain("cg_dn.push_back(s_in[0])");
-    expect(cpp).toContain("pg_dn.push_back(s_in[1])");
+    expect(cpp).toContain("cg_dn_items[1] = {s_in[0]}");
+    expect(cpp).toContain("pg_dn_items[1] = {s_in[1]}");
   });
 });

@@ -395,7 +395,7 @@ The standard library includes fundamental building blocks for digital signal pro
 
 ## Diagram File
 
-A diagram is a C++ entry point. A JSON comment records blocks and connections, and `mount()` constructs and wires the blocks. The host `start()` calls `mount()` and then each block's `onStart`. `mount()` does not start the diagram.
+A diagram is a C++ entry point. Consecutive `//` comments hold one JSON object that records blocks and connections, and `mount()` constructs and wires the blocks. The host `start()` calls `mount()` and then each block's `onStart`. `mount()` does not start the diagram. Arrays in `mount()` are filled with `arrayFrom`.
 
 Libraries are a JSON manifest whose `headers` array lists every hpp file. Relative URLs load from internal resources. The only schema is `core/assets/schemas/library.schema.json`.
 
@@ -403,31 +403,21 @@ Libraries are a JSON manifest whose `headers` array lists every hpp file. Relati
 #include <base.hpp>
 #include "wasm_host.hpp"
 
-/*{
-  "id": "signal_generator_demo",
-  "title": "Signal Generator to Scope",
-  "blocks": {
-    "scope_0": { "ref": "scope_f32", "x": 280, "y": 100 },
-    "cos_gen_0": {
-      "ref": "cos_gen_f32",
-      "x": 40,
-      "y": 100,
-      "conf": { "precision": 11 }
-    }
-  },
-  "connections": {
-    "cos_gen_0__scope_0": {
-      "from": { "block": "cos_gen_0", "port": { "type": "input", "id": "v", "vector_index": 0 } },
-      "to": { "block": "scope_0", "port": { "type": "output", "id": "sink", "vector_index": 0 } }
-    }
-  }
-}*/
+using push::f32::F32;
+
+// {"id":"signal_generator_demo",
+// "title":"Signal Generator to Scope",
+// "blocks":{"scope_0":{"ref":"scope_f32","x":280,"y":100},
+// "cos_gen_0":{"ref":"cos_gen_f32","x":40,"y":100,"conf":{"precision":11}}},
+// "connections":{"cos_gen_0__scope_0":{
+// "from":{"block":"cos_gen_0","port":{"type":"input","id":"v","vector_index":0}},
+// "to":{"block":"scope_0","port":{"type":"output","id":"sink","vector_index":0}}}}}
 extern "C" void mount() {
   auto* scope_0 = new push::f32::sinks::ScopeF32(0u, 60u, 10u);
   auto* cos_gen_0 = new push::f32::sources::CosGenF32(1u, 11u, 1.f, 1.f, 0.f);
   auto scope_0_in = scope_0->apply(static_cast<u8>(1));
-  auto cos_gen_0_dn = VectorizedInput<Pss<F32>>{};
-  cos_gen_0_dn.push_back(scope_0_in[0]);
+  Pss<F32>* cos_gen_0_dn_items[1] = {scope_0_in[0]};
+  auto cos_gen_0_dn = arrayFrom(cos_gen_0_dn_items, 1u);
   cos_gen_0->apply(static_cast<VectorizedInput<Pss<F32>>&&>(cos_gen_0_dn));
 }
 ```

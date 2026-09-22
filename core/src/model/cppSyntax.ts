@@ -102,16 +102,25 @@ export class CppSyntaxTree {
   }
 
   diagramMeta(): Record<string, unknown> | undefined {
+    const lineRun: string[] = [];
+    const flushLines = (): Record<string, unknown> | undefined => {
+      if (lineRun.length === 0) return undefined;
+      const parsed = JsonComment.fromText(`// ${lineRun.join("\n")}`);
+      lineRun.length = 0;
+      return parsed && isDiagramMeta(parsed.value) ? parsed.value : undefined;
+    };
     for (const comment of this.root.descendants("comment")) {
-      const parsed = JsonComment.fromText(comment.text);
-      if (!parsed) continue;
-      const blocks = parsed.value.blocks;
-      const connections = parsed.value.connections;
-      if (blocks && typeof blocks === "object" && connections && typeof connections === "object") {
-        return parsed.value;
+      const text = comment.text.trim();
+      if (text.startsWith("//")) {
+        lineRun.push(text.replace(/^\/\/\s?/, ""));
+        continue;
       }
+      const fromLines = flushLines();
+      if (fromLines) return fromLines;
+      const parsed = JsonComment.fromText(text);
+      if (parsed && isDiagramMeta(parsed.value)) return parsed.value;
     }
-    return undefined;
+    return flushLines();
   }
 
   hasFunction(name: string): boolean {
@@ -120,6 +129,10 @@ export class CppSyntaxTree {
       return declarator?.namedChildren.some((child) => child.type === "identifier" && child.text === name) ?? false;
     });
   }
+}
+
+function isDiagramMeta(value: Record<string, unknown>): boolean {
+  return Boolean(value.blocks && typeof value.blocks === "object" && value.connections && typeof value.connections === "object");
 }
 
 export abstract class CppSyntax {

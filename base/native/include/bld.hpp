@@ -165,6 +165,15 @@ class Array {
 };
 
 template <typename T>
+[[nodiscard]] Array<T> arrayFrom(const T* items, u32 count) {
+  auto result = Array<T>{};
+  for (u32 i = 0; i < count; ++i) {
+    result.push_back(items[i]);
+  }
+  return result;
+}
+
+template <typename T>
 class Maybe {
  public:
   Maybe() = default;
