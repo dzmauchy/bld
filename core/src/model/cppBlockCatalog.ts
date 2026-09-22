@@ -1,8 +1,8 @@
 /**
  * @title C++ Block Catalog
  *
- * C++ view of the JSON block catalog. Class names come from `blocks.json`;
- * apply/constructor types come from a clang++ AST dump of the native library.
+ * C++ view of blocks described by header comments.
+ * Apply and constructor types come from a clang++ AST dump of the native library.
  */
 import { TypeSystem } from "../types";
 import type { BlockDefinition, PortDefinition } from "./blockDefinition";

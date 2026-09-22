@@ -1,6 +1,6 @@
 # BASE block library (C++)
 
-A minimal Meson-based C++ project.
+A header-only C++ library. Exposed types, namespaces, blocks, ports, and config carry a JSON comment that core parses with tree-sitter-cpp. Production sources are headers; the Meson target only builds the native tests.
 
 ## Building
 

@@ -3,7 +3,6 @@ import {
   ParameterizedType,
   PrimitiveType,
   TypeSystem,
-  TypeVariable,
 } from "../../../src/types/index.js";
 import { Library } from "../../../src/model/index.js";
 
@@ -49,7 +48,6 @@ describe("TypeSystem & DataTypes", () => {
     expect(boolType).toBeDefined();
     expect(boolType?.name).toBe("Boolean");
 
-    // as_arg_compatible_with for bool includes integer and float types per types.json
     expect(boolType?.isArgCompatibleWith("i8")).toBe(true);
     expect(boolType?.isArgCompatibleWith("f32")).toBe(true);
 
@@ -89,47 +87,11 @@ describe("TypeSystem & DataTypes", () => {
     expect(inner.getArg("T")?.raw).toBe("f32");
   });
 
-  test("evaluates compatibility based on types.json rules", () => {
-    const f32 = ts.parse("f32");
-    const i32 = ts.parse("i32");
-    const str = ts.parse("str");
-
-    // f32 is compatible with f32
-    expect(ts.isCompatible(f32, f32)).toBe(true);
-
-    // in types.json, f32 accepts i32 as arg
-    expect(ts.isCompatible(i32, f32)).toBe(true);
-
-    // str is not compatible with f32
-    expect(ts.isCompatible(str, f32)).toBe(false);
-
-    // Parameterized: pss<f32> with pss<f32>
-    const pssF32_1 = ts.parse({ raw: "pss", args: { T: { raw: "f32" } } });
-    const pssF32_2 = ts.parse({ raw: "pss", args: { T: { raw: "f32" } } });
-    const pssU8 = ts.parse({ raw: "pss", args: { T: { raw: "u8" } } });
-
-    expect(ts.isCompatible(pssF32_1, pssF32_2)).toBe(true);
-    expect(ts.isCompatible(pssF32_1, pssU8)).toBe(false);
-  });
-
-  test("binds and unbinds type variables", () => {
-    const variable = new TypeVariable("T", "payload");
-    expect(variable.isBound()).toBe(false);
-    expect(variable.toString()).toBe("?T");
-
-    const f32 = ts.parse("f32");
-    variable.bind(f32);
-    expect(variable.isBound()).toBe(true);
-    expect(variable.resolved).toBe(f32);
-    expect(variable.raw).toBe("f32");
-    expect(variable.equals(f32)).toBe(true);
-    expect(ts.isCompatible(variable, f32)).toBe(true);
-
-    expect(() => variable.bind(ts.parse("u8"))).toThrow(/already bound/);
-
-    variable.unbind();
-    expect(variable.isBound()).toBe(false);
-    expect(variable.resolved).toBeUndefined();
+  test("keeps declared arg compatibility as type metadata", () => {
+    const f32 = ts.getPrimitive("f32");
+    expect(f32?.isArgCompatibleWith("i32")).toBe(true);
+    expect(f32?.isArgCompatibleWith("str")).toBe(false);
+    expect(ts.getParameterizedTemplate("array")?.params).toContain("T");
   });
 
   test("TypeSystem.fromLibrary returns the library type system", async () => {

@@ -23,7 +23,6 @@ export class DiagramJsonBuilder {
   constructor(
     public readonly id: string = "e2e_diag",
     public readonly title: string = "E2E Test Diagram",
-    public readonly schema: string = "schemas/diagram.schema.json",
   ) {}
 
   addBlock(id: string, ref: string, conf?: Record<string, unknown>, x = 0, y = 0): this {
@@ -113,7 +112,6 @@ export class DiagramJsonBuilder {
 
   build(): DiagramJson {
     return {
-      $schema: this.schema,
       id: this.id,
       title: this.title,
       blocks: { ...this.blocks },
@@ -139,7 +137,7 @@ describe("E2E diagram C++ generation", () => {
     );
     expect(cpp).toContain("ConstF32");
     expect(cpp).toContain("42.5f");
-    expect(cpp).toContain("c_dn.push_back(s_in[0])");
+    expect(cpp).toContain("c_dn_items[1] = {s_in[0]}");
     expect(cpp).toContain("c->apply(static_cast<VectorizedInput<Pss<F32>>&&>(c_dn))");
   });
 
@@ -186,7 +184,7 @@ describe("E2E diagram C++ generation", () => {
         .build(),
     );
     expect(cpp.indexOf("s->apply(")).toBeLessThan(cpp.indexOf("sn->apply"));
-    expect(cpp).toContain("zero_dn.push_back(c_in)");
+    expect(cpp).toContain("zero_dn_items[1] = {c_in}");
   });
 
   test("product of two constants", () => {
@@ -202,7 +200,7 @@ describe("E2E diagram C++ generation", () => {
         .build(),
     );
     expect(cpp).toContain("ProductF32");
-    expect(cpp).toContain("p_dn.push_back(s_in[0])");
+    expect(cpp).toContain("p_dn_items[1] = {s_in[0]}");
     expect(cpp).toContain("p->apply(static_cast<VectorizedInput<Pss<F32>>&&>(p_dn), static_cast<u8>(2))");
   });
 
@@ -234,8 +232,8 @@ describe("E2E diagram C++ generation", () => {
         .build(),
     );
     expect(cpp).toContain("GpioInF32");
-    expect(cpp).toContain("gpio_p0.push_back(s_in[0])");
-    expect(cpp).toContain("gpio_p1.push_back(s_in[1])");
+    expect(cpp).toContain("gpio_p0_items[1] = {s_in[0]}");
+    expect(cpp).toContain("gpio_p1_items[1] = {s_in[1]}");
     expect(cpp).toContain("register_gpio_block");
   });
 
@@ -249,7 +247,7 @@ describe("E2E diagram C++ generation", () => {
         .connect("c", "cos", 0, "s", "sink", 0)
         .build(),
     );
-    expect(cpp).toContain("gpio_p0.push_back(c_in)");
+    expect(cpp).toContain("gpio_p0_items[1] = {c_in}");
   });
 
   test("disjoint subgraphs stay independent", () => {
@@ -263,13 +261,13 @@ describe("E2E diagram C++ generation", () => {
         .connect("const_b", "v", 0, "scope_b", "sink", 0)
         .build(),
     );
-    expect(cpp).toContain("const_a_dn.push_back(scope_a_in[0])");
-    expect(cpp).toContain("const_b_dn.push_back(scope_b_in[0])");
+    expect(cpp).toContain("const_a_dn_items[1] = {scope_a_in[0]}");
+    expect(cpp).toContain("const_b_dn_items[1] = {scope_b_in[0]}");
   });
 
-  test("loads diagram_demo.json", () => {
-    const demo = JSON.parse(readFileSync(join(here, "../assets/diagram_demo.json"), "utf8")) as DiagramJson;
-    const cpp = cppOf(demo);
+  test("loads diagram_demo.cpp", async () => {
+    const diagram = await Diagram.fromCpp(readFileSync(join(here, "../assets/diagram_demo.cpp"), "utf8"), library.palette);
+    const cpp = builder.emitDiagram(diagram);
     expect(cpp).toContain("CosGenF32");
     expect(cpp).toContain("ScopeF32");
     expect(cpp).toContain("GpioInF32");
@@ -312,8 +310,8 @@ describe("E2E diagram C++ generation", () => {
         .connect("p", "p", 0, "s", "sink", 0)
         .build(),
     );
-    expect(cpp).toContain("gpio_p0.push_back(p_in[0])");
-    expect(cpp).toContain("amp_dn.push_back(p_in[1])");
+    expect(cpp).toContain("gpio_p0_items[1] = {p_in[0]}");
+    expect(cpp).toContain("amp_dn_items[1] = {p_in[1]}");
   });
 
   test("two gpio blocks and two scopes stay independent", () => {
@@ -327,8 +325,8 @@ describe("E2E diagram C++ generation", () => {
         .connect("g1", "pin", 0, "s1", "sink", 0)
         .build(),
     );
-    expect(cpp).toContain("g0_p0.push_back(s0_in[0])");
-    expect(cpp).toContain("g1_p0.push_back(s1_in[0])");
+    expect(cpp).toContain("g0_p0_items[1] = {s0_in[0]}");
+    expect(cpp).toContain("g1_p0_items[1] = {s1_in[0]}");
     expect(cpp).toContain("register_gpio_block(2u");
     expect(cpp).toContain("register_gpio_block(3u");
   });

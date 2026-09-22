@@ -23,12 +23,13 @@ test.describe.configure({ mode: "serial" });
 
 const here = dirname(fileURLToPath(import.meta.url));
 const coreAssets = join(here, "../../core/assets");
+const nativeRoot = join(here, "../../base/native");
 
 registerAppAssets({
   "base.json": readFileSync(join(coreAssets, "base.json"), "utf8"),
-  "blocks.json": readFileSync(join(coreAssets, "blocks.json"), "utf8"),
-  "types.json": readFileSync(join(coreAssets, "types.json"), "utf8"),
-  "namespaces.json": readFileSync(join(coreAssets, "namespaces.json"), "utf8"),
+  "base/native/include/bld.hpp": readFileSync(join(nativeRoot, "include/bld.hpp"), "utf8"),
+  "base/native/src/base.hpp": readFileSync(join(nativeRoot, "src/base.hpp"), "utf8"),
+  "base/native/src/wasm_host.hpp": readFileSync(join(nativeRoot, "src/wasm_host.hpp"), "utf8"),
 });
 
 const builder = new CppDiagramBuilder(nativeLibraryFiles());
@@ -430,9 +431,8 @@ test("gpio high through product with const two", async () => {
   expect(await invoke("lastPin", [0, 0])).toBe(0);
 });
 
-test("diagram_demo.json cos_gen writes the first scope channel", async () => {
-  const demoRaw = JSON.parse(readFileSync(join(coreAssets, "diagram_demo.json"), "utf8"));
-  const diagram = Diagram.fromJSON(demoRaw, palette);
+test("diagram_demo.cpp cos_gen writes the first scope channel", async () => {
+  const diagram = await Diagram.fromCpp(readFileSync(join(coreAssets, "diagram_demo.cpp"), "utf8"), palette);
   await compileDiagram(diagram);
   await invoke("setNow", [0]);
   await invoke("tickThenObserve");

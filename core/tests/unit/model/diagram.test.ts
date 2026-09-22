@@ -7,14 +7,13 @@ import {
   Diagram,
   DiagramBlock,
   DiagramCompiler,
-  type DiagramJson,
   Library,
   Palette,
   PortEndpoint,
 } from "../../../src/model/index.js";
 
 const coreRoot = join(dirname(fileURLToPath(import.meta.url)), "../../..");
-const diagramDemoPath = join(coreRoot, "assets/diagram_demo.json");
+const diagramDemoPath = join(coreRoot, "assets/diagram_demo.cpp");
 
 let palette: Palette;
 
@@ -174,23 +173,18 @@ describe("JSON Serialization & Default Omission", () => {
     expect(scope.toJSON().conf).toBeUndefined();
   });
 
-  test("new diagrams reference the published diagram schema", () => {
-    const diagram = new Diagram("diag_1", "Test", palette);
-    expect(diagram.schema).toBe("schemas/diagram.schema.json");
-    expect(diagram.toJSON().$schema).toBe("schemas/diagram.schema.json");
-  });
+  test("round-trips diagram_demo.cpp through its connection comment", async () => {
+    const source = readFileSync(diagramDemoPath, "utf8");
+    const diagram = await Diagram.fromCpp(source, palette);
+    expect(diagram.id).toBe("2026_09_09T10_11_07_089_7865FB06");
+    expect(diagram.title).toBe("Diagram Demo");
+    expect(diagram.getBlocks()).toHaveLength(5);
+    expect(diagram.getConnections()).toHaveLength(1);
+    expect(source).toContain("void mount()");
+    expect(source).not.toContain("start(");
 
-  test("round-trips diagram_demo.json with full fidelity", () => {
-    const demoRaw = JSON.parse(readFileSync(diagramDemoPath, "utf8")) as DiagramJson;
-    const diagram = Diagram.fromJSON(demoRaw, palette);
-
-    expect(diagram.id).toBe(demoRaw.id);
-    expect(diagram.title).toBe(demoRaw.title);
-    expect(diagram.getBlocks()).toHaveLength(Object.keys(demoRaw.blocks).length);
-    expect(diagram.getConnections()).toHaveLength(Object.keys(demoRaw.connections).length);
-
-    const serialized = diagram.toJSON();
-    expect(serialized).toEqual(demoRaw);
+    const reloaded = await Diagram.fromCpp(diagram.emitText(new DiagramCompiler({ files: {} })), palette);
+    expect(reloaded.toJSON()).toEqual(diagram.toJSON());
   });
 });
 
@@ -211,7 +205,7 @@ describe("Wasm Code Generation", () => {
     );
 
     const cpp = diagram.emitText(new DiagramCompiler({ files: {} }));
-    expect(cpp).toContain("build_diagram");
+    expect(cpp).toContain("void mount()");
     expect(cpp).toContain("ScopeF32");
     expect(cpp).toContain("CosGenF32");
   });

@@ -2,6 +2,7 @@
 
 #include <bld.hpp>
 
+/*{"kind":"type","id":"pss","name":"Push stream","description":"A stream of data that can be pushed to","params":{"T":{"name":"Push stream type"}}}*/
 template <typename T>
 using Pss = Consumer<T>;
 
@@ -74,7 +75,10 @@ class NativeBlock : public Block {
   }
 };
 
-namespace push::f32 {
+/*{"kind":"namespace","name":"Push Dataflows","icon":"push-ns.svg","description":"Push Dataflows"}*/
+namespace push {
+/*{"kind":"namespace","name":"Single precision","icon":"push.f32-ns.svg","description":"Single precision push dataflows"}*/
+namespace f32 {
 
 using F32 = ::f32;
 
@@ -281,35 +285,68 @@ class WaveGenF32 : public PeriodicSourceF32 {
   u64 t0_{0};
 };
 
+/*{"kind":"namespace","name":"Transformers","icon":"push.transformers-ns.svg","description":"Transformers"}*/
 namespace transformers {
 
+/*{"kind":"block","id":"cos_f32","ns":["push","f32","transformers"],"icon":"cos.svg","title":"cos","description":"Computes the cosine of the input value"}*/
 class CosF32 : public UnaryTransformerF32 {
  public:
   explicit CosF32(u32 blockId) : UnaryTransformerF32(blockId) {}
+
+  /*{"kind":"input","vector":true,"type":{"raw":"pss","args":{"T":{"raw":"f32"}}}}*/
+  using v = Pss<F32>*;
+  /*{"kind":"output","vector":false,"type":{"raw":"pss","args":{"T":{"raw":"f32"}}}}*/
+  using cos = Pss<F32>*;
 
  protected:
   [[nodiscard]] F32 transform(F32 value) const override { return ::cos_f32(value); }
 };
 
+/*{"kind":"block","id":"sin_f32","ns":["push","f32","transformers"],"icon":"sin.svg","title":"sin","description":"Computes the sine of the input value"}*/
 class SinF32 : public UnaryTransformerF32 {
  public:
   explicit SinF32(u32 blockId) : UnaryTransformerF32(blockId) {}
+
+  /*{"kind":"input","vector":true,"type":{"raw":"pss","args":{"T":{"raw":"f32"}}}}*/
+  using v = Pss<F32>*;
+  /*{"kind":"output","vector":false,"type":{"raw":"pss","args":{"T":{"raw":"f32"}}}}*/
+  using sin = Pss<F32>*;
 
  protected:
   [[nodiscard]] F32 transform(F32 value) const override { return ::sin_f32(value); }
 };
 
+/*{"kind":"block","id":"product_f32","ns":["push","f32","transformers"],"icon":"product.svg","title":"Product","description":"Computes the product of the input values"}*/
 class ProductF32 : public AggregateF32 {
  public:
-  explicit ProductF32(u32 blockId, u32 precision = 10) : AggregateF32(blockId, precision) {}
+  explicit ProductF32(
+      u32 blockId,
+      /*{"kind":"conf","id":"precision","type":{"raw":"u32"},"control":{"type":"slider","default":10,"min":1,"max":1000,"unit":"ms"}}*/
+      u32 precision = 10)
+      : AggregateF32(blockId, precision) {}
+
+  /*{"kind":"input","vector":true,"type":{"raw":"pss","args":{"T":{"raw":"f32"}}}}*/
+  using v = Pss<F32>*;
+  /*{"kind":"output","vector":true,"type":{"raw":"pss","args":{"T":{"raw":"f32"}}}}*/
+  using p = Pss<F32>*;
 
  protected:
   [[nodiscard]] F32 combine(F32 acc, F32 value) const override { return acc * value; }
 };
 
+/*{"kind":"block","id":"sum_f32","ns":["push","f32","transformers"],"icon":"sum.svg","title":"Sum","description":"Computes the sum of the input values"}*/
 class SumF32 : public AggregateF32 {
  public:
-  explicit SumF32(u32 blockId, u32 precision = 10) : AggregateF32(blockId, precision) {}
+  explicit SumF32(
+      u32 blockId,
+      /*{"kind":"conf","id":"precision","type":{"raw":"u32"},"control":{"type":"slider","default":10,"min":1,"max":1000,"unit":"ms"}}*/
+      u32 precision = 10)
+      : AggregateF32(blockId, precision) {}
+
+  /*{"kind":"input","vector":true,"type":{"raw":"pss","args":{"T":{"raw":"f32"}}}}*/
+  using v = Pss<F32>*;
+  /*{"kind":"output","vector":true,"type":{"raw":"pss","args":{"T":{"raw":"f32"}}}}*/
+  using s = Pss<F32>*;
 
  protected:
   [[nodiscard]] F32 combine(F32 acc, F32 value) const override { return acc + value; }
@@ -317,11 +354,22 @@ class SumF32 : public AggregateF32 {
 
 }  // namespace transformers
 
+/*{"kind":"namespace","name":"Sinks","icon":"push.sinks-ns.svg","description":"Sinks"}*/
 namespace sinks {
 
+/*{"kind":"block","id":"scope_f32","ns":["push","f32","sinks"],"icon":"scope.svg","title":"Scope","description":"Displays the input values in a scope"}*/
 class ScopeF32 : public NativeBlock {
  public:
-  explicit ScopeF32(u32 blockId, u32 period = 60, u32 precision = 10) : NativeBlock(blockId), period_(period), precision_(precision) {}
+  explicit ScopeF32(
+      u32 blockId,
+      /*{"kind":"conf","id":"period","type":{"raw":"u32"},"control":{"type":"slider","default":60,"min":10,"max":600,"unit":"s"}}*/
+      u32 period = 60,
+      /*{"kind":"conf","id":"precision","type":{"raw":"u32"},"control":{"type":"slider","default":10,"min":1,"max":1000,"unit":"ms"}}*/
+      u32 precision = 10)
+      : NativeBlock(blockId), period_(period), precision_(precision) {}
+
+  /*{"kind":"output","vector":true,"type":{"raw":"pss","args":{"T":{"raw":"f32"}}}}*/
+  using sink = Pss<F32>*;
 
   [[nodiscard]] auto apply(u8 n) { return makeChannels(n); }
 
@@ -356,11 +404,22 @@ class ScopeF32 : public NativeBlock {
 
 }  // namespace sinks
 
+/*{"kind":"namespace","name":"Sources","icon":"push.sources-ns.svg","description":"Sources"}*/
 namespace sources {
 
+/*{"kind":"block","id":"gpio_in_f32","ns":["push","f32","sources"],"icon":"push.gpio_in.svg","title":"GPIO Input","description":"Reads the input value from a GPIO pin"}*/
 class GpioInF32 : public NativeBlock {
  public:
-  explicit GpioInF32(u32 blockId, u16 port = 0, Array<u8> pins = {0}) : NativeBlock(blockId), port_(static_cast<u16>(port)), pins_(static_cast<Array<u8>&&>(pins)) {}
+  explicit GpioInF32(
+      u32 blockId,
+      /*{"kind":"conf","id":"port","type":{"raw":"u16"},"control":{"type":"text_input","format":"u16hex","min":0,"max":65535}}*/
+      u16 port = 0,
+      /*{"kind":"conf","id":"pins","type":{"raw":"array","args":{"T":{"raw":"u8"}}},"control":{"type":"set_of_pins","length":{"bind":{"type":"input","id":"pin","concept":{"length":{"kind":"eq"}}}},"args":{"T":{"type":"spinner","default":0,"min":0,"max":255}},"implementation":["the control should show a row of spinners, each spinner per pin","the control should permit adding and removing pins","the pin numbers should be editable","the pin numbers should be unique and sorted ascending"]}}*/
+      Array<u8> pins = {0})
+      : NativeBlock(blockId), port_(static_cast<u16>(port)), pins_(static_cast<Array<u8>&&>(pins)) {}
+
+  /*{"kind":"input","vector":true,"type":{"raw":"pss","args":{"T":{"raw":"f32"}}},"concept":{"length":{"bind":{"type":"conf","id":"pins","control":{"length":{"kind":"eq"}}}}}}*/
+  using pin = Pss<F32>*;
 
   void connectPin(u8 pinIndex, VectorizedInput<Pss<F32>> sinks) {
     if (pinIndex >= kMaxPins) {
@@ -437,9 +496,17 @@ class GpioInF32 : public NativeBlock {
   Maybe<Close> close_{};
 };
 
+/*{"kind":"block","id":"const_f32","ns":["push","f32","sources"],"icon":"push.const.svg","title":"Constant","description":"Constant value","implementation":["the implementation should propagate the constant value across all streams"]}*/
 class ConstF32 : public NativeBlock {
  public:
-  explicit ConstF32(u32 blockId, F32 v = 1) : NativeBlock(blockId), v_(v) {}
+  explicit ConstF32(
+      u32 blockId,
+      /*{"kind":"conf","id":"v","type":{"raw":"f32"},"control":{"type":"text_input","format":"f32","default":1,"implementation":["the control should be able to define a constant value"]}}*/
+      F32 v = 1)
+      : NativeBlock(blockId), v_(v) {}
+
+  /*{"kind":"input","vector":true,"type":{"raw":"pss","args":{"T":{"raw":"f32"}}}}*/
+  using v = Pss<F32>*;
 
   void apply(VectorizedInput<Pss<F32>> downstream) {
     start_.emplace(*this, static_cast<VectorizedInput<Pss<F32>>&&>(downstream));
@@ -463,27 +530,63 @@ class ConstF32 : public NativeBlock {
   Maybe<Start> start_{};
 };
 
+/*{"kind":"block","id":"cos_gen_f32","ns":["push","f32","sources"],"icon":"push.cos-gen.svg","title":"cos","description":"Cosine generator"}*/
 class CosGenF32 : public WaveGenF32 {
  public:
-  explicit CosGenF32(u32 blockId, u32 precision = 10, F32 frequency = 1, F32 amplitude = 1, F32 phase = 0)
+  explicit CosGenF32(
+      u32 blockId,
+      /*{"kind":"conf","id":"precision","type":{"raw":"u32"},"control":{"type":"slider","default":10,"min":1,"max":1000,"unit":"ms"}}*/
+      u32 precision = 10,
+      /*{"kind":"conf","id":"frequency","type":{"raw":"f32"},"control":{"type":"text_input","default":1,"min":0.001,"max":100,"format":"f32","unit":"Hz"}}*/
+      F32 frequency = 1,
+      /*{"kind":"conf","id":"amplitude","type":{"raw":"f32"},"control":{"type":"text_input","default":1,"format":"f32"}}*/
+      F32 amplitude = 1,
+      /*{"kind":"conf","id":"phase","type":{"raw":"f32"},"control":{"type":"text_input","default":0,"format":"f32","unit":"Radians"}}*/
+      F32 phase = 0)
       : WaveGenF32(blockId, precision, frequency, amplitude, phase) {}
+
+  /*{"kind":"input","vector":true,"type":{"raw":"pss","args":{"T":{"raw":"f32"}}}}*/
+  using v = Pss<F32>*;
 
  protected:
   [[nodiscard]] F32 wave(F32 angle) const override { return ::cos_f32(angle); }
 };
 
+/*{"kind":"block","id":"sin_gen_f32","ns":["push","f32","sources"],"icon":"push.sin-gen.svg","title":"sin","description":"Sine generator"}*/
 class SinGenF32 : public WaveGenF32 {
  public:
-  explicit SinGenF32(u32 blockId, u32 precision = 10, F32 frequency = 1, F32 amplitude = 1, F32 phase = 0)
+  explicit SinGenF32(
+      u32 blockId,
+      /*{"kind":"conf","id":"precision","type":{"raw":"u32"},"control":{"type":"slider","default":10,"min":1,"max":1000,"unit":"ms"}}*/
+      u32 precision = 10,
+      /*{"kind":"conf","id":"frequency","type":{"raw":"f32"},"control":{"type":"text_input","default":1,"min":0.001,"max":100,"format":"f32","unit":"Hz"}}*/
+      F32 frequency = 1,
+      /*{"kind":"conf","id":"amplitude","type":{"raw":"f32"},"control":{"type":"text_input","default":1,"format":"f32"}}*/
+      F32 amplitude = 1,
+      /*{"kind":"conf","id":"phase","type":{"raw":"f32"},"control":{"type":"text_input","default":0,"format":"f32","unit":"Radians"}}*/
+      F32 phase = 0)
       : WaveGenF32(blockId, precision, frequency, amplitude, phase) {}
+
+  /*{"kind":"input","vector":true,"type":{"raw":"pss","args":{"T":{"raw":"f32"}}}}*/
+  using v = Pss<F32>*;
 
  protected:
   [[nodiscard]] F32 wave(F32 angle) const override { return ::sin_f32(angle); }
 };
 
+/*{"kind":"block","id":"rand_gen_f32","ns":["push","f32","sources"],"icon":"push.rand-gen.svg","title":"Random","description":"Random generator"}*/
 class RandGenF32 : public PeriodicSourceF32 {
  public:
-  explicit RandGenF32(u32 blockId, u32 precision = 10, F32 amplitude = 1) : PeriodicSourceF32(blockId, precision), amplitude_(amplitude) {}
+  explicit RandGenF32(
+      u32 blockId,
+      /*{"kind":"conf","id":"precision","type":{"raw":"u32"},"control":{"type":"slider","default":10,"min":1,"max":1000,"unit":"ms"}}*/
+      u32 precision = 10,
+      /*{"kind":"conf","id":"amplitude","type":{"raw":"f32"},"control":{"type":"text_input","default":1,"format":"f32"}}*/
+      F32 amplitude = 1)
+      : PeriodicSourceF32(blockId, precision), amplitude_(amplitude) {}
+
+  /*{"kind":"input","vector":true,"type":{"raw":"pss","args":{"T":{"raw":"f32"}}}}*/
+  using v = Pss<F32>*;
 
   [[nodiscard]] auto precision() const { return intervalMs_; }
   [[nodiscard]] auto amplitude() const { return amplitude_; }
@@ -495,10 +598,23 @@ class RandGenF32 : public PeriodicSourceF32 {
   F32 amplitude_;
 };
 
+/*{"kind":"block","id":"pulse_gen_f32","ns":["push","f32","sources"],"icon":"push.pulse-gen.svg","title":"Pulse","description":"Pulse signal generator"}*/
 class PulseGenF32 : public PeriodicSourceF32 {
  public:
-  explicit PulseGenF32(u32 blockId, F32 dutyCycle = 0.5f, F32 amplitude = 1, F32 frequency = 1, F32 phase = 0)
+  explicit PulseGenF32(
+      u32 blockId,
+      /*{"kind":"conf","id":"duty_cycle","type":{"raw":"f32"},"control":{"type":"slider","default":0.5,"min":0.0,"max":1.0,"step":0.01}}*/
+      F32 dutyCycle = 0.5f,
+      /*{"kind":"conf","id":"amplitude","type":{"raw":"f32"},"control":{"type":"text_input","default":1,"format":"f32"}}*/
+      F32 amplitude = 1,
+      /*{"kind":"conf","id":"frequency","type":{"raw":"f32"},"control":{"type":"text_input","default":1,"min":0.001,"max":100,"format":"f32","unit":"Hz"}}*/
+      F32 frequency = 1,
+      /*{"kind":"conf","id":"phase","type":{"raw":"f32"},"control":{"type":"text_input","default":0,"format":"f32","unit":"Radians"}}*/
+      F32 phase = 0)
       : PeriodicSourceF32(blockId, 1), dutyCycle_(dutyCycle), amplitude_(amplitude), frequency_(frequency), phase_(phase) {}
+
+  /*{"kind":"input","vector":true,"type":{"raw":"pss","args":{"T":{"raw":"f32"}}}}*/
+  using v = Pss<F32>*;
 
   [[nodiscard]] auto dutyCycle() const { return dutyCycle_; }
   [[nodiscard]] auto amplitude() const { return amplitude_; }
@@ -525,4 +641,5 @@ class PulseGenF32 : public PeriodicSourceF32 {
 
 }  // namespace sources
 
-}  // namespace push::f32
+}  // namespace f32
+}  // namespace push

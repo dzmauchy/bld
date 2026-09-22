@@ -55,14 +55,8 @@ describe("core public API", () => {
       .filter((name) => name.endsWith(".schema.json"))
       .sort();
     expect(schemaAssetFiles).toEqual(schemaFiles);
-    expect(schemaFiles).toEqual([
-      "blocks.schema.json",
-      "diagram.schema.json",
-      "library.schema.json",
-      "namespaces.schema.json",
-      "types.schema.json",
-    ]);
-    expect(CoreSchemaCatalog.shared.diagramSchemaPath).toBe("schemas/diagram.schema.json");
+    expect(schemaFiles).toEqual(["library.schema.json"]);
+    expect(CoreSchemaCatalog.shared.schemaNames).toEqual(["library"]);
   });
 
   test("implements strong OOP class hierarchies and abstractions", async () => {

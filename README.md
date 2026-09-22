@@ -21,9 +21,9 @@
 - [Worker Threading & Host Communication](#worker-threading--host-communication)
 - [Scope Buffers & Pin Inspection](#scope-buffers--pin-inspection)
 - [Object-Oriented Design & Class Hierarchies](#object-oriented-design--class-hierarchies)
-- [Type System & Inference](#type-system--inference)
+- [Type System](#type-system)
 - [Standard Block Library (`base`)](#standard-block-library-base)
-- [JSON Diagram Specification & Schemas](#json-diagram-specification--schemas)
+- [Diagram File](#diagram-file)
 - [Getting Started](#getting-started)
   - [Prerequisites](#prerequisites)
   - [Installation](#installation)
@@ -52,8 +52,8 @@ The project features a **client-side only** architecture:
 - **C++ Diagram Builder**: Generates C++ that instantiates `push::f32` blocks from the base library and delegates wasm compilation to the `cpp` workspace.
 - **Web Worker Thread Isolation**: All runtime execution runs off the main thread with non-blocking RPC communication and streaming pin updates.
 - **Sliding Scope Buffers**: High-rate signal capture in the browser uses a `Float32Array`/`Float64Array` ring with a single write pointer.
-- **Parametric Type System**: Full support for primitive types (`f32`, `i32`, `bool`), type variables (`?T`), and parameterized stream types (`pss<f32>`) with automatic bidirectional type inference.
-- **JSON Schema-Backed Serialization**: Clean JSON diagram format adhering to formal JSON Schemas. Properties matching default values are automatically omitted for clean version control diffs. Block refs and `cpp` class names match the native `push::f32` library.
+- **Auto-descriptive header library**: Blocks, types, namespaces, ports, and config are JSON comments on the header-only C++ base library. Core reads them with tree-sitter-cpp.
+- **Clang type checks**: Port types and connection compatibility come from `clang++` AST dumps. Configuration properties that match their defaults are omitted from the diagram comment.
 - **Production-Ready UI Stack**: Built on Solid.js, Web Awesome, dark mode by default, and bundled with Rsbuild.
 
 ---
@@ -76,8 +76,8 @@ bld/
 | Package | Purpose | Key Responsibilities |
 |---|---|---|
 | **`runtime`** | Wasm session & scopes | Worker RPC (`WasmRuntime`, `WasmSession`), WASI/env bindings, sliding scope buffers. |
-| **`base`** | Native C++ library | `push::f32` blocks in `base/native` (`ScopeF32`, `SumF32`, `ProductF32`, `GpioInF32`, generators) plus `wasm_host` exports used by generated diagrams. |
-| **`core`** | Domain model & C++ builder | `Diagram`, `Palette`, `Library`, `TypeSystem`, `CppDiagramBuilder`, `DiagramCompiler` (delegates wasm compilation to `cpp`). |
+| **`base`** | Header-only C++ library | `push::f32` blocks in `base/native` (`ScopeF32`, `SumF32`, `ProductF32`, `GpioInF32`, generators) plus `wasm_host.hpp` exports used by generated diagrams. |
+| **`core`** | Domain model & C++ builder | `Library` points at hpp URLs, `HeaderCatalog` parses JSON comments, `Diagram` is a `mount()` entry point, `CppDiagramBuilder` and `DiagramCompiler` delegate wasm compilation to `cpp`. |
 | **`cpp`** | In-browser clang/lld | Compiles generated C++ sources to wasm and executes the module in a worker. |
 | **`ui`** | User Interface & Worker Host | Solid.js web app, dark UI theme, canvas interactions, Rsbuild dev server, Cloudflare Pages deployment configuration (`wrangler.json`), browser Worker hosting (`run.worker.ts`). |
 
@@ -103,7 +103,7 @@ graph TD
     subgraph CoreDomain["Core Domain & Modeling"]
         Core["core"]
         Diag["Diagram / DiagramBlock / Connection"]
-        TS["TypeSystem & TypeInference"]
+        TS["TypeSystem & clang++ dumps"]
         CompilerFacade["DiagramCompiler"]
         Builder["CppDiagramBuilder"]
 
@@ -126,7 +126,7 @@ graph TD
 
     subgraph BaseLib["Standard Library"]
         Base["base"]
-        Native["base/native (base.hpp, wasm_host.cpp)"]
+        Native["base/native headers"]
         Base --> Native
     end
 
@@ -167,12 +167,12 @@ When a diagram is executed, `CppDiagramBuilder` emits C++ against the native bas
 
 ```mermaid
 flowchart TD
-    A["Diagram Model / DiagramJson"] --> B["CppDiagramBuilder"]
+    A["Diagram C++ / mount()"] --> B["CppDiagramBuilder"]
     
     subgraph Emit["C++ Generation"]
-        B --> B1["Map JSON refs to push::f32 classes"]
+        B --> B1["Map header comments to push::f32 classes"]
         B1 --> B2["Reverse-topo apply order (sinks before sources)"]
-        B2 --> B3["Emit diagram.cpp + native headers/host"]
+        B2 --> B3["Emit diagram.cpp mount() plus native headers"]
     end
     
     B3 --> C["Map of C++ files"]
@@ -324,9 +324,9 @@ classDiagram
 
 ---
 
-## Type System & Inference
+## Type System
 
-The type system defines safety guarantees for vector connections between block ports:
+Declared type metadata lives in JSON comments on the base headers. Connection checks and port shapes come from `clang++ -fsyntax-only -Xclang -ast-dump=json`:
 
 ```mermaid
 classDiagram
@@ -350,36 +350,26 @@ classDiagram
         +args: ReadonlyMap~string, DataType~
         +getArg(paramName) DataType
     }
-    class TypeVariable {
-        -boundType: DataType
-        +name: string
-        +isBound() boolean
-        +bind(concrete: DataType) void
-        +unbind() void
-    }
     DataType <|-- PrimitiveType
     DataType <|-- ParameterizedType
-    DataType <|-- TypeVariable
 
     class TypeSystem {
-        -types: Map~string, DataType~
-        +register(type: DataType) void
-        +resolve(descriptor: TypeDescriptor) DataType
-        +isAssignable(source: DataType, target: DataType) boolean
+        -primitives: Map~string, PrimitiveType~
+        +parse(descriptor) DataType
+        +fromCatalog(catalog) TypeSystem
     }
-    class TypeInference {
-        -typeSystem: TypeSystem
-        +inferConnection(fromType: DataType, toType: DataType) boolean
-        +unify(a: DataType, b: DataType) DataType
+    class ClangTypeCatalog {
+        +shapeFor(cppClass) BlockShape
+        +dumpProbe(source) ClangDump
     }
 
     TypeSystem --> DataType
-    TypeInference --> TypeSystem
+    ClangTypeCatalog --> DataType
 ```
 
-- **Primitive Types**: Standard scalar values: `f32`, `i32`, `i64`, `bool`, `string`.
-- **Parameterized Types**: Generic collections and stream wrappers, e.g., `pss<f32>` (push-stream scalar).
-- **Type Variables**: Unbound variables (e.g. `?T`) automatically unified during connection validation.
+- **Primitive types**: Scalars declared in `bld.hpp`, such as `f32`, `i32`, and `bool`.
+- **Parameterized types**: Stream and collection templates declared in the headers, such as `pss` and `array`.
+- **Port types**: QualTypes from clang++ dumps decide whether a connection type-checks and how `apply` is emitted.
 
 ---
 
@@ -403,47 +393,36 @@ The standard library includes fundamental building blocks for digital signal pro
 
 ---
 
-## JSON Diagram Specification & Schemas
+## Diagram File
 
-Diagrams are serialized in a declarative JSON format validated against formal JSON Schemas in `core/assets/schemas/`:
+A diagram is a C++ entry point. Consecutive `//` comments hold one JSON object that records blocks and connections, and `mount()` constructs and wires the blocks. The host `start()` calls `mount()` and then each block's `onStart`. `mount()` does not start the diagram. Arrays in `mount()` are filled with `arrayFrom`.
 
-```json
-{
-  "$schema": "schemas/diagram.schema.json",
-  "id": "signal_generator_demo",
-  "title": "Signal Generator to Scope",
-  "blocks": {
-    "cos_gen_0": {
-      "ref": "cos_gen_f32",
-      "x": 40,
-      "y": 100,
-      "conf": {
-        "precision": 10
-      }
-    },
-    "scope_0": {
-      "ref": "scope_f32",
-      "x": 280,
-      "y": 100
-    }
-  },
-  "connections": {
-    "cos_to_scope": {
-      "from": {
-        "block": "cos_gen_0",
-        "port": { "id": "v", "vector_index": 0 }
-      },
-      "to": {
-        "block": "scope_0",
-        "port": { "id": "sink", "vector_index": 0 }
-      }
-    }
-  }
+Libraries are a JSON manifest whose `headers` array lists every hpp file. Relative URLs load from internal resources. The only schema is `core/assets/schemas/library.schema.json`.
+
+```cpp
+#include <base.hpp>
+#include "wasm_host.hpp"
+
+using push::f32::F32;
+
+// {"id":"signal_generator_demo",
+// "title":"Signal Generator to Scope",
+// "blocks":{"scope_0":{"ref":"scope_f32","x":280,"y":100},
+// "cos_gen_0":{"ref":"cos_gen_f32","x":40,"y":100,"conf":{"precision":11}}},
+// "connections":{"cos_gen_0__scope_0":{
+// "from":{"block":"cos_gen_0","port":{"type":"input","id":"v","vector_index":0}},
+// "to":{"block":"scope_0","port":{"type":"output","id":"sink","vector_index":0}}}}}
+extern "C" void mount() {
+  auto* scope_0 = new push::f32::sinks::ScopeF32(0u, 60u, 10u);
+  auto* cos_gen_0 = new push::f32::sources::CosGenF32(1u, 11u, 1.f, 1.f, 0.f);
+  auto scope_0_in = scope_0->apply(static_cast<u8>(1));
+  Pss<F32>* cos_gen_0_dn_items[1] = {scope_0_in[0]};
+  auto cos_gen_0_dn = arrayFrom(cos_gen_0_dn_items, 1u);
+  cos_gen_0->apply(static_cast<VectorizedInput<Pss<F32>>&&>(cos_gen_0_dn));
 }
 ```
 
-> **Design Note on Serialization**:
-> To ensure clean git diffs and compact payloads, block configuration properties set to their default schema values are **omitted** from JSON output.
+Block configuration properties set to their default values are omitted from the JSON comment.
 
 ---
 
@@ -525,7 +504,7 @@ The repository follows a clean, three-layer test layout:
 ```
 
 - **Unit Tests**: Verify isolated models (`Diagram`, `CppDiagramBuilder`, `CppBlockCatalog`, `TypeSystem`, `SlidingScopeBuffer`).
-- **Integration Tests**: Verify generated C++ matches JSON block refs and native `push::f32` class names.
+- **Integration Tests**: Verify generated `mount()` matches header block refs and native `push::f32` class names.
 - **E2E Tests**: Node generation tests in `core/e2e`, and in-browser clang/lld compile+run tests in `cpp/e2e/diagram.spec.ts` covering scopes and GPIO.
 
 ---

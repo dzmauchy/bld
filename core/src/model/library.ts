@@ -6,6 +6,8 @@ import { loadAsset, resolveUrl } from "./appAssets";
 import type { RawBlockCatalogEntry } from "./blockDefinition";
 import { CompilationModel } from "./compiler";
 import { CppBlockCatalog } from "./cppBlockCatalog";
+import { TreeSitterCppSyntax } from "./cppSyntax";
+import { HeaderCatalog } from "./headerCatalog";
 import { Palette } from "./palette";
 
 export {
@@ -28,9 +30,7 @@ export interface PackageManifest {
   id: string;
   name: string;
   icon?: string;
-  types?: string[];
-  namespaces?: string[];
-  blocks?: string[];
+  headers: string[];
 }
 
 export interface LibrarySources {
@@ -96,26 +96,21 @@ export class Library {
       ? JSON.parse(await loadAsset(manifestOrUrl))
       : manifestOrUrl;
 
-    const loadCatalog = async <T>(urls?: string[]): Promise<Record<string, T>> => {
-      const result: Record<string, T> = {};
-      for (const itemUrl of urls ?? []) {
-        const url = baseUrl ? resolveUrl(itemUrl, baseUrl) : itemUrl;
-        const parsed = JSON.parse(await loadAsset(url)) as Record<string, T>;
-        for (const [k, v] of Object.entries(parsed)) {
-          if (k !== "$schema") result[k] = v;
-        }
-      }
-      return result;
-    };
-
-    const allTypes = await loadCatalog<TypeCatalogEntry>(manifest.types);
-    const allNamespaces = await loadCatalog<unknown>(manifest.namespaces);
-    const allBlocks = await loadCatalog<RawBlockCatalogEntry>(manifest.blocks);
-
+    const sources: string[] = [];
+    const compilationModel = new CompilationModel();
+    for (const headerUrl of manifest.headers ?? []) {
+      const url = baseUrl ? resolveUrl(headerUrl, baseUrl) : headerUrl;
+      const source = await loadAsset(url);
+      sources.push(source);
+      compilationModel.addFile(headerFileName(url), source);
+    }
+    const syntax = await TreeSitterCppSyntax.create();
+    const catalog = HeaderCatalog.parse(sources, syntax);
     return Library.fromManifest(manifest, {
-      types: allTypes,
-      namespaces: allNamespaces,
-      blocks: allBlocks,
+      types: catalog.types,
+      namespaces: catalog.namespaces,
+      blocks: catalog.blocks,
+      compilationModel,
     });
   }
 
@@ -127,4 +122,10 @@ export class Library {
   static getBaseSync(): Library | undefined {
     return Library.base;
   }
+}
+
+function headerFileName(url: string): string {
+  const path = url.split("?")[0] ?? url;
+  const slash = Math.max(path.lastIndexOf("/"), path.lastIndexOf("\\"));
+  return slash === -1 ? path : path.slice(slash + 1);
 }

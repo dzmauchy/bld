@@ -18,14 +18,9 @@ export abstract class SchemaCatalog {
 export class CoreSchemaCatalog extends SchemaCatalog {
   static readonly shared = new CoreSchemaCatalog();
 
-  readonly schemaNames = ["blocks", "diagram", "library", "namespaces", "types"] as const;
+  readonly schemaNames = ["library"] as const;
   readonly publicDirectory = "schemas";
-
-  get diagramSchemaPath(): string {
-    return this.publishedPath("diagram");
-  }
 }
 
 export const coreSchemaCatalog = CoreSchemaCatalog.shared;
 export const schemaAssetFiles = CoreSchemaCatalog.shared.publishedFiles();
-export const diagramSchemaPath = CoreSchemaCatalog.shared.diagramSchemaPath;

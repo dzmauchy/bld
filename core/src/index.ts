@@ -9,7 +9,6 @@ export {
   CoreSchemaCatalog,
   SchemaCatalog,
   coreSchemaCatalog,
-  diagramSchemaPath,
   schemaAssetFiles,
 } from "./schemaAssets";
 

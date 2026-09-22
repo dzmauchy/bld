@@ -14,8 +14,10 @@
     "./*": "./src/*"
   },
   "dependencies": {
+    "base": "*",
     "runtime": "*",
-    "base": "*"
+    "tree-sitter-cpp": "^0.23.4",
+    "web-tree-sitter": "^0.24.7"
   },
   "scripts": {
     "build": "tsc -b && tsc -b tsconfig.test.json",

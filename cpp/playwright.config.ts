@@ -4,6 +4,8 @@ import { defineConfig } from "@playwright/test";
 
 const root = path.dirname(fileURLToPath(import.meta.url));
 
+delete process.env.NO_COLOR;
+
 export default defineConfig({
   testDir: "./e2e",
   testMatch: /.*\.spec\.ts/,

@@ -2,7 +2,6 @@
  * @title Diagram
  */
 import { TypeSystem } from "../types";
-import { diagramSchemaPath } from "../schemaAssets";
 import { BlockDefinition } from "./blockDefinition";
 import {
   ClangTranslationUnit,
@@ -15,6 +14,7 @@ import { CppBlockCatalog, CppTypeNames, defaultCppBlockCatalog, type BlockPortTo
 import { cppIdent } from "./cppBuilder";
 import { DiagramBlock, type RawBlockJson } from "./diagramBlock";
 import { PortEndpoint } from "./endpoint";
+import { TreeSitterCppSyntax } from "./cppSyntax";
 import { Library } from "./library";
 import { Palette } from "./palette";
 
@@ -94,7 +94,6 @@ export interface IDiagram {
 }
 
 export class Diagram implements IDiagram {
-  public schema = diagramSchemaPath;
   private readonly blocks = new Map<string, DiagramBlock>();
   private readonly connections = new Map<string, Connection>();
   private readonly nextBlockSeq = new Map<string, number>();
@@ -449,7 +448,6 @@ export class Diagram implements IDiagram {
 
   toJSON(): DiagramJson {
     return {
-      $schema: this.schema,
       id: this.id,
       title: this.title,
       blocks: Object.fromEntries(this.blocks.entries().map(([id, b]) => [id, b.toJSON()])),
@@ -457,12 +455,22 @@ export class Diagram implements IDiagram {
     };
   }
 
+  static async fromCpp(
+    source: string,
+    palette: Palette = Library.getBaseSync()?.palette ?? new Palette(new TypeSystem()),
+  ): Promise<Diagram> {
+    const tree = (await TreeSitterCppSyntax.create()).parse(source);
+    if (!tree.hasFunction("mount")) throw new Error("Diagram source must define mount() and must not start the diagram");
+    const meta = tree.diagramMeta();
+    if (!meta) throw new Error("Diagram source is missing a JSON comment for blocks and connections");
+    return Diagram.fromJSON(meta as unknown as DiagramJson, palette);
+  }
+
   static fromJSON(
     json: DiagramJson,
     palette: Palette = Library.getBaseSync()?.palette ?? new Palette(new TypeSystem()),
   ): Diagram {
     const diagram = new Diagram(json.id, json.title, palette);
-    if (json.$schema) diagram.schema = json.$schema;
     for (const [id, b] of Object.entries(json.blocks ?? {})) diagram.addBlock(b.ref, b, id, b.conf);
     for (const [id, c] of Object.entries(json.connections ?? {})) {
       diagram.connect(PortEndpoint.fromJSON(c.from), PortEndpoint.fromJSON(c.to), id);

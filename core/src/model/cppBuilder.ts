@@ -41,7 +41,7 @@ export class CppDiagramBuilder extends DiagramSourceBuilder {
   override build(diagram: Diagram): Map<string, string> {
     const files = new Map<string, string>();
     for (const [name, content] of Object.entries(this.libraryFiles)) {
-      files.set(name === "wasm_host.cpp" ? "wasm_host.inc" : name, content);
+      files.set(name, content);
     }
     files.set("diagram.cpp", this.emitDiagram(diagram));
     return files;
@@ -51,14 +51,15 @@ export class CppDiagramBuilder extends DiagramSourceBuilder {
     const planned = this.plan(diagram);
     const connections = diagram.getConnections();
     const applyOrder = this.applyOrder(planned, connections);
+    const meta = diagram.toJSON();
     const lines: string[] = [
       "#include <base.hpp>",
       "#include \"wasm_host.hpp\"",
-      "#include \"wasm_host.inc\"",
       "",
       "using push::f32::F32;",
       "",
-      "extern \"C\" void build_diagram() {",
+      diagramComment(meta),
+      "extern \"C\" void mount() {",
     ];
 
     for (const item of planned) {
@@ -181,6 +182,7 @@ export class CppDiagramBuilder extends DiagramSourceBuilder {
     const conf = item.block.getAllConf();
     const lines: string[] = [];
     pinGroups.forEach((group, index) => {
+      if (group.length === 0) return;
       const pin = `${item.ident}_p${index}`;
       lines.push(...emitPushArray(pin, item.streamCppType, group));
       lines.push(`${item.ident}->connectPin(${u8Lit(index)}, ${moveExpr(item.streamCppType, pin)});`);
@@ -266,11 +268,60 @@ function u8Lit(value: number): string {
 }
 
 function emitPushArray(ident: string, type: string, values: string[]): string[] {
-  const lines = [`auto ${ident} = ${type}{};`];
-  for (const value of values) {
-    lines.push(`${ident}.push_back(${value});`);
+  if (values.length === 0) return [`auto ${ident} = ${type}{};`];
+  // mount() must not call push_back. More than one call in that function
+  // crashes the in-browser clang worker, so every array is filled by arrayFrom.
+  const items = `${ident}_items`;
+  return [
+    `${elementType(type)} ${items}[${values.length}] = {${values.join(", ")}};`,
+    `auto ${ident} = arrayFrom(${items}, ${values.length}u);`,
+  ];
+}
+
+function diagramComment(meta: { id: string; title: string; blocks: unknown; connections: unknown }): string {
+  // Consecutive // lines stay valid JSON for the model. The in-browser clang
+  // frontend drops this comment before compiling; some payloads hang it.
+  const json = JSON.stringify({ id: meta.id, title: meta.title, blocks: meta.blocks, connections: meta.connections });
+  return wrapJson(json)
+    .split("\n")
+    .map((line) => `// ${line}`)
+    .join("\n");
+}
+
+function wrapJson(json: string, width = 16): string {
+  let line = "";
+  let inString = false;
+  let escaped = false;
+  const lines: string[] = [];
+  for (const ch of json) {
+    line += ch;
+    if (escaped) {
+      escaped = false;
+      continue;
+    }
+    if (ch === "\\") {
+      escaped = true;
+      continue;
+    }
+    if (ch === '"') {
+      inString = !inString;
+      continue;
+    }
+    if (!inString && (ch === "," || ch === "{" || ch === "}") && line.length >= width) {
+      lines.push(line);
+      line = "";
+    }
   }
-  return lines;
+  if (line.length > 0) lines.push(line);
+  return lines.join("\n");
+}
+
+function elementType(type: string): string {
+  const open = type.indexOf("<");
+  const close = type.lastIndexOf(">");
+  if (open === -1 || close <= open) return type;
+  const inner = type.slice(open + 1, close);
+  return type.startsWith("VectorizedInput<") ? `${inner}*` : inner;
 }
 
 function moveExpr(type: string, ident: string): string {

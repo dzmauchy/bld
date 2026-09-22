@@ -12,5 +12,7 @@ export * from "./diagramBlock";
 export * from "./diagram";
 export * from "./compiler";
 export * from "./cppBuilder";
+export * from "./cppSyntax";
 export * from "./cppBlockCatalog";
+export * from "./headerCatalog";
 export * from "./library";

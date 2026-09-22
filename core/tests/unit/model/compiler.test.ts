@@ -49,7 +49,8 @@ describe("DiagramCompiler C++ generation", () => {
     expect(cpp).toContain("#include <base.hpp>");
     expect(cpp).toContain("push::f32::sinks::ScopeF32");
     expect(cpp).toContain("push::f32::sources::ConstF32");
-    expect(cpp).toContain("build_diagram");
+    expect(cpp).toContain("void mount()");
+    expect(cpp).not.toContain("start(");
     expect(cpp).toContain("3.14f");
     expect(cpp).toContain("->apply(");
   });
@@ -64,7 +65,7 @@ describe("DiagramCompiler C++ generation", () => {
     expect(compiler.getProfile().name).toBe("mcu");
     const diagram = createTestDiagram();
     await expect(compiler.compile(diagram)).rejects.toThrow(/MCU wasm profile is not implemented/);
-    expect(compiler.emitText(diagram)).toContain("build_diagram");
+    expect(compiler.emitText(diagram)).toContain("void mount()");
   });
 
   test("compile without a C++ backend throws", async () => {
@@ -89,10 +90,10 @@ describe("DiagramCompiler C++ generation", () => {
     await expect(compiler.compile(diagram)).resolves.toBe(wasm);
     expect(captured).toHaveLength(1);
     const files = captured[0];
-    expect(files?.get("diagram.cpp")).toContain("build_diagram");
-    expect(files?.get("diagram.cpp")).toContain("#include \"wasm_host.inc\"");
+    expect(files?.get("diagram.cpp")).toContain("void mount()");
+    expect(files?.get("diagram.cpp")).toContain("#include \"wasm_host.hpp\"");
     expect(files?.get("base.hpp")).toContain("class ScopeF32");
-    expect(files?.get("wasm_host.inc")).toContain("void start()");
+    expect(files?.get("wasm_host.hpp")).toContain("void start()");
     expect(files?.get("wasm_host.cpp")).toBeUndefined();
   });
 
@@ -139,7 +140,7 @@ describe("DiagramCompiler C++ generation", () => {
     expect(compiler.getContext().name).toBe(browserContext.name);
   });
 
-  test("every blocks.json entry has a C++ binding", async () => {
+  test("every header block has a C++ binding", async () => {
     const lib = await Library.load("base.json");
     for (const id of Object.keys(lib.blocks)) {
       expect(defaultBlockEmitters.has(id), id).toBe(true);
