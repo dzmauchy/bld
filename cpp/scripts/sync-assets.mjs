@@ -14,7 +14,7 @@ import { fileURLToPath, pathToFileURL } from "node:url";
 export class LlvmProjectReleaseAssets {
   static owner = "dzmauchy";
   static repo = "llvm-project";
-  static tag = "clang-lld-wasm-1f395433cc1c176653e66189b38f5aa520c45ba6";
+  static tag = "clang-lld-wasm-latest";
   static files = Object.freeze(["clang.js", "clang.wasm", "lld.js", "lld.wasm", "sysroot.tgz"]);
 
   /**
