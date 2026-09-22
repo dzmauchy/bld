@@ -8,6 +8,8 @@ describe("toolchain argument builders", () => {
     expect(args).toContain("-Xclang");
     expect(args).toContain("-ast-dump=json");
     expect(args).toContain("-fparse-all-comments");
+    expect(args).toContain("--target=wasm32-unknown-unknown");
+    expect(args).toContain("-std=c++23");
     expect(args.at(-1)).toBe("/work/add.cpp");
     expect(args).not.toContain("-c");
   });
@@ -18,18 +20,20 @@ describe("toolchain argument builders", () => {
     expect(args).toContain("-Xclang");
     expect(args).toContain("-ast-dump");
     expect(args).toContain("-fparse-all-comments");
+    expect(args).toContain("--target=wasm32-unknown-unknown");
+    expect(args).toContain("-std=c++23");
     expect(args).not.toContain("-ast-dump=json");
     expect(args.at(-1)).toBe("/work/add.cpp");
     expect(args).not.toContain("-c");
   });
 
-  test("clang compiles one source to an object with the emscripten sysroot", () => {
+  test("clang compiles one source to an object for wasm32-unknown-unknown", () => {
     const args = new ClangArgumentBuilder().build("/work/add.cpp", "/work/add.o");
-    expect(args).toContain("--target=wasm32-unknown-emscripten");
+    expect(args).toContain("--target=wasm32-unknown-unknown");
     expect(args).toContain("--sysroot=/sysroot");
     expect(args).toContain("-resource-dir");
     expect(args).toContain("/sysroot/lib/clang/23");
-    expect(args).toContain("-std=c++20");
+    expect(args).toContain("-std=c++23");
     expect(args).toContain("-fno-threadsafe-statics");
     expect(args.at(-3)).toBe("/work/add.cpp");
     expect(args.at(-1)).toBe("/work/add.o");
