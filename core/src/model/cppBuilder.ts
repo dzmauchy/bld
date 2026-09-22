@@ -182,6 +182,7 @@ export class CppDiagramBuilder extends DiagramSourceBuilder {
     const conf = item.block.getAllConf();
     const lines: string[] = [];
     pinGroups.forEach((group, index) => {
+      if (group.length === 0) return;
       const pin = `${item.ident}_p${index}`;
       lines.push(...emitPushArray(pin, item.streamCppType, group));
       lines.push(`${item.ident}->connectPin(${u8Lit(index)}, ${moveExpr(item.streamCppType, pin)});`);
@@ -278,7 +279,8 @@ function emitPushArray(ident: string, type: string, values: string[]): string[] 
 }
 
 function diagramComment(meta: { id: string; title: string; blocks: unknown; connections: unknown }): string {
-  // Block comments of this JSON crash or hang in-browser clang. Short // lines do not.
+  // Consecutive // lines stay valid JSON for the model. The in-browser clang
+  // frontend drops this comment before compiling; some payloads hang it.
   const json = JSON.stringify({ id: meta.id, title: meta.title, blocks: meta.blocks, connections: meta.connections });
   return wrapJson(json)
     .split("\n")

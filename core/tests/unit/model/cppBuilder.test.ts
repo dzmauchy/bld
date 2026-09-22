@@ -155,6 +155,18 @@ describe("CppDiagramBuilder", () => {
     expect(cpp).toContain("register_gpio_block(1u, 7, g_hw)");
   });
 
+  test("skips empty gpio pin groups while preserving hardware registration", () => {
+    const cpp = emit((d) => {
+      d.addBlock("gpio_in_f32", { x: 0, y: 0 }, "g", { port: 7, pins: [1, 3] });
+    });
+    expect(cpp).not.toContain("g_p0");
+    expect(cpp).not.toContain("g_p1");
+    expect(cpp).not.toContain("g->connectPin");
+    expect(cpp).toContain("g->apply();");
+    expect(cpp).toContain("g_hw_items[2] = {1, 3}");
+    expect(cpp).toContain("register_gpio_block(0u, 7, g_hw)");
+  });
+
   test("applies sinks before sources", () => {
     const cpp = emit((d) => {
       d.addBlock("const_f32", { x: 1, y: 0 }, "c", { v: 1 });

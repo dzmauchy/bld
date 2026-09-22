@@ -1,10 +1,12 @@
 import { ClangArgumentBuilder } from "./args.ts";
+import { DiagramMetaCommentFilter } from "./commentFilter.ts";
 import { EmscriptenTool, type EmscriptenModuleFactory } from "./emscripten.ts";
 import { ObjectFile } from "./object-file.ts";
 import { isCppSource, objectPathFor, workPath } from "./paths.ts";
 
 export class ClangFrontend extends EmscriptenTool {
   private args: ClangArgumentBuilder;
+  private readonly comments = new DiagramMetaCommentFilter();
 
   constructor(
     createModule: EmscriptenModuleFactory,
@@ -22,7 +24,7 @@ export class ClangFrontend extends EmscriptenTool {
         if (sources.length === 0) throw new Error("no C or C++ source files to compile");
 
         this.prepareWork();
-        for (const [name, text] of files) this.writeText(workPath(name), text);
+        for (const [name, text] of files) this.writeText(workPath(name), this.comments.apply(text));
 
         const objects: ObjectFile[] = [];
         for (const source of sources) {
@@ -41,7 +43,7 @@ export class ClangFrontend extends EmscriptenTool {
     try {
       return await this.runJob(async () => {
         this.prepareWork();
-        for (const [name, text] of files) this.writeText(workPath(name), text);
+        for (const [name, text] of files) this.writeText(workPath(name), this.comments.apply(text));
         const captured = this.runMainCapture(this.args.syntaxOnlyAstDump(workPath(mainFile)));
         let ast: unknown;
         try {

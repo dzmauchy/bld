@@ -45,12 +45,6 @@ extern "C" void mount() {
   sin_gen_f32_0->apply(static_cast<VectorizedInput<Pss<F32>>&&>(sin_gen_f32_0_dn));
   auto product_f32_0_dn = VectorizedInput<Pss<F32>>{};
   auto product_f32_0_in = product_f32_0->apply(static_cast<VectorizedInput<Pss<F32>>&&>(product_f32_0_dn), static_cast<u8>(1));
-  auto gpio_in_0_p0 = VectorizedInput<Pss<F32>>{};
-  gpio_in_0->connectPin(static_cast<u8>(0), static_cast<VectorizedInput<Pss<F32>>&&>(gpio_in_0_p0));
-  auto gpio_in_0_p1 = VectorizedInput<Pss<F32>>{};
-  gpio_in_0->connectPin(static_cast<u8>(1), static_cast<VectorizedInput<Pss<F32>>&&>(gpio_in_0_p1));
-  auto gpio_in_0_p2 = VectorizedInput<Pss<F32>>{};
-  gpio_in_0->connectPin(static_cast<u8>(2), static_cast<VectorizedInput<Pss<F32>>&&>(gpio_in_0_p2));
   gpio_in_0->apply();
   u8 gpio_in_0_hw_items[3] = {0, 1, 4};
   auto gpio_in_0_hw = arrayFrom(gpio_in_0_hw_items, 3u);
