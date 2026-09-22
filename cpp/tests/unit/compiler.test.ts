@@ -98,9 +98,8 @@ describe("CppWasmCompiler", () => {
     expect(clang.runs[0]).toContain("/work/add.cpp");
     expect(clang.runs[0]?.at(-1)).toBe("/work/add.o");
     expect(lld.runs).toHaveLength(1);
-    expect(lld.runs[0]).toContain("--unresolved-symbols=import-functions");
+    expect(lld.runs[0]).toContain("--allow-undefined");
     expect(lld.runs[0]).toContain("stack-size=8388608");
-    expect(lld.runs[0]).not.toContain("--allow-undefined");
     expect(lld.runs[0]).toContain("/work/add.o");
     expect(lldFs.exists("/work/add.o")).toBe(true);
   });

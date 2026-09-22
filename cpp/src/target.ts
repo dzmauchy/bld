@@ -87,7 +87,7 @@ export class BrowserEmscriptenToolchain extends WasmToolchain {
       "--no-entry",
       "--export-all",
       "--export-table",
-      "--unresolved-symbols=import-functions",
+      "--allow-undefined",
       "--stack-first",
       "-z",
       `stack-size=${this.stackBytes}`,

@@ -46,8 +46,7 @@ describe("toolchain argument builders", () => {
     expect(args.slice(0, 2)).toEqual(["-flavor", "wasm"]);
     expect(args).toContain("--no-entry");
     expect(args).toContain("--export-all");
-    expect(args).toContain("--unresolved-symbols=import-functions");
-    expect(args).not.toContain("--allow-undefined");
+    expect(args).toContain("--allow-undefined");
     expect(args).toContain("--stack-first");
     expect(args).toContain(`stack-size=${toolchain.stackBytes}`);
     expect(toolchain.stackBytes).toBe(8 * 1024 * 1024);
