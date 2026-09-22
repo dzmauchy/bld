@@ -1,6 +1,6 @@
 export type { SysrootInstallKind, FilePayload, WorkerOk, WorkerErr, WorkerResponse } from "./messages.ts";
 export { filePayload, messageId } from "./messages.ts";
-export { ClangArgumentBuilder, LldArgumentBuilder } from "./args.ts";
+export { ClangArgumentBuilder, LldArgumentBuilder, BrowserEmscriptenToolchain, McuUnknownToolchain } from "./args.ts";
 export { WasmExecutor, ExecutedWasm } from "./executor.ts";
 export { MemoryFileSystem, EmscriptenFileSystem, VirtualFileSystem } from "./filesystem.ts";
 export { isCppSource, isHeader, objectPathFor, workPath, normalizeRelativePath } from "./paths.ts";

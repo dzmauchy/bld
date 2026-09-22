@@ -27,6 +27,36 @@ export {
 
 export type WasmProfileName = "browser" | "mcu";
 
+/**
+ * Diagram compilation target. The browser profile is wasm32-unknown-emscripten.
+ * The MCU profile is the freestanding wasm triple and does not produce a binary yet.
+ */
+export abstract class CompilationTarget {
+  abstract readonly name: WasmProfileName;
+  abstract readonly triple: string;
+
+  prepareCompile(): void {}
+}
+
+export class BrowserCompilationTarget extends CompilationTarget {
+  readonly name = "browser" as const;
+  readonly triple = "wasm32-unknown-emscripten";
+}
+
+export class McuCompilationTarget extends CompilationTarget {
+  readonly name = "mcu" as const;
+  readonly triple = "wasm32-unknown-unknown";
+
+  override prepareCompile(): void {
+    throw new Error("MCU wasm profile is not implemented");
+  }
+}
+
+const compilationTargets: Record<WasmProfileName, CompilationTarget> = {
+  browser: new BrowserCompilationTarget(),
+  mcu: new McuCompilationTarget(),
+};
+
 export interface WasmSessionLike {
   tick(): Promise<number>;
   tickThenObserve(): Promise<number>;
@@ -96,8 +126,8 @@ export class CompilationModel {
     return { profile: "browser" };
   }
 
-  getProfile(): { name: WasmProfileName } {
-    return { name: this.profile };
+  getProfile(): CompilationTarget {
+    return compilationTargets[this.profile];
   }
 
   getContext(): { name: string } {
@@ -159,9 +189,7 @@ export class DiagramCompiler extends CompilationModel {
   }
 
   async compile(diagram: Diagram, _options?: CompileOptionsLike): Promise<Uint8Array> {
-    if (this.profile === "mcu") {
-      throw new Error("MCU wasm profile is not implemented");
-    }
+    this.getProfile().prepareCompile();
     if (!this.cppCompiler) {
       throw new Error("C++ compiler backend is required");
     }

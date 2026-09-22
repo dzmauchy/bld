@@ -1,110 +1,40 @@
-export type ClangCompileOptions = {
-  resourceDir: string;
-  target: string;
-  std: string;
-  optimize: string;
-};
+import {
+  BrowserEmscriptenToolchain,
+  defaultClangOptions,
+  type ClangCompileOptions,
+  type WasmToolchain,
+} from "./target.ts";
+
+export type { ClangCompileOptions };
+export { BrowserEmscriptenToolchain, McuUnknownToolchain, defaultClangOptions } from "./target.ts";
 
 export class ClangArgumentBuilder {
-  constructor(private readonly options: ClangCompileOptions = {
-    resourceDir: "/sysroot/lib/clang/23",
-    target: "wasm32-unknown-unknown",
-    std: "c++23",
-    optimize: "2",
-  }) {}
+  constructor(
+    private readonly toolchain: WasmToolchain = new BrowserEmscriptenToolchain(),
+    private readonly options: ClangCompileOptions = defaultClangOptions,
+  ) {}
 
   withResourceDir(resourceDir: string): ClangArgumentBuilder {
-    return new ClangArgumentBuilder({ ...this.options, resourceDir });
+    return new ClangArgumentBuilder(this.toolchain, { ...this.options, resourceDir });
   }
 
   syntaxOnlyAstDump(sourcePath: string): string[] {
-    return [
-      `--target=${this.options.target}`,
-      "--sysroot=/sysroot",
-      "-resource-dir",
-      this.options.resourceDir,
-      "-fno-exceptions",
-      "-fno-rtti",
-      "-fno-threadsafe-statics",
-      `-std=${this.options.std}`,
-      "-fno-color-diagnostics",
-      "-fparse-all-comments",
-      "-I/work",
-      "-fsyntax-only",
-      "-Xclang",
-      "-ast-dump=json",
-      sourcePath,
-    ];
+    return this.toolchain.syntaxOnlyAstDump(sourcePath, this.options);
   }
 
   emitAst(sourcePath: string): string[] {
-    return [
-      `--target=${this.options.target}`,
-      "--sysroot=/sysroot",
-      "-resource-dir",
-      this.options.resourceDir,
-      "-fno-exceptions",
-      "-fno-rtti",
-      "-fno-threadsafe-statics",
-      `-std=${this.options.std}`,
-      "-fno-color-diagnostics",
-      "-fparse-all-comments",
-      "-I/work",
-      "-fsyntax-only",
-      "-Xclang",
-      "-ast-dump",
-      sourcePath,
-    ];
+    return this.toolchain.emitAst(sourcePath, this.options);
   }
 
   build(sourcePath: string, objectPath: string): string[] {
-    return [
-      `--target=${this.options.target}`,
-      "--sysroot=/sysroot",
-      "-resource-dir",
-      this.options.resourceDir,
-      "-fno-exceptions",
-      "-fno-rtti",
-      "-fno-threadsafe-statics",
-      `-std=${this.options.std}`,
-      `-O${this.options.optimize}`,
-      "-fno-color-diagnostics",
-      "-I/work",
-      "-c",
-      sourcePath,
-      "-o",
-      objectPath,
-    ];
+    return this.toolchain.compileObject(sourcePath, objectPath, this.options);
   }
 }
 
 export class LldArgumentBuilder {
+  constructor(private readonly toolchain: WasmToolchain = new BrowserEmscriptenToolchain()) {}
+
   build(objectPaths: string[], outputPath: string): string[] {
-    const lib = "/sysroot/lib/wasm32-emscripten";
-    return [
-      "-flavor",
-      "wasm",
-      "--no-entry",
-      "--export-all",
-      "--export-table",
-      "--allow-undefined",
-      "--stack-first",
-      "-z",
-      "stack-size=1048576",
-      "-L",
-      lib,
-      ...objectPaths,
-      `${lib}/crt1_reactor.o`,
-      "-lc++-noexcept",
-      "-lc++abi-noexcept",
-      "-lclang_rt.builtins",
-      "-ldlmalloc",
-      "-lc",
-      "-lstubs",
-      "-lstandalonewasm",
-      "-lnoexit",
-      "-o",
-      outputPath,
-    ];
+    return this.toolchain.link(objectPaths, outputPath);
   }
 }

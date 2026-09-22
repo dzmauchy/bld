@@ -42,6 +42,7 @@ describe("DiagramCompiler C++ generation", () => {
   test("default compiler targets the browser profile", () => {
     const compiler = new DiagramCompiler({ files: libraryFiles });
     expect(compiler.getProfile().name).toBe("browser");
+    expect(compiler.getProfile().triple).toBe("wasm32-unknown-emscripten");
     expect(compiler.getContext().name).toBe("browser");
 
     const diagram = createTestDiagram();
@@ -63,6 +64,7 @@ describe("DiagramCompiler C++ generation", () => {
   test("McuCompiler leaves the MCU profile unimplemented", async () => {
     const compiler = new McuCompiler(libraryFiles);
     expect(compiler.getProfile().name).toBe("mcu");
+    expect(compiler.getProfile().triple).toBe("wasm32-unknown-unknown");
     const diagram = createTestDiagram();
     await expect(compiler.compile(diagram)).rejects.toThrow(/MCU wasm profile is not implemented/);
     expect(compiler.emitText(diagram)).toContain("void mount()");

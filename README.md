@@ -75,7 +75,7 @@ bld/
 
 | Package | Purpose | Key Responsibilities |
 |---|---|---|
-| **`runtime`** | Wasm session & scopes | Worker RPC (`WasmRuntime`, `WasmSession`), WASI/env bindings, sliding scope buffers. |
+| **`runtime`** | Wasm session & scopes | Worker RPC (`WasmRuntime`, `WasmSession`), browser wasm imports, sliding scope buffers. |
 | **`base`** | Header-only C++ library | `push::f32` blocks in `base/native` (`ScopeF32`, `SumF32`, `ProductF32`, `GpioInF32`, generators) plus `wasm_host.hpp` exports used by generated diagrams. |
 | **`core`** | Domain model & C++ builder | `Library` points at hpp URLs, `HeaderCatalog` parses JSON comments, `Diagram` is a `mount()` entry point, `CppDiagramBuilder` and `DiagramCompiler` delegate wasm compilation to `cpp`. |
 | **`cpp`** | In-browser clang/lld | Compiles generated C++ sources to wasm and executes the module in a worker. |
@@ -179,8 +179,8 @@ flowchart TD
     
     subgraph ClangLld["cpp clang/lld"]
         C --> D["ICppCompiler.compile(files)"]
-        D --> E["clang++ -std=c++23 wasm32-unknown-unknown"]
-        E --> F["wasm-ld --export-all"]
+        D --> E["clang++ -std=c++23 wasm32-unknown-emscripten"]
+        E --> F["wasm-ld emscripten standalone, 8 MiB stack"]
     end
     
     F --> G["Uint8Array Wasm Binary"]
