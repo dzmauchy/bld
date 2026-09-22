@@ -4,7 +4,7 @@
  * Tree-sitter C++ front end. Header and diagram comments are read from this
  * tree instead of a hand-written scanner.
  */
-import { cppParserAssets } from "#parser-assets";
+import { cppParserAssets } from "../parser/cppParserAssets";
 import Parser from "web-tree-sitter";
 
 export class JsonComment {
@@ -160,7 +160,7 @@ export class TreeSitterCppSyntax extends CppSyntax {
   }
 
   private static async load(): Promise<TreeSitterCppSyntax> {
-    await Parser.init(cppParserAssets.initOptions());
+    await Parser.init({ wasmBinary: await cppParserAssets.runtime() });
     const language = await Parser.Language.load(await cppParserAssets.language());
     const parser = new Parser();
     parser.setLanguage(language);

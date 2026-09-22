@@ -1,33 +1,24 @@
 import { readFileSync } from "node:fs";
 import { expect, test } from "vitest";
-import Parser from "web-tree-sitter";
-import { cppParserAssets } from "#parser-assets";
-import { BrowserCppParserAssets } from "../../../src/parser/browserCppParserAssets.ts";
-import { NodeCppParserAssets } from "../../../src/parser/nodeCppParserAssets.ts";
+import { TreeSitterCppSyntax } from "../../../src/model/cppSyntax.ts";
+import { cppParserAssets } from "../../../src/parser/cppParserAssets.ts";
 
-test("node resolves the filesystem parser assets", () => {
-  expect(cppParserAssets).toBeInstanceOf(NodeCppParserAssets);
-});
-
-test("client syntax sources do not import Node builtins", () => {
+test("parser asset loader does not import Node builtins", () => {
   const syntax = readFileSync(new URL("../../../src/model/cppSyntax.ts", import.meta.url), "utf8");
-  const browser = readFileSync(new URL("../../../src/parser/browserCppParserAssets.ts", import.meta.url), "utf8");
+  const assets = readFileSync(new URL("../../../src/parser/cppParserAssets.ts", import.meta.url), "utf8");
   const nodeImport = /from\s+["']node:|import\s*\(\s*["']node:/;
   expect(syntax).not.toMatch(nodeImport);
-  expect(browser).not.toMatch(nodeImport);
+  expect(assets).not.toMatch(nodeImport);
 });
 
-test("browser parser assets load the C++ grammar from wasm urls", async () => {
-  const assets = new BrowserCppParserAssets();
-  const init = assets.initOptions() as { locateFile: (file: string, prefix: string) => string };
-  const runtimeUrl = new URL(init.locateFile("tree-sitter.wasm", ""));
-  expect(readFileSync(runtimeUrl).byteLength).toBeGreaterThan(1000);
+test("fetches the C++ grammar wasm", async () => {
+  const bytes = await cppParserAssets.language();
+  expect(Buffer.from(bytes.subarray(0, 4)).toString("utf8")).toBe("\0asm");
+});
 
-  await Parser.init(init);
-  const language = await Parser.Language.load(readFileSync(assets.languageWasm));
-  const parser = new Parser();
-  parser.setLanguage(language);
-  const tree = parser.parse("struct A { int x; };");
-  expect(tree.rootNode.type).toBe("translation_unit");
-  expect(tree.rootNode.text).toContain("struct A");
+test("parses C++ with the fetched grammar", async () => {
+  const syntax = await TreeSitterCppSyntax.create();
+  const tree = syntax.parse("struct A { int x; };");
+  expect(tree.root.type).toBe("translation_unit");
+  expect(tree.root.text).toContain("struct A");
 });

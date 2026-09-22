@@ -2,6 +2,7 @@ import { readFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { expect, test, type Page } from "@playwright/test";
+import "../../core/tests/nodeFileFetch.ts";
 import { nativeLibraryFiles } from "../../base/src/index.ts";
 import {
   CppDiagramBuilder,
