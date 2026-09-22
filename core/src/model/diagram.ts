@@ -4,17 +4,20 @@
 import { TypeSystem } from "../types";
 import { BlockDefinition } from "./blockDefinition";
 import {
+  ClangComment,
   ClangTranslationUnit,
   InferredPortType,
+  isMainFileNode,
+  type ClangAstJson,
   type ClangTypeCatalog,
 } from "./clangAst";
+import { ClangAstDumper } from "./clangAstDumper";
 import { DiagramCompiler, type WasmRuntimeLike, type WasmSessionLike, type CompileOptionsLike } from "./compiler";
 import { Connection, type RawConnectionJson } from "./connection";
 import { CppBlockCatalog, CppTypeNames, defaultCppBlockCatalog, type BlockPortTopology } from "./cppBlockCatalog";
 import { cppIdent } from "./cppBuilder";
 import { DiagramBlock, type RawBlockJson } from "./diagramBlock";
 import { PortEndpoint } from "./endpoint";
-import { TreeSitterCppSyntax } from "./cppSyntax";
 import { Library } from "./library";
 import { Palette } from "./palette";
 
@@ -459,9 +462,16 @@ export class Diagram implements IDiagram {
     source: string,
     palette: Palette = Library.getBaseSync()?.palette ?? new Palette(new TypeSystem()),
   ): Promise<Diagram> {
-    const tree = (await TreeSitterCppSyntax.create()).parse(source);
-    if (!tree.hasFunction("mount")) throw new Error("Diagram source must define mount() and must not start the diagram");
-    const meta = tree.diagramMeta();
+    const dumper = ClangAstDumper.defaultDumper();
+    const files = new Map<string, string>(Object.entries(ClangAstDumper.libraryFiles));
+    files.set("diagram.cpp", source);
+    const dump = await dumper.dumpAsync(files, "diagram.cpp");
+    if (dump.ast === undefined) {
+      throw new Error(`clang++ AST dump of the diagram failed\n${dump.diagnostics}`);
+    }
+    const mount = findMainFileFunction(dump.ast as ClangAstJson, "mount");
+    if (!mount) throw new Error("Diagram source must define mount() and must not start the diagram");
+    const meta = readDiagramMeta(dump.ast as ClangAstJson, mount);
     if (!meta) throw new Error("Diagram source is missing a JSON comment for blocks and connections");
     return Diagram.fromJSON(meta as unknown as DiagramJson, palette);
   }
@@ -518,6 +528,47 @@ export class Diagram implements IDiagram {
     const { compiler: comp, options } = this.resolveCompiler(optionsOrCompiler, compiler);
     return comp.run(this, runtime, options);
   }
+}
+
+function findMainFileFunction(ast: ClangAstJson, name: string): ClangAstJson | undefined {
+  let found: ClangAstJson | undefined;
+  const walk = (node: ClangAstJson): void => {
+    if (found) return;
+    if (
+      (node.kind === "FunctionDecl" || node.kind === "CXXMethodDecl") &&
+      node.name === name &&
+      isMainFileNode(node, "diagram.cpp")
+    ) {
+      found = node;
+      return;
+    }
+    for (const child of node.inner ?? []) walk(child);
+  };
+  walk(ast);
+  return found;
+}
+
+function readDiagramMeta(ast: ClangAstJson, mount: ClangAstJson): Record<string, unknown> | undefined {
+  const direct = ClangComment.of(mount)?.asJson();
+  if (direct && isDiagramMeta(direct.value)) return direct.value;
+  let found: Record<string, unknown> | undefined;
+  const walk = (node: ClangAstJson): void => {
+    if (found) return;
+    if (node.kind === "FullComment" && isMainFileNode(node, "diagram.cpp")) {
+      const parsed = new ClangComment(node).asJson();
+      if (parsed && isDiagramMeta(parsed.value)) {
+        found = parsed.value;
+        return;
+      }
+    }
+    for (const child of node.inner ?? []) walk(child);
+  };
+  walk(ast);
+  return found;
+}
+
+function isDiagramMeta(value: Record<string, unknown>): boolean {
+  return Boolean(value.blocks && typeof value.blocks === "object" && value.connections && typeof value.connections === "object");
 }
 
 function portVarName(blockId: string, direction: "input" | "output", portId: string): string {

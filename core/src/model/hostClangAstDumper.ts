@@ -1,7 +1,7 @@
 /**
  * @title Host Clang AST Dumper
  *
- * Node host for `clang++ -fsyntax-only -Xclang -ast-dump=json`.
+ * Node host for `clang++ -fsyntax-only -Xclang -ast-dump=json -fparse-all-comments`.
  */
 import { spawnSync } from "node:child_process";
 import { existsSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
@@ -51,6 +51,7 @@ export class HostClangAstDumper extends ClangAstDumper {
         "-fno-exceptions",
         "-fno-rtti",
         "-fno-color-diagnostics",
+        "-fparse-all-comments",
         ...this.extraArgs,
         "-I",
         dir,

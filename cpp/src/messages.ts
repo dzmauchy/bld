@@ -9,6 +9,8 @@ export type WorkerOk = {
   stdout?: string;
   stderr?: string;
   exports?: string[];
+  ast?: unknown;
+  astText?: string;
 };
 
 export type WorkerErr = {
@@ -37,7 +39,21 @@ export type CompilerCompileRequest = {
   files: Record<string, string>;
 };
 
-export type CompilerRequest = CompilerInitRequest | CompilerCompileRequest;
+export type CompilerDumpAstRequest = {
+  type: "dump-ast";
+  id: number;
+  files: Record<string, string>;
+  mainFile: string;
+};
+
+export type CompilerEmitAstRequest = {
+  type: "emit-ast";
+  id: number;
+  files: Record<string, string>;
+  mainFile: string;
+};
+
+export type CompilerRequest = CompilerInitRequest | CompilerCompileRequest | CompilerDumpAstRequest | CompilerEmitAstRequest;
 
 export type ExecutorInstantiateRequest = {
   type: "instantiate";

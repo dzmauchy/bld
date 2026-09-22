@@ -16,7 +16,6 @@ test("App renders add(2, 2) and model asset titles", () => {
       "connection.ts Connection",
       "cppBlockCatalog.ts C++ Block Catalog",
       "cppBuilder.ts C++ Diagram Builder",
-      "cppSyntax.ts C++ Syntax",
       "diagram.ts Diagram",
       "diagramBlock.ts Diagram Block",
       "endpoint.ts Port Endpoint",

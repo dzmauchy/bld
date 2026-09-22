@@ -27,6 +27,20 @@ export class CppWasmCompiler {
     return this.linker.link(objects);
   }
 
+  async dumpAst(
+    files: Map<string, string>,
+    mainFile: string,
+  ): Promise<{ ok: boolean; ast: unknown; stdout: string; stderr: string }> {
+    return this.clang.dumpAst(files, mainFile);
+  }
+
+  async emitAst(
+    files: Map<string, string>,
+    mainFile: string,
+  ): Promise<{ ok: boolean; astText: string; stdout: string; stderr: string }> {
+    return this.clang.emitAst(files, mainFile);
+  }
+
   private async fetchSysroot(): Promise<ArrayBuffer> {
     const response = await fetch(this.sysrootUrl);
     if (!response.ok) {
@@ -61,6 +75,42 @@ export class WorkerCppWasmCompiler {
     const wasm = response.files?.["/work/a.wasm"];
     if (!wasm) throw new Error("compiler did not produce a wasm module");
     return wasm;
+  }
+
+  async dumpAst(
+    files: Map<string, string>,
+    mainFile: string,
+  ): Promise<{ ok: boolean; ast: unknown; stdout: string; stderr: string }> {
+    await this.warmup();
+    const response = await this.client.request({
+      type: "dump-ast",
+      files: Object.fromEntries(files),
+      mainFile,
+    });
+    return {
+      ok: (response.result ?? 1) === 0,
+      ast: response.ast,
+      stdout: response.stdout ?? "",
+      stderr: response.stderr ?? "",
+    };
+  }
+
+  async emitAst(
+    files: Map<string, string>,
+    mainFile: string,
+  ): Promise<{ ok: boolean; astText: string; stdout: string; stderr: string }> {
+    await this.warmup();
+    const response = await this.client.request({
+      type: "emit-ast",
+      files: Object.fromEntries(files),
+      mainFile,
+    });
+    return {
+      ok: (response.result ?? 1) === 0,
+      astText: response.astText ?? response.stdout ?? "",
+      stdout: response.stdout ?? "",
+      stderr: response.stderr ?? "",
+    };
   }
 
   async close(): Promise<void> {

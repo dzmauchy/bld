@@ -26,10 +26,31 @@ export class ClangArgumentBuilder {
       "-fno-threadsafe-statics",
       `-std=${this.options.std}`,
       "-fno-color-diagnostics",
+      "-fparse-all-comments",
       "-I/work",
       "-fsyntax-only",
       "-Xclang",
       "-ast-dump=json",
+      sourcePath,
+    ];
+  }
+
+  emitAst(sourcePath: string): string[] {
+    return [
+      "--target=wasm32-unknown-emscripten",
+      "--sysroot=/sysroot",
+      "-resource-dir",
+      this.options.resourceDir,
+      "-fno-exceptions",
+      "-fno-rtti",
+      "-fno-threadsafe-statics",
+      `-std=${this.options.std}`,
+      "-fno-color-diagnostics",
+      "-fparse-all-comments",
+      "-I/work",
+      "-fsyntax-only",
+      "-Xclang",
+      "-ast-dump",
       sourcePath,
     ];
   }

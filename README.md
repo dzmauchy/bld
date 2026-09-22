@@ -52,7 +52,7 @@ The project features a **client-side only** architecture:
 - **C++ Diagram Builder**: Generates C++ that instantiates `push::f32` blocks from the base library and delegates wasm compilation to the `cpp` workspace.
 - **Web Worker Thread Isolation**: All runtime execution runs off the main thread with non-blocking RPC communication and streaming pin updates.
 - **Sliding Scope Buffers**: High-rate signal capture in the browser uses a `Float32Array`/`Float64Array` ring with a single write pointer.
-- **Auto-descriptive header library**: Blocks, types, namespaces, ports, and config are JSON comments on the header-only C++ base library. Core reads them with tree-sitter-cpp.
+- **Auto-descriptive header library**: Blocks, types, namespaces, ports, and config are JSON comments on the header-only C++ base library. Core reads them from `clang++ -fsyntax-only -Xclang -ast-dump=json -fparse-all-comments`.
 - **Clang type checks**: Port types and connection compatibility come from `clang++` AST dumps. Configuration properties that match their defaults are omitted from the diagram comment.
 - **Production-Ready UI Stack**: Built on Solid.js, Web Awesome, dark mode by default, and bundled with Rsbuild.
 

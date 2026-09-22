@@ -3,9 +3,20 @@
  *
  * Reads auto-descriptive headers. A comment immediately before a declaration
  * is JSON meta for that type, namespace, block, input, output, or config.
+ * Structure and comments come from `clang++ -fsyntax-only -Xclang
+ * -ast-dump=json -fparse-all-comments`; config comments inside parameter
+ * lists are read from the source at AST offsets because clang does not
+ * attach them to parameters.
  */
 import type { RawBlockCatalogEntry, RawConfigPropertyCatalogEntry, RawPortCatalogEntry } from "./blockDefinition";
-import { CppSyntax, JsonComment, type CppNode } from "./cppSyntax";
+import {
+  ClangComment,
+  ClangSourceComments,
+  JsonComment,
+  isMainFileNode,
+  type ClangAstJson,
+} from "./clangAst";
+import { ClangAstDumper } from "./clangAstDumper";
 import type { TypeCatalogEntry } from "../types";
 
 export class HeaderCatalog {
@@ -27,54 +38,80 @@ export class HeaderCatalog {
     return this.namespaceMap;
   }
 
-  static parse(sources: readonly string[], syntax: CppSyntax): HeaderCatalog {
+  static async parse(
+    files: Record<string, string> | Map<string, string>,
+    mains: readonly string[],
+    dumper: ClangAstDumper = ClangAstDumper.defaultDumper(),
+  ): Promise<HeaderCatalog> {
     const catalog = new HeaderCatalog();
-    for (const source of sources) catalog.walk(syntax.parse(source).root, []);
+    const fileMap = files instanceof Map ? files : new Map(Object.entries(files));
+    for (const main of mains) {
+      const source = fileMap.get(main);
+      if (source === undefined) throw new Error(`HeaderCatalog is missing file "${main}"`);
+      const dump = await dumper.dumpAsync(new Map(fileMap), main);
+      if (!dump.ok || dump.ast === undefined) {
+        throw new Error(`clang++ AST dump of "${main}" failed\n${dump.diagnostics}`);
+      }
+      catalog.walkFile(dump.ast as ClangAstJson, source, main, []);
+    }
     return catalog;
   }
 
-  private walk(node: CppNode, namespacePath: readonly string[]): void {
-    if (node.type === "namespace_definition") {
-      const names = namespaceNames(node);
-      const comment = JsonComment.before(node);
-      if (comment?.kind === "namespace") this.addNamespace([...namespacePath, ...names], comment);
-      const body = node.childOfType("declaration_list");
-      const next = [...namespacePath, ...names];
-      for (const child of body?.namedChildren ?? []) this.walk(child, next);
-      return;
-    }
-    if (node.type === "class_specifier") {
-      this.readBlock(node, namespacePath);
-      return;
-    }
-    if (node.type === "alias_declaration" || node.type === "template_declaration") this.readType(node);
-    for (const child of node.namedChildren) this.walk(child, namespacePath);
+  private walkFile(node: ClangAstJson, source: string, main: string, namespacePath: readonly string[]): void {
+    for (const child of node.inner ?? []) this.walk(child, source, main, namespacePath);
   }
 
-  private readType(node: CppNode): void {
-    const comment = JsonComment.before(node);
+  private walk(node: ClangAstJson, source: string, main: string, namespacePath: readonly string[]): void {
+    if (node.isImplicit) return;
+    if (!isMainFileNode(node, main)) return;
+    if (node.kind === "NamespaceDecl") {
+      const names = (node.name ?? "").split("::").filter((part) => part.length > 0);
+      const comment = ClangComment.of(node)?.asJson();
+      if (comment?.kind === "namespace") this.addNamespace([...namespacePath, ...names], comment);
+      const next = [...namespacePath, ...names];
+      for (const child of node.inner ?? []) this.walk(child, source, main, next);
+      return;
+    }
+    if (node.kind === "CXXRecordDecl") {
+      this.readBlock(node, source, namespacePath);
+      return;
+    }
+    if (
+      node.kind === "TypeAliasDecl" ||
+      node.kind === "TypedefDecl" ||
+      node.kind === "TypeAliasTemplateDecl" ||
+      node.kind === "ClassTemplateDecl"
+    ) {
+      this.readType(node);
+      return;
+    }
+    for (const child of node.inner ?? []) this.walk(child, source, main, namespacePath);
+  }
+
+  private readType(node: ClangAstJson): void {
+    const comment = ClangComment.of(node)?.asJson();
     if (comment?.kind !== "type") return;
-    const id = stringField(comment, "id") ?? declaratorName(node);
+    const id = stringField(comment, "id") ?? node.name;
     if (!id) throw new Error("Exposed type comment is missing an id");
     if (this.typeMap[id]) throw new Error(`Duplicate exposed type "${id}"`);
     this.typeMap[id] = typeEntry(comment, id);
   }
 
-  private readBlock(node: CppNode, namespacePath: readonly string[]): void {
-    const comment = JsonComment.before(node);
+  private readBlock(node: ClangAstJson, source: string, namespacePath: readonly string[]): void {
+    const comment = ClangComment.of(node)?.asJson();
     if (comment?.kind !== "block") return;
-    const className = node.field("name")?.text ?? node.childOfType("type_identifier")?.text;
+    const className = node.name;
     if (!className) throw new Error("Exposed block is missing a class name");
     const id = stringField(comment, "id") ?? className;
     if (this.blockMap[id]) throw new Error(`Duplicate exposed block "${id}"`);
     const ns = stringList(comment.value.ns) ?? [...namespacePath];
-    const body = node.childOfType("field_declaration_list");
     const inputs: Record<string, RawPortCatalogEntry> = {};
     const outputs: Record<string, RawPortCatalogEntry> = {};
     const conf: Record<string, RawConfigPropertyCatalogEntry> = {};
-    for (const child of body?.namedChildren ?? []) {
-      if (child.type === "alias_declaration") this.readPort(child, inputs, outputs);
-      if (child.type === "function_definition") this.readConf(child, conf);
+    for (const child of node.inner ?? []) {
+      if (child.isImplicit) continue;
+      if (child.kind === "TypeAliasDecl" || child.kind === "TypedefDecl") this.readPort(child, inputs, outputs);
+      if (child.kind === "CXXConstructorDecl" || child.kind === "CXXMethodDecl") this.readConf(child, source, conf);
     }
     const raw: RawBlockCatalogEntry = {
       ns,
@@ -92,13 +129,13 @@ export class HeaderCatalog {
   }
 
   private readPort(
-    node: CppNode,
+    node: ClangAstJson,
     inputs: Record<string, RawPortCatalogEntry>,
     outputs: Record<string, RawPortCatalogEntry>,
   ): void {
-    const comment = JsonComment.before(node);
+    const comment = ClangComment.of(node)?.asJson();
     if (comment?.kind !== "input" && comment?.kind !== "output") return;
-    const id = stringField(comment, "id") ?? node.childOfType("type_identifier")?.text;
+    const id = stringField(comment, "id") ?? node.name;
     if (!id) throw new Error("Exposed port comment is missing an id");
     const port: RawPortCatalogEntry = {
       vector: Boolean(comment.value.vector),
@@ -108,13 +145,14 @@ export class HeaderCatalog {
     (comment.kind === "input" ? inputs : outputs)[id] = port;
   }
 
-  private readConf(node: CppNode, conf: Record<string, RawConfigPropertyCatalogEntry>): void {
-    const list = node.childOfType("function_declarator")?.childOfType("parameter_list");
-    for (const param of list?.namedChildren ?? []) {
-      if (param.type !== "parameter_declaration" && param.type !== "optional_parameter_declaration") continue;
-      const comment = JsonComment.before(param);
+  private readConf(node: ClangAstJson, source: string, conf: Record<string, RawConfigPropertyCatalogEntry>): void {
+    for (const param of node.inner ?? []) {
+      if (param.kind !== "ParmVarDecl") continue;
+      const begin = ClangSourceComments.declBeginOffset(param);
+      if (begin === undefined) continue;
+      const comment = ClangSourceComments.precedingBlockJson(source, begin);
       if (comment?.kind !== "conf") continue;
-      const id = stringField(comment, "id") ?? param.childOfType("identifier")?.text;
+      const id = stringField(comment, "id") ?? param.name;
       if (!id) throw new Error("Exposed config comment is missing an id");
       if (conf[id]) throw new Error(`Duplicate config "${id}"`);
       const entry: RawConfigPropertyCatalogEntry = {
@@ -152,26 +190,6 @@ export class HeaderCatalog {
       cursor = parent.children;
     }
   }
-}
-
-function namespaceNames(node: CppNode): string[] {
-  const name = node.field("name");
-  if (!name) return [];
-  if (name.type === "nested_namespace_specifier") {
-    return name.namedChildren.map((child) => child.text).filter((part) => part.length > 0 && part !== "::");
-  }
-  return name.text.split("::").filter((part) => part.length > 0);
-}
-
-function declaratorName(node: CppNode): string | undefined {
-  if (node.type === "alias_declaration") return node.childOfType("type_identifier")?.text;
-  if (node.type === "template_declaration") {
-    const inner = node.childOfType("alias_declaration") ?? node.childOfType("class_specifier");
-    if (!inner) return undefined;
-    if (inner.type === "alias_declaration") return inner.childOfType("type_identifier")?.text;
-    return inner.field("name")?.text ?? inner.childOfType("type_identifier")?.text;
-  }
-  return node.field("name")?.text;
 }
 
 function typeEntry(comment: JsonComment, id: string): TypeCatalogEntry {

@@ -43,7 +43,7 @@ export class ClangFrontend extends EmscriptenTool {
     try {
       return await this.runJob(async () => {
         this.prepareWork();
-        for (const [name, text] of files) this.writeText(workPath(name), this.comments.apply(text));
+        for (const [name, text] of files) this.writeText(workPath(name), text);
         const captured = this.runMainCapture(this.args.syntaxOnlyAstDump(workPath(mainFile)));
         let ast: unknown;
         try {
@@ -52,6 +52,19 @@ export class ClangFrontend extends EmscriptenTool {
           ast = undefined;
         }
         return { ok: captured.code === 0, ast, stdout: captured.stdout, stderr: captured.stderr };
+      });
+    } finally {
+      await this.recycle();
+    }
+  }
+
+  async emitAst(files: Map<string, string>, mainFile: string): Promise<{ ok: boolean; astText: string; stdout: string; stderr: string }> {
+    try {
+      return await this.runJob(async () => {
+        this.prepareWork();
+        for (const [name, text] of files) this.writeText(workPath(name), text);
+        const captured = this.runMainCapture(this.args.emitAst(workPath(mainFile)));
+        return { ok: captured.code === 0, astText: captured.stdout, stdout: captured.stdout, stderr: captured.stderr };
       });
     } finally {
       await this.recycle();
