@@ -4,6 +4,9 @@ import { defineConfig } from "@playwright/test";
 
 const root = path.dirname(fileURLToPath(import.meta.url));
 
+// Node gives FORCE_COLOR precedence and warns if NO_COLOR is also inherited.
+if (process.env.FORCE_COLOR !== undefined) delete process.env.NO_COLOR;
+
 export default defineConfig({
   testDir: "./e2e",
   testMatch: /.*\.spec\.ts/,
