@@ -9,6 +9,7 @@ const schemaAssets = {
 } as const;
 
 test("rsbuild copies core JSON schemas to /schemas", () => {
+  expect(config.html?.template).toBe("./index.html");
   expect(config.output?.copy).toEqual([{ from: "../core/assets/schemas", to: "schemas" }]);
   expect(Object.keys(schemaAssets).sort()).toEqual([...schemaAssetFiles].sort());
   expect(CoreSchemaCatalog.shared.schemaNames).toEqual(["library"]);

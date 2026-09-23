@@ -8,6 +8,9 @@ export const rawHeaderRule = {
 };
 
 export default defineConfig({
+  html: {
+    template: "./index.html",
+  },
   output: {
     copy: [{ from: "../core/assets/schemas", to: "schemas" }],
   },
