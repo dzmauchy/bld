@@ -79,7 +79,7 @@ bld/
 | **`base`** | Header-only C++ library | `push::f32` blocks in `base/native` (`ScopeF32`, `SumF32`, `ProductF32`, `GpioInF32`, generators) plus `wasm_host.hpp` exports used by generated diagrams. |
 | **`core`** | Domain model & C++ builder | `Library` points at hpp URLs, `HeaderCatalog` parses JSON comments, `Diagram` is a `mount()` entry point, `CppDiagramBuilder` and `DiagramCompiler` delegate wasm compilation to `cpp`. |
 | **`cpp`** | In-browser clang/lld | Compiles generated C++ sources to wasm and executes the module in a worker. |
-| **`ui`** | User Interface & Worker Host | Solid.js web app, dark UI theme, canvas interactions, Rsbuild dev server, Cloudflare Pages deployment configuration (`wrangler.json`), browser Worker hosting (`run.worker.ts`). |
+| **`ui`** | User Interface & Worker Host | Solid.js web app, black UI theme, palette and diagram split view, Rsbuild dev server, Cloudflare Workers static assets (`wrangler.json`, not Pages), browser Worker hosting (`run.worker.ts`). |
 
 ---
 

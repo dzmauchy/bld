@@ -1,15 +1,19 @@
-import { add } from "core";
-import { modelAssets } from "./modelAssets.js";
+import type { Library } from "core";
+import { LibraryList } from "./libraries/libraryList.js";
+import { SplitWorkspace } from "./view/splitWorkspace.js";
 
-function firstTitle(source: string): string {
-  return source.match(/@title\s+(.+)/)?.[1]?.trim() ?? "";
-}
+export class App {
+  static readonly defaultLibraries = LibraryList.defaultIds;
 
-export function App(): string {
-  const lines = [String(add(2, 2))];
-  for (const name of Object.keys(modelAssets).sort()) {
-    const title = firstTitle(modelAssets[name as keyof typeof modelAssets]);
-    lines.push(title ? `${name} ${title}` : name);
+  readonly libraries: readonly Library[];
+  private readonly workspace: SplitWorkspace;
+
+  constructor(libraryIds: readonly string[] = LibraryList.defaultIds) {
+    this.libraries = new LibraryList(libraryIds).load();
+    this.workspace = new SplitWorkspace(this.libraries);
   }
-  return lines.join("\n");
+
+  get element(): HTMLElement {
+    return this.workspace.element;
+  }
 }
