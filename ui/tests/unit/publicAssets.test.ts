@@ -1,4 +1,5 @@
 import { expect, test } from "vitest";
+import { PLUGIN_SOLID_NAME } from "@rsbuild/plugin-solid";
 import { CoreSchemaCatalog, schemaAssetFiles } from "core";
 import headers from "../../public/_headers?raw";
 import config, { rawHeaderRule } from "../../rsbuild.config.ts";
@@ -16,6 +17,14 @@ test("rsbuild copies core JSON schemas to /schemas", () => {
   for (const [name, schema] of Object.entries(schemaAssets)) {
     expect(JSON.parse(schema).$id, name).toContain(`/schemas/${name}`);
   }
+});
+
+test("rsbuild compiles the Solid 2 TSX entry", () => {
+  const names = (config.plugins ?? []).flatMap((plugin) =>
+    plugin && typeof plugin === "object" && "name" in plugin && typeof plugin.name === "string" ? [plugin.name] : [],
+  );
+  expect(names).toContain(PLUGIN_SOLID_NAME);
+  expect(config.source?.entry).toEqual({ index: "./src/index.tsx" });
 });
 
 test("rspack loads library headers as raw source", () => {
