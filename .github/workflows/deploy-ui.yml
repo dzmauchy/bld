@@ -34,10 +34,5 @@ jobs:
       - name: Push bld worker
         run: npm run deploy --workspace=ui
         env:
-          CF_ACCOUNT_ID: ${{ secrets.CF_ACCOUNT_ID }}
-          CF_API_KEY: ${{ secrets.CF_API_KEY }}
-          # Wrangler still reads the CF_* names. The API token is also exported
-          # under the current token variable so a Workers token stored as
-          # CF_API_KEY authenticates an assets deploy.
-          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CF_ACCOUNT_ID }}
-          CLOUDFLARE_API_TOKEN: ${{ secrets.CF_API_KEY }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
