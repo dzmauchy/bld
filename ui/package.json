@@ -14,15 +14,18 @@
     "deploy": "wrangler deploy --config ../wrangler.json"
   },
   "dependencies": {
+    "@awesome.me/webawesome": "^3.12.0",
+    "@joint/router-avoid": "^4.3.3",
+    "@solidjs/web": "^2.0.0-rc.9",
     "core": "*",
     "runtime": "*",
-    "solid-js": "^1.9.15",
-    "@awesome.me/webawesome": "^3.12.0",
-    "@joint/router-avoid": "^4.3.3"
+    "solid-js": "^2.0.0-rc.9"
   },
   "devDependencies": {
-    "base": "*",
     "@playwright/test": "^1.63.0",
-    "@rsbuild/core": "^2.2.5"
+    "@rsbuild/core": "^2.2.5",
+    "@rsbuild/plugin-solid": "^2.0.0-rc.0",
+    "@solidjs/compiler": "2.0.0-rc.9",
+    "base": "*"
   }
 }

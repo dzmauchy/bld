@@ -1,0 +1,38 @@
+# Manual push of the UI workspace build to the bld Cloudflare Worker.
+# Static files come from ui/dist via Workers assets. This is not Cloudflare Pages.
+name: Deploy UI
+
+on:
+  workflow_dispatch:
+
+concurrency:
+  group: deploy-ui-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: "26"
+          cache: npm
+        env:
+          # setup-node runs `npm config get cache`, which rejects workspaces=true
+          npm_config_workspaces: false
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build UI workspace
+        run: npm run build --workspace=ui
+
+      - name: Push bld worker
+        run: npm run deploy --workspace=ui
+        env:
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
