@@ -1,7 +1,7 @@
 import { expect, test } from "vitest";
 import { CoreSchemaCatalog, schemaAssetFiles } from "core";
 import headers from "../../public/_headers?raw";
-import config from "../../rsbuild.config.ts";
+import config, { rawHeaderRule } from "../../rsbuild.config.ts";
 import coreLibrarySchema from "core/assets/schemas/library.schema.json?raw";
 
 const schemaAssets = {
@@ -15,6 +15,11 @@ test("rsbuild copies core JSON schemas to /schemas", () => {
   for (const [name, schema] of Object.entries(schemaAssets)) {
     expect(JSON.parse(schema).$id, name).toContain(`/schemas/${name}`);
   }
+});
+
+test("rspack loads library headers as raw source", () => {
+  const rspack = config.tools?.rspack;
+  expect(rspack).toMatchObject({ module: { rules: [rawHeaderRule] } });
 });
 
 test("Cloudflare _headers enable cross-origin isolation for every asset", () => {
