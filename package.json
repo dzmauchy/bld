@@ -10,6 +10,7 @@
     "cpp"
   ],
   "devDependencies": {
+    "@rsbuild/plugin-solid": "^2.0.0-rc.0",
     "@types/node": "^26.5.1",
     "@vitest/expect": "^5.0.0",
     "typescript": "^7.0.2",
@@ -19,5 +20,13 @@
   "allowScripts": {
     "esbuild": true,
     "workerd": true
+  },
+  "dependencies": {
+    "@solidjs/web": "^2.0.0-rc.9",
+    "solid-js": "^2.0.0-rc.9"
+  },
+  "overrides": {
+    "@solidjs/babel-plugin": "2.0.0-rc.9",
+    "@solidjs/compiler": "2.0.0-rc.9"
   }
 }

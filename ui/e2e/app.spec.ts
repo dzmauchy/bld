@@ -17,12 +17,51 @@ function collect(dir: string, suffix: string): string[] {
   return found;
 }
 
-test("renders App", async ({ page }) => {
+const baseBlocks = [
+  "const_f32",
+  "sin_gen_f32",
+  "cos_gen_f32",
+  "rand_gen_f32",
+  "pulse_gen_f32",
+  "gpio_in_f32",
+  "sin_f32",
+  "cos_f32",
+  "sum_f32",
+  "product_f32",
+  "scope_f32",
+];
+
+test("splits a black workspace into a palette and a diagram", async ({ page }) => {
   await page.goto("/");
-  await expect(page.locator("#root")).toContainText("4");
-  await expect(page.locator("#root")).toContainText("diagram.ts Diagram");
-  await expect(page.locator("#root")).toContainText("palette.ts Palette");
-  await expect(page.locator("#root")).toContainText("compiler.ts Diagram Compiler");
+  const palette = page.locator("[data-region=palette]");
+  const diagram = page.locator("[data-region=diagram]");
+  await expect(page.locator("wa-split-panel")).toBeVisible();
+  await expect(palette).toBeVisible();
+  await expect(diagram).toBeVisible();
+  await expect(palette).toHaveAttribute("data-libraries", "base");
+  await expect(palette.locator("h1")).toHaveText("Palette");
+  await expect(diagram.locator("h1")).toHaveText("Diagram");
+
+  const paletteBox = await palette.boundingBox();
+  const diagramBox = await diagram.boundingBox();
+  expect(paletteBox).toBeTruthy();
+  expect(diagramBox).toBeTruthy();
+  expect(paletteBox!.x).toBeLessThan(diagramBox!.x);
+  expect(paletteBox!.width).toBeGreaterThan(160);
+  expect(diagramBox!.width).toBeGreaterThan(paletteBox!.width);
+  expect(Math.abs(paletteBox!.height - diagramBox!.height)).toBeLessThan(2);
+
+  expect(await diagram.evaluate((element) => getComputedStyle(element).backgroundColor)).toBe("rgb(0, 0, 0)");
+  expect(await page.evaluate(() => getComputedStyle(document.body).backgroundColor)).toBe("rgb(0, 0, 0)");
+
+  await expect(palette.locator("[data-block-id]")).toHaveCount(baseBlocks.length);
+  for (const id of baseBlocks) {
+    await expect(palette.locator(`[data-block-id="${id}"]`)).toHaveCount(1);
+  }
+
+  await palette.locator("[data-block-id=scope_f32]").click();
+  await expect(diagram.locator("[data-block-ref=scope_f32]")).toHaveCount(1);
+  await expect(diagram.locator("[data-block-ref=scope_f32]")).toContainText("Scope");
 });
 
 test("copies all JSON schemas into ui/dist/schemas", () => {
