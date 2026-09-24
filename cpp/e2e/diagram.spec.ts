@@ -3,7 +3,6 @@ import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { expect, test, type Page } from "@playwright/test";
 import "../../core/tests/nodeFileFetch.ts";
-import { nativeLibraryFiles } from "../../base/src/index.ts";
 import {
   CppDiagramBuilder,
   Diagram,
@@ -24,16 +23,12 @@ test.describe.configure({ mode: "serial" });
 
 const here = dirname(fileURLToPath(import.meta.url));
 const coreAssets = join(here, "../../core/assets");
-const nativeRoot = join(here, "../../base/native");
 
 registerAppAssets({
   "base.json": readFileSync(join(coreAssets, "base.json"), "utf8"),
-  "base/native/include/bld.hpp": readFileSync(join(nativeRoot, "include/bld.hpp"), "utf8"),
-  "base/native/src/base.hpp": readFileSync(join(nativeRoot, "src/base.hpp"), "utf8"),
-  "base/native/src/wasm_host.hpp": readFileSync(join(nativeRoot, "src/wasm_host.hpp"), "utf8"),
 });
 
-const builder = new CppDiagramBuilder(nativeLibraryFiles());
+let builder: CppDiagramBuilder;
 let page: Page;
 let palette: Awaited<ReturnType<typeof Library.load>>["palette"];
 
@@ -61,7 +56,9 @@ async function invoke(name: string, args: number[] = []): Promise<number> {
 }
 
 test.beforeAll(async ({ browser }) => {
-  palette = (await Library.load("base.json")).palette;
+  const library = await Library.load("base.json");
+  palette = library.palette;
+  builder = new CppDiagramBuilder(library.compilationModel.getFiles());
   page = await browser.newPage();
   await page.goto("/");
   await expect(page.locator("#status")).toHaveText("module-ready");

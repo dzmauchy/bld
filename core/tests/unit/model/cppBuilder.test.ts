@@ -1,5 +1,4 @@
 import { beforeAll, describe, expect, test } from "vitest";
-import { nativeLibraryFiles } from "base";
 import { BlockDefinition } from "../../../src/model/blockDefinition.ts";
 import { CppDiagramBuilder } from "../../../src/model/cppBuilder.ts";
 import { Diagram } from "../../../src/model/diagram.ts";
@@ -8,11 +7,12 @@ import { Palette } from "../../../src/model/palette.ts";
 import { PortEndpoint } from "../../../src/model/endpoint.ts";
 
 let palette: Palette;
-const builder = new CppDiagramBuilder(nativeLibraryFiles());
+let builder: CppDiagramBuilder;
 
 beforeAll(async () => {
   const lib = await Library.load("base.json");
   palette = lib.palette;
+  builder = new CppDiagramBuilder(lib.compilationModel.getFiles());
 });
 
 function connect(diagram: Diagram, fromId: string, fromPort: string, fromVec: number, toId: string, toPort: string, toVec: number): void {

@@ -15,5 +15,6 @@ export const modelAssetFiles = [
   "hostClangAstDumper.ts",
   "index.ts",
   "library.ts",
+  "libraryArchive.ts",
   "palette.ts",
 ] as const;

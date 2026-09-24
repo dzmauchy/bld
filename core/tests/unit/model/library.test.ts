@@ -1,9 +1,11 @@
 import { describe, expect, test, vi } from "vitest";
 import { resolveUrl } from "../../../src/model/appAssets.js";
 import { readNodeAsset } from "../../readNodeAsset.ts";
+import { packTar } from "modern-tar";
 import {
   CompilationModel,
   Library,
+  LibraryArchive,
   Palette,
   TypeSystem,
   clearRegisteredAppAssets,
@@ -12,6 +14,7 @@ import {
   loadAsset,
   normalizeAssetPath,
   registerAppAsset,
+  registerAppAssetBytes,
   registerAppAssets,
   setAppAssetResolver,
 } from "../../../src/model/index.js";
@@ -71,7 +74,17 @@ describe("Library and Asset Loader", () => {
     expect(Library.getBaseSync()).toBe(lib);
   });
 
-  test("fetches absolute URLs via HTTP when not relative", async () => {
+  test("fetches a remote library archive and unpacks it with modern-tar", async () => {
+    const header = [
+      '/*{"kind":"type","id":"custom_t","name":"Custom Type","description":"A custom test type"}*/',
+      "using custom_t = int;",
+      '/*{"kind":"namespace","name":"Custom NS"}*/',
+      "namespace custom_ns {",
+      '/*{"kind":"block","id":"custom_block","ns":["custom_ns"],"icon":"custom.svg","title":"Custom Block","description":"A custom test block"}*/',
+      "class CustomBlock {};",
+      "}",
+    ].join("\n");
+    const archive = await gzipTar({ "plugin.hpp": header });
     const originalFetch = globalThis.fetch;
     const fetchMock = vi.fn(async (url: RequestInfo | URL) => {
       const u = String(url);
@@ -80,24 +93,14 @@ describe("Library and Asset Loader", () => {
           JSON.stringify({
             id: "remote_plugin",
             name: "Remote Plugin",
-            headers: ["plugin.hpp"],
+            icon: "plugin.svg",
+            location: "https://my-plugin.org/dsp/plugin.tar.gz",
           }),
           { status: 200 },
         );
       }
-      if (u === "https://my-plugin.org/dsp/plugin.hpp") {
-        return new Response(
-          [
-            '/*{"kind":"type","id":"custom_t","name":"Custom Type","description":"A custom test type"}*/',
-            "using custom_t = int;",
-            '/*{"kind":"namespace","name":"Custom NS"}*/',
-            "namespace custom_ns {",
-            '/*{"kind":"block","id":"custom_block","ns":["custom_ns"],"icon":"custom.svg","title":"Custom Block","description":"A custom test block"}*/',
-            "class CustomBlock {};",
-            "}",
-          ].join("\n"),
-          { status: 200 },
-        );
+      if (u === "https://my-plugin.org/dsp/plugin.tar.gz") {
+        return new Response(new Blob([archive]), { status: 200 });
       }
       return new Response("Not found", { status: 404 });
     });
@@ -108,11 +111,12 @@ describe("Library and Asset Loader", () => {
       const lib = await Library.load("https://my-plugin.org/dsp/library.json");
       expect(lib.id).toBe("remote_plugin");
       expect(lib.name).toBe("Remote Plugin");
+      expect(lib.icon).toBe("plugin.svg");
       expect(lib.typeSystem.getPrimitive("custom_t")).toBeDefined();
       expect(lib.palette.getBlock("custom_block")).toBeDefined();
 
       expect(fetchMock).toHaveBeenCalledWith("https://my-plugin.org/dsp/library.json");
-      expect(fetchMock).toHaveBeenCalledWith("https://my-plugin.org/dsp/plugin.hpp");
+      expect(fetchMock).toHaveBeenCalledWith("https://my-plugin.org/dsp/plugin.tar.gz");
       expect(lib.palette.getBlock("custom_block")?.cppClass).toBe("custom_ns::CustomBlock");
       expect(lib.compilationModel.getFile("plugin.hpp")).toContain("class CustomBlock");
     } finally {
@@ -158,6 +162,7 @@ describe("Library and Asset Loader", () => {
     const content = await readNodeAsset("base.json");
     expect(content).toBeDefined();
     expect(JSON.parse(content!).id).toBe("base");
+    expect(JSON.parse(content!).location).toContain("base-0.1.0.tar.gz");
   });
 
   test("fetchText loads absolute URLs", async () => {
@@ -190,20 +195,22 @@ describe("Library and Asset Loader", () => {
     expect(palette.getBlock("scope_f32")?.title).toBe("Scope");
   });
 
-  test("relative header URLs load from internal resources", async () => {
+  test("relative archive locations load from internal resources", async () => {
+    const header = [
+      "namespace samples {",
+      '/*{"kind":"block","id":"local_block","ns":["samples"],"icon":"local.svg","title":"Local","description":"Loaded from an internal header"}*/',
+      "class Local {};",
+      "}",
+    ].join("\n");
     registerAppAssets({
       "internal.json": JSON.stringify({
         id: "internal",
         name: "Internal",
-        headers: ["samples/block.hpp"],
+        icon: "internal.svg",
+        location: "samples/lib.tar.gz",
       }),
-      "samples/block.hpp": [
-        "namespace samples {",
-        '/*{"kind":"block","id":"local_block","ns":["samples"],"icon":"local.svg","title":"Local","description":"Loaded from an internal header"}*/',
-        "class Local {};",
-        "}",
-      ].join("\n"),
     });
+    registerAppAssetBytes("samples/lib.tar.gz", await gzipTar({ "block.hpp": header }));
     const fetchMock = vi.fn();
     const originalFetch = globalThis.fetch;
     globalThis.fetch = fetchMock as unknown as typeof fetch;
@@ -218,6 +225,14 @@ describe("Library and Asset Loader", () => {
     }
   });
 
+  test("LibraryArchive unpacks header files from a tar.gz", async () => {
+    const archive = await LibraryArchive.fromTarGz(await gzipTar({
+      "include/bld.hpp": "namespace bld {}",
+      "notes.txt": "ignore",
+    }));
+    expect(archive.files()).toEqual({ "bld.hpp": "namespace bld {}" });
+  });
+
   test("header block classes match the C++ catalog", async () => {
     const lib = await Library.loadBase();
     for (const [id, raw] of Object.entries(lib.blocks)) {
@@ -225,4 +240,22 @@ describe("Library and Asset Loader", () => {
     }
   });
 });
+
+async function gzipTar(files: Record<string, string>): Promise<Uint8Array<ArrayBuffer>> {
+  const encoder = new TextEncoder();
+  const tar = await packTar(Object.entries(files).map(([name, body]) => {
+    const encoded = encoder.encode(body);
+    return { header: { name, size: encoded.byteLength }, body: encoded };
+  }));
+  const compressed = await new Response(
+    new Blob([copyBytes(tar)]).stream().pipeThrough(new CompressionStream("gzip")),
+  ).arrayBuffer();
+  return new Uint8Array(compressed);
+}
+
+function copyBytes(bytes: Uint8Array): Uint8Array<ArrayBuffer> {
+  const copy = new Uint8Array(bytes.byteLength);
+  copy.set(bytes);
+  return copy;
+}
 

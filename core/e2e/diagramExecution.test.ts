@@ -2,7 +2,6 @@ import { readFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { beforeAll, describe, expect, test } from "vitest";
-import { nativeLibraryFiles } from "base";
 import {
   CppDiagramBuilder,
   Diagram,
@@ -13,7 +12,7 @@ import {
 } from "../src";
 
 const here = dirname(fileURLToPath(import.meta.url));
-const builder = new CppDiagramBuilder(nativeLibraryFiles());
+let builder: CppDiagramBuilder;
 
 export class DiagramJsonBuilder {
   private readonly blocks: Record<string, RawBlockJson> = {};
@@ -125,6 +124,7 @@ describe("E2E diagram C++ generation", () => {
 
   beforeAll(async () => {
     library = await Library.load("base.json");
+    builder = new CppDiagramBuilder(library.compilationModel.getFiles());
   });
 
   function cppOf(json: DiagramJson): string {

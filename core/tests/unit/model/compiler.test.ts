@@ -1,5 +1,4 @@
 import { beforeAll, describe, expect, test } from "vitest";
-import { nativeLibraryFiles } from "base";
 import {
   browserContext,
   BrowserCompiler,
@@ -16,11 +15,12 @@ import { Palette } from "../../../src/model/palette.ts";
 import { PortEndpoint } from "../../../src/model/endpoint.ts";
 
 let palette: Palette;
-const libraryFiles = nativeLibraryFiles();
+let libraryFiles: Record<string, string> = {};
 
 beforeAll(async () => {
   const lib = await Library.load("base.json");
   palette = lib.palette;
+  libraryFiles = lib.compilationModel.getFiles();
 });
 
 function createTestDiagram(): Diagram {

@@ -6,6 +6,8 @@
   "license": "AGPL-3.0-only",
   "scripts": {
     "dev": "rsbuild",
+    "prebuild": "node scripts/fetch-base-release.mjs",
+    "predev": "node scripts/fetch-base-release.mjs",
     "build": "tsc -b && tsc -b tsconfig.test.json && rsbuild build",
     "preview": "rsbuild preview",
     "test": "tsc -b && tsc -b tsconfig.test.json && vitest run tests && playwright test",
@@ -25,7 +27,6 @@
     "@playwright/test": "^1.63.0",
     "@rsbuild/core": "^2.2.9",
     "@rsbuild/plugin-solid": "^2.0.0-rc.0",
-    "@solidjs/compiler": "2.0.0-rc.9",
-    "base": "*"
+    "@solidjs/compiler": "2.0.0-rc.9"
   }
 }

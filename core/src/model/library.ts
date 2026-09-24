@@ -4,9 +4,11 @@
 import { TypeSystem, type TypeCatalogEntry } from "../types";
 import { loadAsset, resolveUrl } from "./appAssets";
 import type { RawBlockCatalogEntry } from "./blockDefinition";
+import { ClangAstDumper } from "./clangAstDumper";
 import { CompilationModel } from "./compiler";
 import { CppBlockCatalog } from "./cppBlockCatalog";
 import { HeaderCatalog } from "./headerCatalog";
+import { LibraryArchive } from "./libraryArchive";
 import { Palette } from "./palette";
 
 export {
@@ -16,8 +18,10 @@ export {
   fetchText,
   getRegisteredAppAsset,
   loadAsset,
+  loadAssetBytes,
   normalizeAssetPath,
   registerAppAsset,
+  registerAppAssetBytes,
   registerAppAssets,
   setAppAssetResolver,
   type AssetResolver,
@@ -28,8 +32,8 @@ export interface PackageManifest {
   $schema?: string;
   id: string;
   name: string;
-  icon?: string;
-  headers: string[];
+  icon: string;
+  location: string;
 }
 
 export interface LibrarySources {
@@ -60,7 +64,7 @@ export class Library {
     return this.manifest.name;
   }
 
-  get icon(): string | undefined {
+  get icon(): string {
     return this.manifest.icon;
   }
 
@@ -85,6 +89,8 @@ export class Library {
     if (manifest.id === "base") {
       Library.base = lib;
       CppBlockCatalog.bindPalette(lib.palette);
+      const files = compilationModel.getFiles();
+      if (files["base.hpp"]) ClangAstDumper.bindLibraryFiles(files);
     }
     return lib;
   }
@@ -92,21 +98,12 @@ export class Library {
   static async load(manifestOrUrl: string | PackageManifest): Promise<Library> {
     const baseUrl = typeof manifestOrUrl === "string" && URL.canParse(manifestOrUrl) ? manifestOrUrl : undefined;
     const manifest: PackageManifest = typeof manifestOrUrl === "string"
-      ? JSON.parse(await loadAsset(manifestOrUrl))
+      ? JSON.parse(await loadAsset(manifestOrUrl)) as PackageManifest
       : manifestOrUrl;
-
-    const files = new Map<string, string>();
-    const mains: string[] = [];
-    const compilationModel = new CompilationModel();
-    for (const headerUrl of manifest.headers ?? []) {
-      const url = baseUrl ? resolveUrl(headerUrl, baseUrl) : headerUrl;
-      const source = await loadAsset(url);
-      const name = headerFileName(url);
-      files.set(name, source);
-      mains.push(name);
-      compilationModel.addFile(name, source);
-    }
-    const catalog = await HeaderCatalog.parse(files, mains);
+    const archive = await LibraryArchive.fetch(resolveUrl(manifest.location, baseUrl));
+    const files = archive.files();
+    const compilationModel = new CompilationModel(files);
+    const catalog = await HeaderCatalog.parse(files, Object.keys(files));
     return Library.fromManifest(manifest, {
       types: catalog.types,
       namespaces: catalog.namespaces,
@@ -125,8 +122,3 @@ export class Library {
   }
 }
 
-function headerFileName(url: string): string {
-  const path = url.split("?")[0] ?? url;
-  const slash = Math.max(path.lastIndexOf("/"), path.lastIndexOf("\\"));
-  return slash === -1 ? path : path.slice(slash + 1);
-}

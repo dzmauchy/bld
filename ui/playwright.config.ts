@@ -11,7 +11,7 @@ export default defineConfig({
     trace: "on-first-retry",
   },
   webServer: {
-    command: "rsbuild build && rsbuild preview --port 3001",
+    command: "node scripts/fetch-base-release.mjs && rsbuild build && rsbuild preview --port 3001",
     url: "http://localhost:3001",
     reuseExistingServer: !process.env.CI,
   },

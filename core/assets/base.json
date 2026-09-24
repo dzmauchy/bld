@@ -3,9 +3,5 @@
   "id": "base",
   "name": "Base",
   "icon": "library-base.svg",
-  "headers": [
-    "base/native/include/bld.hpp",
-    "base/native/src/base.hpp",
-    "base/native/src/wasm_host.hpp"
-  ]
+  "location": "https://github.com/dzmauchy/bld-base/releases/download/v0.1.0/base-0.1.0.tar.gz"
 }

@@ -23,6 +23,7 @@ export class AppAssetStore extends AbstractAssetStore {
   }
 
   private readonly assets = new Map<string, string>();
+  private readonly binaries = new Map<string, Uint8Array>();
   private resolver: AssetResolver | null = null;
 
   static normalizePath(path: string): string {
@@ -41,11 +42,15 @@ export class AppAssetStore extends AbstractAssetStore {
   }
 
   static async fetchText(url: string): Promise<string> {
+    return new TextDecoder().decode(await AppAssetStore.fetchBytes(url));
+  }
+
+  static async fetchBytes(url: string): Promise<Uint8Array> {
     const response = await fetch(url);
     if (!response.ok) {
       throw new Error(`Failed to fetch ${url}: ${response.status} ${response.statusText}`);
     }
-    return response.text();
+    return new Uint8Array(await response.arrayBuffer());
   }
 
   override register(path: string, content: string): void {
@@ -67,8 +72,13 @@ export class AppAssetStore extends AbstractAssetStore {
     return this.assets.get(norm) ?? (slash !== -1 ? this.assets.get(norm.slice(slash + 1)) : undefined);
   }
 
+  registerBytes(path: string, content: Uint8Array): void {
+    this.binaries.set(AppAssetStore.normalizePath(path), content);
+  }
+
   override clear(): void {
     this.assets.clear();
+    this.binaries.clear();
   }
 
   setResolver(resolver: AssetResolver | null): void {
@@ -86,14 +96,25 @@ export class AppAssetStore extends AbstractAssetStore {
     if (registered !== undefined) return registered;
     throw new Error(`App asset not found: ${cleanPath}`);
   }
+
+  async loadBytes(url: string): Promise<Uint8Array> {
+    if (URL.canParse(url)) return AppAssetStore.fetchBytes(url);
+    const cleanPath = AppAssetStore.normalizePath(url);
+    const registered = this.binaries.get(cleanPath);
+    if (registered) return registered;
+    if (typeof document !== "undefined") return AppAssetStore.fetchBytes(new URL(cleanPath, document.baseURI).href);
+    throw new Error(`App asset not found: ${cleanPath}`);
+  }
 }
 
 export const normalizeAssetPath = (path: string): string => AppAssetStore.normalizePath(path);
 export const resolveUrl = (url: string, baseUrl?: string): string => AppAssetStore.resolveUrl(url, baseUrl);
 export const registerAppAsset = (path: string, content: string): void => AppAssetStore.shared.register(path, content);
+export const registerAppAssetBytes = (path: string, content: Uint8Array): void => AppAssetStore.shared.registerBytes(path, content);
 export const registerAppAssets = (assets: Record<string, string>): void => AppAssetStore.shared.registerAll(assets);
 export const getRegisteredAppAsset = (path: string): string | undefined => AppAssetStore.shared.get(path);
 export const clearRegisteredAppAssets = (): void => AppAssetStore.shared.clear();
 export const setAppAssetResolver = (resolver: AssetResolver | null): void => AppAssetStore.shared.setResolver(resolver);
 export const fetchText = (url: string): Promise<string> => AppAssetStore.fetchText(url);
 export const loadAsset = (url: string): Promise<string> => AppAssetStore.shared.load(url);
+export const loadAssetBytes = (url: string): Promise<Uint8Array> => AppAssetStore.shared.loadBytes(url);

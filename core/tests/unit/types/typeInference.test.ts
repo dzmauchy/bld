@@ -1,13 +1,11 @@
 import { beforeAll, describe, expect, test } from "vitest";
-import { nativeLibraryFiles } from "base";
 import { ClangTranslationUnit, ClangTypeCatalog } from "../../../src/model/clangAst.ts";
 import { HostClangAstDumper } from "../../../src/model/hostClangAstDumper.ts";
 import { Library } from "../../../src/model/library.ts";
 
 describe("clang++ AST type dump", () => {
-  const files = nativeLibraryFiles();
   const dumper = HostClangAstDumper.shared;
-  const catalog = new ClangTypeCatalog(dumper, files);
+  const catalog = new ClangTypeCatalog(dumper);
 
   beforeAll(async () => {
     await Library.load("base.json");

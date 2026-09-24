@@ -14,6 +14,7 @@ import headerCatalog from "core/model/headerCatalog.ts?raw";
 import hostClangAstDumper from "core/model/hostClangAstDumper.ts?raw";
 import index from "core/model/index.ts?raw";
 import library from "core/model/library.ts?raw";
+import libraryArchive from "core/model/libraryArchive.ts?raw";
 import palette from "core/model/palette.ts?raw";
 import { modelAssetFiles } from "core";
 
@@ -34,5 +35,6 @@ export const modelAssets = {
   "hostClangAstDumper.ts": hostClangAstDumper,
   "index.ts": index,
   "library.ts": library,
+  "libraryArchive.ts": libraryArchive,
   "palette.ts": palette,
 } satisfies Record<(typeof modelAssetFiles)[number], string>;
