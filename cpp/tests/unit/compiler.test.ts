@@ -126,6 +126,24 @@ describe("CppWasmCompiler", () => {
     expect(clang.runs.at(-1)).toContain("-fparse-all-comments");
     expect(new TextDecoder().decode(clangFs.readFile("/work/demo.cpp"))).toContain('"blocks"');
   });
+
+  test("flushes the trailing stdout line into the AST dump", async () => {
+    const fs = new MemoryFileSystem();
+    const create: EmscriptenModuleFactory = async (options) => ({
+      FS: {
+        ...emscriptenApi(fs),
+        streams: [
+          undefined,
+          { tty: { ops: { fsync: () => options?.print?.("}") } } },
+        ],
+      } as EmscriptenFsApi,
+      callMain: () => 0,
+    });
+    const frontend = new ClangFrontend(create, "clang.wasm");
+    await frontend.boot();
+    const dump = await frontend.dumpAst(new Map([["demo.cpp", "int x;"]]), "demo.cpp");
+    expect(dump.stdout).toBe("}");
+  });
 });
 
 describe("WorkerCppWasmCompiler", () => {
