@@ -31,8 +31,37 @@ const baseBlocks = [
   "scope_f32",
 ];
 
+test("shows the bld icon splash until 100 ms after load", async ({ page }) => {
+  let releaseIcon = () => {};
+  const iconHeld = new Promise<void>((resolve) => {
+    releaseIcon = resolve;
+  });
+  await page.route("**/icons/bld.svg", async (route) => {
+    await iconHeld;
+    await route.continue();
+  });
+
+  await page.goto("/", { waitUntil: "commit" });
+  const splash = page.locator("[data-splash]");
+  await expect(splash).toBeVisible();
+  await expect(splash).toHaveAttribute("data-state", "open");
+  await expect(page.locator("link[rel='icon']")).toHaveAttribute("href", "/icons/bld.svg");
+  await expect(splash.locator("img.splash-mark")).toHaveAttribute("src", "/icons/bld.svg");
+  await expect(splash.locator("wa-spinner")).toBeVisible();
+  await expect(splash.locator("wa-progress-bar")).toHaveAttribute("indeterminate", "");
+  await expect(splash.locator("wa-animation")).toHaveAttribute("play", "");
+  const animationName = await splash.locator(".splash-ring-outer").evaluate((element) => getComputedStyle(element).animationName);
+  expect(animationName).toBe("splash-spin");
+
+  releaseIcon();
+  await page.waitForLoadState("load");
+  await expect(splash).toBeHidden();
+  await expect(splash).toHaveAttribute("data-state", "closed");
+});
+
 test("splits a black workspace into a palette and a diagram", async ({ page }) => {
   await page.goto("/");
+  await expect(page.locator("[data-splash]")).toBeHidden();
   const palette = page.locator("[data-region=palette]");
   const diagram = page.locator("[data-region=diagram]");
   await expect(page.locator("wa-split-panel")).toBeVisible();
