@@ -64,7 +64,6 @@ The repository is structured as an npm multi-workspace monorepo:
 
 ```
 bld/
-├── base/        # Native C++ block library (`base/native`) and header assets
 ├── core/        # Domain model, Diagram, TypeSystem, Schemas, and C++ diagram builder
 ├── runtime/     # Wasm session, worker bridge, sliding scope buffers
 ├── cpp/         # In-browser clang/lld compilation
@@ -76,8 +75,7 @@ bld/
 | Package | Purpose | Key Responsibilities |
 |---|---|---|
 | **`runtime`** | Wasm session & scopes | Worker RPC (`WasmRuntime`, `WasmSession`), WASI/env bindings, sliding scope buffers. |
-| **`base`** | Header-only C++ library | `push::f32` blocks in `base/native` (`ScopeF32`, `SumF32`, `ProductF32`, `GpioInF32`, generators) plus `wasm_host.hpp` exports used by generated diagrams. |
-| **`core`** | Domain model & C++ builder | `Library` points at hpp URLs, `HeaderCatalog` parses JSON comments, `Diagram` is a `mount()` entry point, `CppDiagramBuilder` and `DiagramCompiler` delegate wasm compilation to `cpp`. |
+| **`core`** | Domain model & C++ builder | `Library` points at a tar.gz URL, `LibraryArchive` unpacks it with modern-tar, `HeaderCatalog` parses JSON comments, `Diagram` is a `mount()` entry point, `CppDiagramBuilder` and `DiagramCompiler` delegate wasm compilation to `cpp`. |
 | **`cpp`** | In-browser clang/lld | Compiles generated C++ sources to wasm and executes the module in a worker. |
 | **`ui`** | User Interface & Worker Host | Solid.js web app, black UI theme, palette and diagram split view, Rsbuild dev server, Cloudflare Workers static assets (`wrangler.json`, not Pages), browser Worker hosting (`run.worker.ts`). |
 
@@ -125,9 +123,7 @@ graph TD
     end
 
     subgraph BaseLib["Standard Library"]
-        Base["base"]
-        Native["base/native headers"]
-        Base --> Native
+        Release["bld-base release tar.gz"]
     end
 
     subgraph CppPkg["cpp clang/lld"]
@@ -397,7 +393,7 @@ The standard library includes fundamental building blocks for digital signal pro
 
 A diagram is a C++ entry point. Consecutive `//` comments hold one JSON object that records blocks and connections, and `mount()` constructs and wires the blocks. The host `start()` calls `mount()` and then each block's `onStart`. `mount()` does not start the diagram. Arrays in `mount()` are filled with `arrayFrom`.
 
-Libraries are a JSON manifest whose `headers` array lists every hpp file. Relative URLs load from internal resources. The only schema is `core/assets/schemas/library.schema.json`.
+Libraries are a JSON manifest. `location` is the URL of a tar.gz archive, unpacked with modern-tar. The base library location is the [bld-base](https://github.com/dzmauchy/bld-base) release artifact. The only schema is `core/assets/schemas/library.schema.json`.
 
 ```cpp
 #include <base.hpp>
@@ -448,14 +444,13 @@ npm install
 Compile all workspaces and generate TypeScript declaration files:
 
 ```bash
-# Build base, core, runtime, cpp, and ui
+# Build core, runtime, cpp, and ui
 npm run build --workspaces
 ```
 
 Or build specific workspaces:
 
 ```bash
-npm run build --workspace=base     # Typechecks native header exports
 npm run build --workspace=core     # Typechecks model and C++ builder
 npm run build --workspace=runtime  # Typechecks wasm session and sliding buffers
 npm run build --workspace=cpp      # Typechecks in-browser clang/lld

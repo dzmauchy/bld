@@ -2,7 +2,7 @@ import { expect, test } from "vitest";
 import { PLUGIN_SOLID_NAME } from "@rsbuild/plugin-solid";
 import { CoreSchemaCatalog, schemaAssetFiles } from "core";
 import headers from "../../public/_headers?raw";
-import config, { rawHeaderRule } from "../../rsbuild.config.ts";
+import config from "../../rsbuild.config.ts";
 import coreLibrarySchema from "core/assets/schemas/library.schema.json?raw";
 
 const schemaAssets = {
@@ -25,11 +25,6 @@ test("rsbuild compiles the Solid 2 TSX entry", () => {
   );
   expect(names).toContain(PLUGIN_SOLID_NAME);
   expect(config.source?.entry).toEqual({ index: "./src/index.tsx" });
-});
-
-test("rspack loads library headers as raw source", () => {
-  const rspack = config.tools?.rspack;
-  expect(rspack).toMatchObject({ module: { rules: [rawHeaderRule] } });
 });
 
 test("Cloudflare _headers enable cross-origin isolation for every asset", () => {

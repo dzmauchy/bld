@@ -1,7 +1,7 @@
 import { expect, test } from "vitest";
-import { Library, registerAppAssets } from "core";
+import { Library, type PackageManifest } from "core";
+import baseManifest from "core/assets/base.json?raw";
 import "core/model/hostClangAstDumper.ts";
-import { BundledLibraryRegistry } from "../../src/libraries/bundledLibraries.js";
 import { LibraryList } from "../../src/libraries/libraryList.js";
 
 test("default libraries are the base library", () => {
@@ -10,10 +10,8 @@ test("default libraries are the base library", () => {
 });
 
 test("enumerates every block from each library in the list", async () => {
-  const bundled = BundledLibraryRegistry.shared.require("base");
-  registerAppAssets(bundled.assets());
-  const clang = await Library.load("base.json");
-  const listed = new LibraryList(["base"]).load();
+  const clang = await Library.load(JSON.parse(baseManifest) as PackageManifest);
+  const listed = await new LibraryList(["base"]).load();
 
   expect(listed.map((library) => library.id)).toEqual(["base"]);
   const enumerated = listed[0]?.palette.getBlocks().map((block) => block.id).sort();

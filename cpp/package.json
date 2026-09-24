@@ -17,7 +17,6 @@
   "devDependencies": {
     "@playwright/test": "^1.63.0",
     "@rsbuild/core": "^2.2.5",
-    "base": "*",
     "core": "*"
   },
   "scripts": {

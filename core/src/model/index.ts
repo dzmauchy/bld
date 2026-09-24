@@ -15,3 +15,4 @@ export * from "./cppBuilder";
 export * from "./cppBlockCatalog";
 export * from "./headerCatalog";
 export * from "./library";
+export * from "./libraryArchive";

@@ -8,6 +8,7 @@ node_modules/
 
 # Build output
 dist/
+ui/public/base-0.1.0.tar.gz
 cmake-build-*/
 build/
 buildDir/

@@ -14,7 +14,7 @@
     "./*": "./src/*"
   },
   "dependencies": {
-    "base": "*",
+    "modern-tar": "^0.8.5",
     "runtime": "*"
   },
   "scripts": {

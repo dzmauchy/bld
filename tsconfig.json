@@ -3,8 +3,6 @@
   "references": [
     { "path": "./runtime" },
     { "path": "./runtime/tsconfig.test.json" },
-    { "path": "./base" },
-    { "path": "./base/tsconfig.test.json" },
     { "path": "./core" },
     { "path": "./core/tsconfig.test.json" },
     { "path": "./ui" },

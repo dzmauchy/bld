@@ -12,10 +12,8 @@ export async function readNodeAsset(cleanPath: string): Promise<string | undefin
     join(currentDir, "../../core/assets", cleanPath),
     join(workspace, cleanPath),
     join(cwd, cleanPath),
-    join(currentDir, "../../base/dist", cleanPath),
     join(cwd, "assets", cleanPath),
     join(cwd, "core/assets", cleanPath),
-    join(cwd, "base/dist", cleanPath),
   ];
 
   for (const candidate of candidates) {

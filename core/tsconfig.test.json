@@ -6,9 +6,6 @@
     },
     {
       "path": "../runtime"
-    },
-    {
-      "path": "../base"
     }
   ]
 }

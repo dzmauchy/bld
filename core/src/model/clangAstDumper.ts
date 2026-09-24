@@ -32,7 +32,11 @@ export abstract class ClangAstDumper {
 
   static register(dumper: ClangAstDumper, libraryFiles: Record<string, string> = {}): void {
     this.registered = dumper;
-    if (Object.keys(libraryFiles).length > 0) this.libraryFiles = libraryFiles;
+    if (Object.keys(libraryFiles).length > 0) this.bindLibraryFiles(libraryFiles);
+  }
+
+  static bindLibraryFiles(libraryFiles: Record<string, string>): void {
+    this.libraryFiles = libraryFiles;
   }
 
   static defaultDumper(): ClangAstDumper {

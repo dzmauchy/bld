@@ -30,7 +30,7 @@ Technology stack:
 - Diagrams are compiled by generating C++ from the diagram and delegating
   wasm compilation to the cpp workspace (in-browser clang/lld). MCU
   compilation is reserved but unimplemented
-- JSON block refs and types correspond to the C++ base library in `base/native`
+- JSON block refs and types correspond to the C++ base library loaded from the bld-base release archive
 - The scope implementation in the browser should be made by 
   using a sliding buffer (Float32Array or Float64Array) with one 
   pointer

@@ -11,9 +11,6 @@
       "path": "../runtime"
     },
     {
-      "path": "../base"
-    },
-    {
       "path": "../core"
     }
   ]
