@@ -23,20 +23,16 @@
       "type": "string",
       "description": "Path or filename of the icon asset."
     },
-    "headers": {
-      "type": "array",
-      "items": {
-        "type": "string",
-        "minLength": 1
-      },
-      "uniqueItems": true,
-      "description": "URLs of every hpp file in this library. Relative URLs load from internal resources."
+    "location": {
+      "type": "string",
+      "description": "URL of tar.gz file containing the library"
     }
   },
   "required": [
     "id",
     "name",
-    "headers"
+    "icon",
+    "location"
   ],
   "additionalProperties": false
 }
