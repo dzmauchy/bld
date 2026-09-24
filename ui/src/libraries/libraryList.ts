@@ -1,6 +1,5 @@
-import { CompilationModel, Library, LibraryArchive, type BlockDefinition, type PackageManifest } from "core";
+import { Library, type BlockDefinition, type PackageManifest } from "core";
 import baseManifest from "core/assets/base.json?raw";
-import { HeaderCommentCatalog } from "./headerCommentCatalog.js";
 
 /** Libraries loaded into the IDE. The default list is the base library. */
 export class LibraryList {
@@ -22,15 +21,7 @@ export class LibraryList {
   }
 
   private async loadOne(id: string): Promise<Library> {
-    const manifest = manifestFor(id);
-    const archive = await LibraryArchive.fetch(manifest.location);
-    const catalog = HeaderCommentCatalog.fromSources(archive.sources());
-    return Library.fromManifest(manifest, {
-      types: catalog.types,
-      blocks: catalog.blocks,
-      namespaces: catalog.namespaces,
-      compilationModel: new CompilationModel(archive.files()),
-    });
+    return Library.load(manifestFor(id));
   }
 }
 
