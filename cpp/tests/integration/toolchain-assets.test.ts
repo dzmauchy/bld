@@ -22,6 +22,13 @@ describe("committed llvm-project toolchain assets", () => {
     }
   });
 
+  test("clang and lld wasm compile without experimental heap types", () => {
+    for (const name of ["clang.wasm", "lld.wasm"] as const) {
+      const bytes = readFileSync(join(assets, name));
+      expect(() => new WebAssembly.Module(bytes), name).not.toThrow();
+    }
+  });
+
   test("sysroot archive is a gzip payload", () => {
     const header = readFileSync(join(assets, "sysroot.tgz")).subarray(0, 2);
     expect(header).toEqual(Buffer.from([0x1f, 0x8b]));
