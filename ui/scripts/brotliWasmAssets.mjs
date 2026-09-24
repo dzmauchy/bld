@@ -9,8 +9,10 @@ const wasmMagic = Buffer.from([0x00, 0x61, 0x73, 0x6d]);
 export const workersAssetByteLimit = 25 * 1024 * 1024;
 
 /**
- * Replaces oversized WebAssembly assets with maximum-quality Brotli bytes
- * and records Cloudflare `_headers` rules so those URLs stay unchanged.
+ * Replaces oversized WebAssembly assets with maximum-quality Brotli bytes.
+ * `_headers` must not set `Content-Encoding`: Workers would compress the
+ * stored Brotli again, and the browser would compile the leftover bytes.
+ * `worker/index.ts` serves those URLs with `encodeBody: "manual"`.
  */
 export class BrotliWasmAssetCompressor {
   #distDirectory;
@@ -80,7 +82,6 @@ export class BrotliWasmAssetCompressor {
   headerRule(urlPath) {
     return [
       urlPath,
-      "  Content-Encoding: br",
       "  Content-Type: application/wasm",
       "  Cache-Control: public, max-age=0, must-revalidate, no-transform",
     ].join("\n");
