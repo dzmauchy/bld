@@ -1,6 +1,7 @@
 {
   "extends": ["./tsconfig.json", "../tsconfig.test.base.json"],
   "compilerOptions": {
+    "allowJs": true,
     "types": [
       "@rsbuild/core/types",
       "node"
