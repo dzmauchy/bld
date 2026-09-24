@@ -29,14 +29,6 @@ export default defineConfig({
         __dirname: "mock",
         __filename: "mock",
       },
-      module: {
-        rules: [
-          {
-            test: /\.tgz$/,
-            type: "asset/resource",
-          },
-        ],
-      },
     },
   },
   server: {

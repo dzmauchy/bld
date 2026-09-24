@@ -22,7 +22,7 @@ export class LlvmToolchainProxy {
     const upstream = await fetch(target);
     const name = this.release.assetName(target);
     const headers = new Headers();
-    headers.set("content-type", name.endsWith(".js") ? "text/javascript" : "application/wasm");
+    headers.set("content-type", this.release.contentType(name));
     headers.set("cache-control", "private, max-age=3600");
     return new Response(upstream.body, { status: upstream.status, statusText: upstream.statusText, headers });
   }

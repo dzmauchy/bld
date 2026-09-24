@@ -9,7 +9,7 @@ import { attachWorker } from "./host.ts";
 const release = new LlvmProjectRelease();
 const clangWasmUrl = release.assetUrl("clang.wasm");
 const lldWasmUrl = release.assetUrl("lld.wasm");
-const sysrootUrl = new URL("../../assets/sysroot.tgz", import.meta.url).href;
+const sysrootUrl = release.assetUrl("sysroot.tgz");
 
 export class CompilerWorkerSession {
   private readonly compiler = new CppWasmCompiler(

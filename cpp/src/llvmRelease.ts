@@ -6,7 +6,7 @@ export class LlvmProjectRelease {
   static readonly owner = "dzmauchy";
   static readonly repo = "llvm-project";
   static readonly tag = "clang-lld-wasm-latest";
-  static readonly files = Object.freeze(["clang.js", "clang.wasm", "lld.js", "lld.wasm"] as const);
+  static readonly files = Object.freeze(["clang.js", "clang.wasm", "lld.js", "lld.wasm", "sysroot.tgz"] as const);
 
   releasePageUrl(): string {
     return `https://github.com/${LlvmProjectRelease.owner}/${LlvmProjectRelease.repo}/releases/tag/${LlvmProjectRelease.tag}`;
@@ -14,6 +14,12 @@ export class LlvmProjectRelease {
 
   assetUrl(name: string): string {
     return `https://github.com/${LlvmProjectRelease.owner}/${LlvmProjectRelease.repo}/releases/download/${LlvmProjectRelease.tag}/${name}`;
+  }
+
+  contentType(name: string): string {
+    if (name.endsWith(".js")) return "text/javascript";
+    if (name.endsWith(".wasm")) return "application/wasm";
+    return "application/gzip";
   }
 
   isToolchainAsset(url: string): boolean {

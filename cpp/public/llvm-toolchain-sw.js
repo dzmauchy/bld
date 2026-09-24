@@ -1,5 +1,5 @@
 const releasePrefix = "https://github.com/dzmauchy/llvm-project/releases/download/clang-lld-wasm-latest/";
-const releaseFiles = new Set(["clang.js", "clang.wasm", "lld.js", "lld.wasm"]);
+const releaseFiles = new Set(["clang.js", "clang.wasm", "lld.js", "lld.wasm", "sysroot.tgz"]);
 
 self.addEventListener("install", (event) => {
   event.waitUntil(self.skipWaiting());
@@ -21,7 +21,7 @@ async function relayReleaseAsset(requestUrl, name) {
   const relay = new URL("/llvm-toolchain-proxy", self.location.origin);
   relay.searchParams.set("url", requestUrl);
   const upstream = await fetch(relay.href);
-  const type = name.endsWith(".js") ? "text/javascript" : "application/wasm";
+  const type = name.endsWith(".js") ? "text/javascript" : name.endsWith(".wasm") ? "application/wasm" : "application/gzip";
   return new Response(upstream.body, {
     status: upstream.status,
     statusText: upstream.statusText,

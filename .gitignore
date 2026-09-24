@@ -15,10 +15,6 @@ buildDir/
 *.tsbuildinfo
 core/assets/assembly/build/
 
-# The emscripten sysroot is committed under cpp/assets/ and synced from
-# https://github.com/dzmauchy/llvm-project/releases with `npm run sync-assets -w cpp`.
-# clang.js, clang.wasm, lld.js, and lld.wasm are loaded from that release at runtime.
-
 # Optional npm cache
 .npm
 

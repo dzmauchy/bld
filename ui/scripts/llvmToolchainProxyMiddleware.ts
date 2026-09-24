@@ -1,7 +1,7 @@
 import type { IncomingMessage, ServerResponse } from "node:http";
 
 const releasePrefix = "https://github.com/dzmauchy/llvm-project/releases/download/clang-lld-wasm-latest/";
-const releaseFiles = new Set(["clang.js", "clang.wasm", "lld.js", "lld.wasm"]);
+const releaseFiles = new Set(["clang.js", "clang.wasm", "lld.js", "lld.wasm", "sysroot.tgz"]);
 
 type ConnectMiddleware = (req: IncomingMessage, res: ServerResponse, next: (error?: unknown) => void) => void;
 
@@ -26,7 +26,8 @@ export function attachLlvmToolchainProxy(middlewares: MiddlewareHost): void {
     }
     void fetch(target).then(async (response) => {
       res.statusCode = response.status;
-      res.setHeader("content-type", name.endsWith(".js") ? "text/javascript" : "application/wasm");
+      const contentType = name.endsWith(".js") ? "text/javascript" : name.endsWith(".wasm") ? "application/wasm" : "application/gzip";
+      res.setHeader("content-type", contentType);
       res.setHeader("cache-control", "private, max-age=3600");
       res.end(Buffer.from(await response.arrayBuffer()));
     }).catch(next);

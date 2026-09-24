@@ -18,18 +18,6 @@ export default defineConfig({
       wasm: 0,
     },
   },
-  tools: {
-    rspack: {
-      module: {
-        rules: [
-          {
-            test: /\.tgz$/,
-            type: "asset/resource",
-          },
-        ],
-      },
-    },
-  },
   server: {
     port: 3002,
     setup(context) {
