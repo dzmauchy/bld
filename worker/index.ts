@@ -1,3 +1,4 @@
+import { LlvmToolchainProxy } from "../cpp/src/llvmToolchainProxy.ts";
 import { PrecompressedWasmDelivery } from "../ui/src/deploy/precompressedWasmDelivery.ts";
 
 type AssetFetcher = {
@@ -9,10 +10,14 @@ export type AssetEnv = {
 };
 
 const delivery = new PrecompressedWasmDelivery();
+const toolchainProxy = new LlvmToolchainProxy();
 
 export default {
   async fetch(request: Request, env: AssetEnv): Promise<Response> {
-    const pathname = new URL(request.url).pathname;
+    const url = new URL(request.url);
+    if (toolchainProxy.matches(url)) return toolchainProxy.response(url);
+
+    const pathname = url.pathname;
     if (!pathname.endsWith(".wasm")) return env.ASSETS.fetch(request);
 
     const asset = await env.ASSETS.fetch(request);

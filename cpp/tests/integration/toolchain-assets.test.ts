@@ -4,33 +4,26 @@ import { fileURLToPath } from "node:url";
 import { describe, expect, test } from "vitest";
 
 const assets = join(dirname(fileURLToPath(import.meta.url)), "../../assets");
-const wasmMagic = Buffer.from([0x00, 0x61, 0x73, 0x6d]);
+const serviceWorker = join(dirname(fileURLToPath(import.meta.url)), "../../public/llvm-toolchain-sw.js");
+const devProxy = join(dirname(fileURLToPath(import.meta.url)), "../../../ui/scripts/llvmToolchainProxyMiddleware.ts");
 
-describe("committed llvm-project toolchain assets", () => {
-  test("clang and lld wasm binaries start with the WebAssembly magic", () => {
-    for (const name of ["clang.wasm", "lld.wasm"] as const) {
-      const header = readFileSync(join(assets, name)).subarray(0, 4);
-      expect(header, name).toEqual(wasmMagic);
-    }
-  });
-
-  test("clang and lld js glue export the Emscripten createModule factory", () => {
-    for (const name of ["clang.js", "lld.js"] as const) {
-      const source = readFileSync(join(assets, name), "utf8");
-      expect(source, name).toContain("async function createModule");
-      expect(source, name).toContain("export default createModule");
-    }
-  });
-
-  test("clang and lld wasm compile without experimental heap types", () => {
-    for (const name of ["clang.wasm", "lld.wasm"] as const) {
-      const bytes = readFileSync(join(assets, name));
-      expect(() => new WebAssembly.Module(bytes), name).not.toThrow();
-    }
-  });
-
+describe("llvm-project toolchain assets", () => {
   test("sysroot archive is a gzip payload", () => {
     const header = readFileSync(join(assets, "sysroot.tgz")).subarray(0, 2);
     expect(header).toEqual(Buffer.from([0x1f, 0x8b]));
+  });
+
+  test("service worker relays the clang and lld release files", () => {
+    const source = readFileSync(serviceWorker, "utf8");
+    expect(source).toContain("https://github.com/dzmauchy/llvm-project/releases/download/clang-lld-wasm-latest/");
+    for (const name of ["clang.js", "clang.wasm", "lld.js", "lld.wasm"]) {
+      expect(source).toContain(name);
+    }
+    expect(source).toContain("/llvm-toolchain-proxy");
+    const proxy = readFileSync(devProxy, "utf8");
+    expect(proxy).toContain("https://github.com/dzmauchy/llvm-project/releases/download/clang-lld-wasm-latest/");
+    for (const name of ["clang.js", "clang.wasm", "lld.js", "lld.wasm"]) {
+      expect(proxy).toContain(name);
+    }
   });
 });

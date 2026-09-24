@@ -8,9 +8,11 @@ import "./theme.css";
 import { ClangAstDumper } from "core";
 import { render } from "@solidjs/web";
 import { App } from "./App.js";
+import { ToolchainServiceWorker } from "cpp";
 import { BrowserClangAstDumper } from "./libraries/browserClangAstDumper.js";
 import { SplashScreen } from "./view/splash/SplashScreen.js";
 
+await new ToolchainServiceWorker().claim();
 ClangAstDumper.register(BrowserClangAstDumper.shared());
 
 const splash = document.querySelector("[data-splash]");
