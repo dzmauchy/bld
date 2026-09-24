@@ -12,6 +12,14 @@ export type EmscriptenModuleOptions = {
   printErr?: (text: string) => void;
 };
 
+type StdioStream = {
+  tty?: {
+    ops?: {
+      fsync?: (tty: unknown) => void;
+    };
+  };
+};
+
 export type EmscriptenRuntime = {
   FS: EmscriptenFsApi;
   callMain: (args: string[]) => number | void;
@@ -114,6 +122,7 @@ export abstract class EmscriptenTool {
     this.stderr = [];
     this.requireFs().chdir("/");
     const code = this.callMain(runtime, [...args]);
+    this.flushStdio(runtime);
     return { code, stdout: this.logs.stdout, stderr: this.logs.stderr };
   }
 
@@ -165,6 +174,19 @@ export abstract class EmscriptenTool {
     if (code !== 0) {
       const details = [stderr, stdout].filter(Boolean).join("\n");
       throw new Error(`${this.programName} exited with ${code}${details ? `\n${details}` : ""}`);
+    }
+  }
+
+  private flushStdio(runtime: EmscriptenRuntime): void {
+    const streams = (runtime.FS as { streams?: StdioStream[] }).streams;
+    if (!streams) return;
+    for (const fd of [1, 2]) {
+      const tty = streams[fd]?.tty;
+      try {
+        tty?.ops?.fsync?.(tty);
+      } catch {
+        // A closed stdio stream has nothing left to flush.
+      }
     }
   }
 

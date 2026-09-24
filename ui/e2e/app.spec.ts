@@ -31,7 +31,7 @@ const baseBlocks = [
   "scope_f32",
 ];
 
-test("shows the bld icon splash until 100 ms after load", async ({ page }) => {
+test("shows the bld icon splash until 100 ms after the parsed workspace is shown", async ({ page }) => {
   let releaseIcon = () => {};
   const iconHeld = new Promise<void>((resolve) => {
     releaseIcon = resolve;
@@ -55,6 +55,12 @@ test("shows the bld icon splash until 100 ms after load", async ({ page }) => {
 
   releaseIcon();
   await page.waitForLoadState("load");
+  await expect(splash).toBeVisible();
+  await expect(splash).toHaveAttribute("data-state", "open");
+  await page.waitForFunction(() => {
+    const open = document.querySelector("[data-splash]")?.getAttribute("data-state") === "open";
+    return open && document.querySelectorAll("[data-block-id]").length > 0;
+  });
   await expect(splash).toBeHidden();
   await expect(splash).toHaveAttribute("data-state", "closed");
 });
@@ -97,13 +103,15 @@ test("copies all JSON schemas into ui/dist/schemas", () => {
   expect(readdirSync(distSchemas).sort()).toEqual(CoreSchemaCatalog.shared.publishedFiles());
 });
 
-test("client bundle has no C++ parser wasm assets", () => {
+test("client bundle parses headers with in-browser clang, not a separate C++ parser", () => {
   const scripts = collect(distDir, ".js")
     .map((path) => readFileSync(path, "utf8"))
     .join("\n");
   expect(scripts).not.toContain("tree-sitter");
   expect(scripts).not.toContain("TreeSitter");
-  expect(collect(distDir, ".wasm")).toHaveLength(0);
+  expect(scripts).not.toContain("HeaderCommentCatalog");
+  expect(scripts).toContain("dump-ast");
+  expect(collect(distDir, ".wasm").length).toBeGreaterThan(0);
 });
 
 test("serves JSON schemas from /schemas", async ({ request }) => {

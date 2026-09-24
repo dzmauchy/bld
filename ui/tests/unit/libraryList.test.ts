@@ -19,7 +19,12 @@ test("enumerates every block from each library in the list", async () => {
   expect(enumerated).toEqual(expected);
   expect(expected.length).toBeGreaterThan(0);
   for (const id of expected) {
-    expect(listed[0]?.palette.getBlock(id)?.title).toBe(clang.palette.getBlock(id)?.title);
-    expect(listed[0]?.palette.getBlock(id)?.category).toBe(clang.palette.getBlock(id)?.category);
+    const fromList = listed[0]?.palette.getBlock(id);
+    const fromClang = clang.palette.getBlock(id);
+    expect(fromList?.title).toBe(fromClang?.title);
+    expect(fromList?.category).toBe(fromClang?.category);
+    expect(fromList?.cppClass).toBe(fromClang?.cppClass);
+    expect(fromList?.inputs.size).toBe(fromClang?.inputs.size);
+    expect(fromList?.config.size).toBe(fromClang?.config.size);
   }
 });

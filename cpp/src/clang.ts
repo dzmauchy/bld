@@ -51,7 +51,12 @@ export class ClangFrontend extends EmscriptenTool {
         } catch {
           ast = undefined;
         }
-        return { ok: captured.code === 0, ast, stdout: captured.stdout, stderr: captured.stderr };
+        return {
+          ok: captured.code === 0,
+          ast,
+          stdout: ast === undefined ? captured.stdout : "",
+          stderr: captured.stderr,
+        };
       });
     } finally {
       await this.recycle();
