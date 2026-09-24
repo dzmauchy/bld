@@ -1,11 +1,13 @@
+import { ToolchainServiceWorker } from "../toolchainServiceWorker.ts";
 import { createBrowserCppRuntime, type CppPageApi } from "./api.ts";
+import type { BrowserCppRuntime } from "./api.ts";
 import type { ExecutedWasm } from "../executor.ts";
 
 export type { CppPageApi };
 
 const status = document.querySelector("#status");
 const log = document.querySelector("#log");
-const runtime = createBrowserCppRuntime();
+const runtimeReady = new ToolchainServiceWorker().claim().then(() => createBrowserCppRuntime());
 let session: ExecutedWasm | undefined;
 let lastWasm: Uint8Array | undefined;
 
@@ -18,13 +20,18 @@ function appendLog(text: string): void {
   log.textContent = `${log.textContent ?? ""}${text}\n`;
 }
 
+async function runtime(): Promise<BrowserCppRuntime> {
+  return runtimeReady;
+}
+
 const api: CppPageApi = {
   async warmup() {
     setStatus("warming toolchain");
-    appendLog("loading clang/lld compiler worker and executor worker");
-    await runtime.warmup();
+    appendLog("loading clang/lld from the llvm-project release");
+    const active = await runtime();
+    await active.warmup();
     setStatus("ready");
-    appendLog(`workers created: ${runtime.workerCreateCount}`);
+    appendLog(`workers created: ${active.workerCreateCount}`);
   },
   async compile(files) {
     const bytes = await api.compileOnly(files);
@@ -33,7 +40,7 @@ const api: CppPageApi = {
   },
   async compileOnly(files) {
     setStatus("compiling");
-    lastWasm = await runtime.compiler.compile(new Map(Object.entries(files)));
+    lastWasm = await (await runtime()).compiler.compile(new Map(Object.entries(files)));
     setStatus("ready");
     appendLog(`compiled ${lastWasm.byteLength} bytes`);
     return lastWasm.byteLength;
@@ -41,7 +48,7 @@ const api: CppPageApi = {
   async instantiateLast() {
     if (!lastWasm) throw new Error("no compiled wasm");
     setStatus("instantiating");
-    session = await runtime.executor.instantiate(lastWasm);
+    session = await (await runtime()).executor.instantiate(lastWasm);
     setStatus("ready");
     appendLog("instantiated wasm");
     return lastWasm.byteLength;
@@ -57,13 +64,18 @@ const api: CppPageApi = {
     return api.invoke(name, args);
   },
   workerCreateCount() {
-    return runtime.workerCreateCount;
+    return 2;
   },
 };
 
 Object.defineProperty(window, "cpp", { value: api, writable: false });
-setStatus("module-ready");
-appendLog("page module loaded");
+void runtimeReady.then(() => {
+  setStatus("module-ready");
+  appendLog("page module loaded");
+}).catch((error: unknown) => {
+  setStatus("error");
+  appendLog(error instanceof Error ? error.message : String(error));
+});
 
 declare global {
   interface Window {

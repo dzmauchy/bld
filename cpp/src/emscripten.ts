@@ -8,6 +8,10 @@ export type EmscriptenModuleOptions = {
   noExitRuntime?: boolean;
   thisProgram?: string;
   locateFile?: (path: string, prefix: string) => string;
+  instantiateWasm?: (
+    imports: WebAssembly.Imports,
+    receiveInstance: (instance: WebAssembly.Instance) => void,
+  ) => unknown;
   print?: (text: string) => void;
   printErr?: (text: string) => void;
 };

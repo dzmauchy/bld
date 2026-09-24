@@ -20,7 +20,6 @@
     "core": "*"
   },
   "scripts": {
-    "sync-assets": "node scripts/sync-assets.mjs",
     "dev": "rsbuild",
     "build": "tsc -b && tsc -b tsconfig.test.json",
     "preview": "rsbuild build && rsbuild preview --port 3002",

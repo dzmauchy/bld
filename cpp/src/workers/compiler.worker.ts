@@ -1,19 +1,20 @@
-import clangCreateModule from "clang-emscripten";
-import lldCreateModule from "lld-emscripten";
 import { ClangFrontend } from "../clang.ts";
 import { CppWasmCompiler } from "../compiler.ts";
 import { WasmLinker } from "../linker.ts";
+import { LlvmProjectRelease } from "../llvmRelease.ts";
 import type { CompilerRequest, WorkerResponse } from "../messages.ts";
+import { RemoteEmscriptenModule } from "../remoteEmscripten.ts";
 import { attachWorker } from "./host.ts";
 
-const clangWasmUrl = new URL("../../assets/clang.wasm", import.meta.url).href;
-const lldWasmUrl = new URL("../../assets/lld.wasm", import.meta.url).href;
-const sysrootUrl = new URL("../../assets/sysroot.tgz", import.meta.url).href;
+const release = new LlvmProjectRelease();
+const clangWasmUrl = release.assetUrl("clang.wasm");
+const lldWasmUrl = release.assetUrl("lld.wasm");
+const sysrootUrl = release.assetUrl("sysroot.tgz");
 
 export class CompilerWorkerSession {
   private readonly compiler = new CppWasmCompiler(
-    new ClangFrontend(clangCreateModule, clangWasmUrl),
-    new WasmLinker(lldCreateModule, lldWasmUrl),
+    new ClangFrontend(new RemoteEmscriptenModule(release.assetUrl("clang.js"), clangWasmUrl).createFactory(), clangWasmUrl),
+    new WasmLinker(new RemoteEmscriptenModule(release.assetUrl("lld.js"), lldWasmUrl).createFactory(), lldWasmUrl),
     sysrootUrl,
   );
 

@@ -15,9 +15,6 @@ buildDir/
 *.tsbuildinfo
 core/assets/assembly/build/
 
-# C++ toolchain release assets are committed under cpp/assets/ and synced from
-# https://github.com/dzmauchy/llvm-project/releases with `npm run sync-assets -w cpp`.
-
 # Optional npm cache
 .npm
 

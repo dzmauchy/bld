@@ -6,7 +6,7 @@ import type { Thread } from "./thread.ts";
 /**
  * Compiles a Map of C++ sources/headers to a wasm module by running clang
  * then wasm-ld. Instantiated inside the single compiler worker with tools
- * backed by the imported clang.js / lld.js modules and static wasm/sysroot assets.
+ * backed by clang, lld, and the sysroot archive from the llvm-project release.
  */
 export class CppWasmCompiler {
   constructor(

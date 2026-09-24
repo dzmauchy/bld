@@ -1,9 +1,6 @@
-import path from "node:path";
-import { fileURLToPath } from "node:url";
 import { defineConfig } from "@rsbuild/core";
 import { pluginSolid } from "@rsbuild/plugin-solid";
-
-const cppAssets = path.join(path.dirname(fileURLToPath(import.meta.url)), "../cpp/assets");
+import { attachLlvmToolchainProxy } from "./scripts/llvmToolchainProxyMiddleware.ts";
 
 export default defineConfig({
   // Compiler is pinned to the same Solid 2.0 RC as solid-js and @solidjs/web
@@ -18,7 +15,10 @@ export default defineConfig({
     template: "./index.html",
   },
   output: {
-    copy: [{ from: "../core/assets/schemas", to: "schemas" }],
+    copy: [
+      { from: "../core/assets/schemas", to: "schemas" },
+      { from: "../cpp/public/llvm-toolchain-sw.js", to: "./" },
+    ],
     dataUriLimit: {
       assets: 0,
     },
@@ -29,20 +29,11 @@ export default defineConfig({
         __dirname: "mock",
         __filename: "mock",
       },
-      resolve: {
-        alias: {
-          "clang-emscripten": path.join(cppAssets, "clang.js"),
-          "lld-emscripten": path.join(cppAssets, "lld.js"),
-        },
-      },
-      module: {
-        rules: [
-          {
-            test: /\.tgz$/,
-            type: "asset/resource",
-          },
-        ],
-      },
+    },
+  },
+  server: {
+    setup(context) {
+      attachLlvmToolchainProxy(context.server.middlewares);
     },
   },
 });

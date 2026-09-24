@@ -111,7 +111,12 @@ test("client bundle parses headers with in-browser clang, not a separate C++ par
   expect(scripts).not.toContain("TreeSitter");
   expect(scripts).not.toContain("HeaderCommentCatalog");
   expect(scripts).toContain("dump-ast");
-  expect(collect(distDir, ".wasm").length).toBeGreaterThan(0);
+  expect(scripts).toContain("clang-lld-wasm-latest");
+  expect(scripts).toContain("releases/download/");
+  expect(scripts).toContain("clang.wasm");
+  expect(scripts).toContain("lld.wasm");
+  expect(scripts).toContain("sysroot.tgz");
+  expect(collect(distDir, ".wasm")).toEqual([]);
 });
 
 test("serves JSON schemas from /schemas", async ({ request }) => {
