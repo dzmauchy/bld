@@ -28,11 +28,12 @@ test("oversized wasm is brotli-compressed in place and declared in Cloudflare _h
   const headers = await readFile(join(dist, "_headers"), "utf8");
   expect(headers).toContain("Cross-Origin-Opener-Policy: same-origin");
   expect(headers).toContain(compressor.headerRule("/static/wasm/d9cfc61740.module.wasm"));
+  expect(headers).not.toContain("Content-Encoding:");
   expect(headers).not.toContain("/static/wasm/8d92586132.module.wasm");
 
   await compressor.compress();
   const again = await readFile(join(dist, "_headers"), "utf8");
-  expect(again.match(/Content-Encoding: br/g)).toHaveLength(1);
+  expect(again.match(/\/static\/wasm\/d9cfc61740\.module\.wasm/g)).toHaveLength(1);
 });
 
 test("Workers asset limit matches the 25 MiB static asset cap", async () => {
