@@ -1,4 +1,4 @@
-import { beforeAll, describe, expect, test } from "vitest";
+import { beforeAll, describe, expect, test } from "@rstest/core";
 import { ClangTranslationUnit, ClangTypeCatalog } from "../../../src/model/clangAst.ts";
 import { HostClangAstDumper } from "../../../src/model/hostClangAstDumper.ts";
 import { Library } from "../../../src/model/library.ts";

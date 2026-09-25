@@ -21,13 +21,6 @@ export default defineConfig({
       wasm: 0,
     },
   },
-  tools: {
-    swc: {
-      jsc: {
-        target: "esnext",
-      },
-    },
-  },
   server: {
     port: 3002,
     setup(context) {

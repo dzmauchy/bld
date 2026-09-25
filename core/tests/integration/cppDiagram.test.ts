@@ -1,4 +1,4 @@
-import { beforeAll, describe, expect, test } from "vitest";
+import { beforeAll, describe, expect, test } from "@rstest/core";
 import { CppDiagramBuilder } from "../../src/model/cppBuilder.ts";
 import { Diagram } from "../../src/model/diagram.ts";
 import { Library } from "../../src/model/library.ts";

@@ -2,7 +2,7 @@ import { readFileSync } from "node:fs";
 import { createRequire } from "node:module";
 import { dirname, join } from "node:path";
 import { transform } from "@solidjs/compiler";
-import { expect, test } from "vitest";
+import { expect, test } from "@rstest/core";
 
 const require = createRequire(import.meta.url);
 

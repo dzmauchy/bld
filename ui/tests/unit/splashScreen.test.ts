@@ -1,7 +1,7 @@
 import { readFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
-import { expect, test } from "vitest";
+import { expect, test } from "@rstest/core";
 import { SplashScreen, type LoadClock, type SplashElement } from "../../src/view/splash/SplashScreen.js";
 
 const uiRoot = join(dirname(fileURLToPath(import.meta.url)), "../..");

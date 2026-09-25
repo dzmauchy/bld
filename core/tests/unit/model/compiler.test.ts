@@ -1,4 +1,4 @@
-import { beforeAll, describe, expect, test } from "vitest";
+import { beforeAll, describe, expect, test } from "@rstest/core";
 import {
   browserContext,
   BrowserCompiler,

@@ -10,8 +10,8 @@
     "predev": "node scripts/fetch-base-release.mjs",
     "build": "tsc -b && tsc -b tsconfig.test.json && rsbuild build",
     "preview": "rsbuild preview",
-    "test": "tsc -b && tsc -b tsconfig.test.json && vitest run tests && playwright test",
-    "test:unit": "tsc -b && tsc -b tsconfig.test.json && vitest run tests/unit",
+    "test": "tsc -b && tsc -b tsconfig.test.json && rstest tests && playwright test",
+    "test:unit": "tsc -b && tsc -b tsconfig.test.json && rstest tests/unit",
     "clean": "tsc -b --clean",
     "deploy": "node scripts/brotliWasmAssets.mjs && wrangler deploy --config ../wrangler.json"
   },
@@ -27,7 +27,8 @@
   "devDependencies": {
     "@playwright/test": "^1.63.0",
     "@rsbuild/core": "^2.2.9",
-    "@rsbuild/plugin-solid": "^2.0.0-rc.0",
+    "@rsbuild/plugin-solid": "2.0.0-rc.0",
+    "@rstest/adapter-rsbuild": "^0.12.2",
     "@solidjs/compiler": "2.0.0-rc.9"
   }
 }

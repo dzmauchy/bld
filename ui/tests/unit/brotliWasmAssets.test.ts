@@ -3,7 +3,7 @@ import { dirname, join } from "node:path";
 import { tmpdir } from "node:os";
 import { fileURLToPath } from "node:url";
 import { brotliDecompressSync } from "node:zlib";
-import { expect, test } from "vitest";
+import { expect, test } from "@rstest/core";
 import { BrotliWasmAssetCompressor, workersAssetByteLimit } from "../../scripts/brotliWasmAssets.mjs";
 
 test("oversized wasm is brotli-compressed in place and declared in Cloudflare _headers", async () => {

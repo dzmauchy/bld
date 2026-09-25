@@ -17,14 +17,15 @@
   "devDependencies": {
     "@playwright/test": "^1.63.0",
     "@rsbuild/core": "^2.2.5",
+    "@rstest/adapter-rsbuild": "^0.12.2",
     "core": "*"
   },
   "scripts": {
     "dev": "rsbuild",
     "build": "tsc -b && tsc -b tsconfig.test.json",
     "preview": "rsbuild build && rsbuild preview --port 3002",
-    "test": "tsc -b && tsc -b tsconfig.test.json && vitest run tests && playwright test",
-    "test:unit": "tsc -b && tsc -b tsconfig.test.json && vitest run tests/unit",
+    "test": "tsc -b && tsc -b tsconfig.test.json && rstest tests && playwright test",
+    "test:unit": "tsc -b && tsc -b tsconfig.test.json && rstest tests/unit",
     "clean": "tsc -b --clean"
   }
 }

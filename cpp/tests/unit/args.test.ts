@@ -1,4 +1,4 @@
-import { describe, expect, test } from "vitest";
+import { describe, expect, test } from "@rstest/core";
 import { ClangArgumentBuilder, LldArgumentBuilder } from "../../src/args.ts";
 
 describe("toolchain argument builders", () => {

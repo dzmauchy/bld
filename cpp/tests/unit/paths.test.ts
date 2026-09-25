@@ -1,4 +1,4 @@
-import { describe, expect, test } from "vitest";
+import { describe, expect, test } from "@rstest/core";
 import { isCppSource, isHeader, objectPathFor, workPath } from "../../src/paths.ts";
 
 describe("virtual source paths", () => {

@@ -1,4 +1,4 @@
-import { expect, test } from "vitest";
+import { expect, test } from "@rstest/core";
 import { PLUGIN_SOLID_NAME } from "@rsbuild/plugin-solid";
 import { CoreSchemaCatalog, schemaAssetFiles } from "core";
 import headers from "../../public/_headers?raw";

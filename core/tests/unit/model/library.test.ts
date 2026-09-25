@@ -1,4 +1,4 @@
-import { describe, expect, test, vi } from "vitest";
+import { describe, expect, rs, test } from "@rstest/core";
 import { resolveUrl } from "../../../src/model/appAssets.js";
 import { readNodeAsset } from "../../readNodeAsset.ts";
 import { packTar } from "modern-tar";
@@ -86,7 +86,7 @@ describe("Library and Asset Loader", () => {
     ].join("\n");
     const archive = await gzipTar({ "plugin.hpp": header });
     const originalFetch = globalThis.fetch;
-    const fetchMock = vi.fn(async (url: RequestInfo | URL) => {
+    const fetchMock = rs.fn(async (url: RequestInfo | URL) => {
       const u = String(url);
       if (u === "https://my-plugin.org/dsp/library.json") {
         return new Response(
@@ -211,7 +211,7 @@ describe("Library and Asset Loader", () => {
       }),
     });
     registerAppAssetBytes("samples/lib.tar.gz", await gzipTar({ "block.hpp": header }));
-    const fetchMock = vi.fn();
+    const fetchMock = rs.fn();
     const originalFetch = globalThis.fetch;
     globalThis.fetch = fetchMock as unknown as typeof fetch;
     try {

@@ -3,8 +3,8 @@ import { pluginSolid } from "@rsbuild/plugin-solid";
 import { attachLlvmToolchainProxy } from "./scripts/llvmToolchainProxyMiddleware.ts";
 
 export default defineConfig({
-  // Compiler is pinned to the same Solid 2.0 RC as solid-js and @solidjs/web
-  // so delegated handlers are stored on `_$$click`.
+  // @rsbuild/plugin-solid compiles JSX with @solidjs/compiler 2.0.0-rc.9,
+  // matching solid-js and @solidjs/web, so delegated handlers use `_$$click`.
   plugins: [pluginSolid()],
   source: {
     entry: {
@@ -27,11 +27,6 @@ export default defineConfig({
     },
   },
   tools: {
-    swc: {
-      jsc: {
-        target: "esnext",
-      },
-    },
     rspack: {
       node: {
         __dirname: "mock",

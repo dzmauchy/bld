@@ -1,5 +1,5 @@
 import { brotliCompressSync } from "node:zlib";
-import { expect, test } from "vitest";
+import { expect, test } from "@rstest/core";
 import { PrecompressedWasmDelivery } from "../../src/deploy/precompressedWasmDelivery.ts";
 
 const wasm = Uint8Array.from([0x00, 0x61, 0x73, 0x6d, 0x01, 0x00, 0x00, 0x00]);
