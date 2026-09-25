@@ -4,6 +4,7 @@
 import {
   ClangAstDumper,
   ClangComment,
+  ClangInputFailure,
   ClangTranslationUnit,
   CppTypeNames,
   cppIdent,
@@ -197,6 +198,8 @@ export class Diagram implements IDiagram {
 
     const dump = this.clangTypes.dumpProbe(this.emitConnectionProbe(from, to));
     if (dump.ok) return { ok: true };
+    const failure = ClangInputFailure.fromAst(dump.ast);
+    if (failure) return { ok: false, reason: failure.message };
     if (dump.hasTypeError) {
       const first = dump.diagnostics.split("\n").find((line) => /error:/.test(line));
       return { ok: false, reason: first?.replace(/^.*error: /, "") ?? dump.diagnostics };
@@ -278,20 +281,23 @@ export class Diagram implements IDiagram {
     lines.push(...this.emitProbeApply(toIdent, toTop, "to_in").map((line) => `  ${line}`));
     const toConsumer = toTop.returnsScalarConsumer() ? "to_in" : `to_in[${to.vectorIndex}]`;
     const stream = fromTop.streamCppType();
-    lines.push(`  auto from_dn = ${stream}{};`);
-    lines.push(`  from_dn.push_back(${toConsumer});`);
+    const outputName = `output_${cppIdent(to.portId)}`;
+    const inputName = `input_${cppIdent(from.portId)}`;
+    lines.push(`  auto ${outputName} = ${toConsumer};`);
+    lines.push(`  auto ${inputName} = ${stream}{};`);
+    lines.push(`  ${inputName}.push_back(${outputName});`);
     if (fromTop.registersHostPins()) {
-      lines.push(`  ${fromIdent}->connectPin(static_cast<u8>(${from.vectorIndex}), static_cast<${stream}&&>(from_dn));`);
+      lines.push(`  ${fromIdent}->connectPin(static_cast<u8>(${from.vectorIndex}), static_cast<${stream}&&>(${inputName}));`);
       lines.push(`  ${fromIdent}->apply();`);
     } else if (fromTop.exposesConsumerBank()) {
       lines.push(`  auto from_in = ${fromIdent}->apply(static_cast<u8>(1));`);
-      lines.push(`  from_in[${from.vectorIndex}] = ${toConsumer};`);
+      lines.push(`  from_in[${from.vectorIndex}] = ${outputName};`);
     } else if (fromTop.returnsIndexedConsumers() && !fromTop.exposesConsumerBank()) {
-      lines.push(`  auto from_in = ${fromIdent}->apply(static_cast<${stream}&&>(from_dn), static_cast<u8>(1));`);
+      lines.push(`  auto from_in = ${fromIdent}->apply(static_cast<${stream}&&>(${inputName}), static_cast<u8>(1));`);
     } else if (fromTop.returnsScalarConsumer()) {
-      lines.push(`  auto from_in = ${fromIdent}->apply(static_cast<${stream}&&>(from_dn));`);
+      lines.push(`  auto from_in = ${fromIdent}->apply(static_cast<${stream}&&>(${inputName}));`);
     } else {
-      lines.push(`  ${fromIdent}->apply(static_cast<${stream}&&>(from_dn));`);
+      lines.push(`  ${fromIdent}->apply(static_cast<${stream}&&>(${inputName}));`);
     }
     lines.push("}");
     lines.push("");
@@ -352,15 +358,15 @@ export class Diagram implements IDiagram {
 
     if (topology.returnsScalarConsumer()) {
       lines.push(`auto ${ident}_in = ${ident}->apply(static_cast<${stream}&&>(${dn}));`);
-      for (const port of block.getInputPorts()) bind("input", port.id, `${ident}_in`);
-      for (const port of block.getOutputPorts()) bind("output", port.id, `${dn}[0]`);
+      for (const port of block.getInputPorts()) bind("input", port.id, dn);
+      for (const port of block.getOutputPorts()) bind("output", port.id, `${ident}_in`);
       return lines;
     }
 
     if (topology.returnsIndexedConsumers()) {
       lines.push(`auto ${ident}_in = ${ident}->apply(static_cast<${stream}&&>(${dn}), static_cast<u8>(1));`);
-      for (const port of block.getInputPorts()) bind("input", port.id, `${ident}_in`);
-      for (const port of block.getOutputPorts()) bind("output", port.id, dn);
+      for (const port of block.getInputPorts()) bind("input", port.id, dn);
+      for (const port of block.getOutputPorts()) bind("output", port.id, `${ident}_in`);
       return lines;
     }
 

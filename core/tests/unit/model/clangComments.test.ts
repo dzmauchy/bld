@@ -76,19 +76,33 @@ describe("AST source offsets", () => {
 describe("HeaderCatalog from clang AST", () => {
   test("reads types, namespaces, blocks, ports, and config from comments", async () => {
     const source = [
-      '/*{"kind":"type","id":"custom_t","name":"Custom"}*/',
+      "/**",
+      ' * <type name="Custom"/>',
+      " */",
       "using custom_t = int;",
-      '/*{"kind":"namespace","name":"Custom NS"}*/',
-      "namespace custom_ns {",
-      '/*{"kind":"block","id":"custom_block","ns":["custom_ns"],"title":"Custom","description":"desc"}*/',
-      "class CustomBlock {",
+      "class Block {",
       " public:",
-      "  explicit CustomBlock(",
-      "      unsigned blockId,",
-      '      /*{"kind":"conf","id":"gain","type":{"raw":"u32"},"control":{"type":"slider","default":3}}*/',
-      "      unsigned gain = 3) {}",
-      '  /*{"kind":"input","vector":true,"type":{"raw":"custom_t"}}*/',
-      "  using v = int*;",
+      "  explicit Block(unsigned blockId) : blockId(blockId) {}",
+      "  virtual ~Block() = default;",
+      " protected:",
+      "  unsigned blockId;",
+      "};",
+      "/**",
+      ' * <namespace description="Custom NS"/>',
+      " */",
+      "namespace custom_ns {",
+      "/**",
+      ' * <block title="Custom" description="desc">',
+      ' *   <conf id="gain" type="u32">',
+      ' *     <control type="slider" default="3"/>',
+      " *   </conf>",
+      ' *   <input icon="in.svg" description="Downstream"/>',
+      " * </block>",
+      " */",
+      "class CustomBlock : public Block {",
+      " public:",
+      "  explicit CustomBlock(unsigned blockId, unsigned gain = 3) : Block(blockId) { (void)gain; }",
+      "  void apply(custom_t* downstream) { (void)downstream; }",
       "};",
       "}",
       "",
@@ -97,7 +111,8 @@ describe("HeaderCatalog from clang AST", () => {
     expect(catalog.types.custom_t?.name).toBe("Custom");
     expect(catalog.namespaces.custom_ns).toMatchObject({ name: "Custom NS" });
     expect(catalog.blocks.custom_block).toMatchObject({ title: "Custom", cpp: "custom_ns::CustomBlock" });
-    expect(catalog.blocks.custom_block?.inputs?.v?.vector).toBe(true);
+    expect(catalog.blocks.custom_block?.inputs?.downstream?.vector).toBe(false);
+    expect(catalog.blocks.custom_block?.inputs?.downstream?.type).toContain("*");
     expect(catalog.blocks.custom_block?.conf?.gain?.control).toMatchObject({ type: "slider", default: 3 });
   });
 });

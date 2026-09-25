@@ -99,14 +99,8 @@ export class DiagramJsonBuilder {
   }
 
   private resolvePortType(blockId: string, portId: string): "input" | "output" {
-    const block = this.blocks[blockId];
-    if (!block) throw new Error(`Block "${blockId}" not found in builder`);
-    if (block.ref === "scope_f32" && portId === "sink") return "output";
-    if (block.ref === "product_f32" && portId === "p") return "output";
-    if (block.ref === "sum_f32" && portId === "s") return "output";
-    if (block.ref === "cos_f32" && portId === "cos") return "output";
-    if (block.ref === "sin_f32" && portId === "sin") return "output";
-    return "input";
+    if (!this.blocks[blockId]) throw new Error(`Block "${blockId}" not found in builder`);
+    return portId === "out" ? "output" : "input";
   }
 
   build(): DiagramJson {
@@ -133,12 +127,12 @@ describe("E2E diagram C++ generation", () => {
 
   test("const_f32 to scope_f32", () => {
     const cpp = cppOf(
-      new DiagramJsonBuilder().addScope("s").addConstant("c", 42.5).connect("c", "v", 0, "s", "sink", 0).build(),
+      new DiagramJsonBuilder().addScope("s").addConstant("c", 42.5).connect("c", "downstream", 0, "s", "out", 0).build(),
     );
     expect(cpp).toContain("ConstF32");
     expect(cpp).toContain("42.5f");
     expect(cpp).toContain("c_dn_items[1] = {s_in[0]}");
-    expect(cpp).toContain("c->apply(static_cast<VectorizedInput<Pss<F32>>&&>(c_dn))");
+    expect(cpp).toContain("c->apply(static_cast<Vectorized<Pss<float>>&&>(c_dn))");
   });
 
   test("cos_gen and sin_gen to a multi-channel scope", () => {
@@ -147,8 +141,8 @@ describe("E2E diagram C++ generation", () => {
         .addScope("s")
         .addCosGen("cg")
         .addSinGen("sg")
-        .connect("cg", "v", 0, "s", "sink", 0)
-        .connect("sg", "v", 0, "s", "sink", 1)
+        .connect("cg", "downstream", 0, "s", "out", 0)
+        .connect("sg", "downstream", 0, "s", "out", 1)
         .build(),
     );
     expect(cpp).toContain("CosGenF32");
@@ -162,8 +156,8 @@ describe("E2E diagram C++ generation", () => {
         .addScope("s")
         .addRandGen("r", { amplitude: 2 })
         .addPulseGen("p", { duty_cycle: 0.25, frequency: 4 })
-        .connect("r", "v", 0, "s", "sink", 0)
-        .connect("p", "v", 0, "s", "sink", 1)
+        .connect("r", "downstream", 0, "s", "out", 0)
+        .connect("p", "downstream", 0, "s", "out", 1)
         .build(),
     );
     expect(cpp).toContain("RandGenF32");
@@ -178,9 +172,9 @@ describe("E2E diagram C++ generation", () => {
         .addCos("c")
         .addSin("sn")
         .addConstant("zero", 0)
-        .connect("zero", "v", 0, "c", "v", 0)
-        .connect("c", "cos", 0, "sn", "v", 0)
-        .connect("sn", "sin", 0, "s", "sink", 0)
+        .connect("zero", "downstream", 0, "c", "out", 0)
+        .connect("c", "downstream", 0, "sn", "out", 0)
+        .connect("sn", "downstream", 0, "s", "out", 0)
         .build(),
     );
     expect(cpp.indexOf("s->apply(")).toBeLessThan(cpp.indexOf("sn->apply"));
@@ -194,14 +188,14 @@ describe("E2E diagram C++ generation", () => {
         .addProduct("p")
         .addConstant("c1", 3.5)
         .addConstant("c2", 4)
-        .connect("c1", "v", 0, "p", "v", 0)
-        .connect("c2", "v", 0, "p", "v", 1)
-        .connect("p", "p", 0, "s", "sink", 0)
+        .connect("c1", "downstream", 0, "p", "out", 0)
+        .connect("c2", "downstream", 0, "p", "out", 1)
+        .connect("p", "downstream", 0, "s", "out", 0)
         .build(),
     );
     expect(cpp).toContain("ProductF32");
     expect(cpp).toContain("p_dn_items[1] = {s_in[0]}");
-    expect(cpp).toContain("p->apply(static_cast<VectorizedInput<Pss<F32>>&&>(p_dn), static_cast<u8>(2))");
+    expect(cpp).toContain("p->apply(static_cast<Vectorized<Pss<float>>&&>(p_dn), static_cast<u8>(2))");
   });
 
   test("sum of three constants", () => {
@@ -212,10 +206,10 @@ describe("E2E diagram C++ generation", () => {
         .addConstant("c1", 1)
         .addConstant("c2", 2)
         .addConstant("c3", 3)
-        .connect("c1", "v", 0, "sum", "v", 0)
-        .connect("c2", "v", 0, "sum", "v", 1)
-        .connect("c3", "v", 0, "sum", "v", 2)
-        .connect("sum", "s", 0, "s", "sink", 0)
+        .connect("c1", "downstream", 0, "sum", "out", 0)
+        .connect("c2", "downstream", 0, "sum", "out", 1)
+        .connect("c3", "downstream", 0, "sum", "out", 2)
+        .connect("sum", "downstream", 0, "s", "out", 0)
         .build(),
     );
     expect(cpp).toContain("SumF32");
@@ -227,8 +221,8 @@ describe("E2E diagram C++ generation", () => {
       new DiagramJsonBuilder()
         .addScope("s")
         .addGpio("gpio", [0, 1])
-        .connect("gpio", "pin", 0, "s", "sink", 0)
-        .connect("gpio", "pin", 1, "s", "sink", 1)
+        .connect("gpio", "sinks", 0, "s", "out", 0)
+        .connect("gpio", "sinks", 1, "s", "out", 1)
         .build(),
     );
     expect(cpp).toContain("GpioInF32");
@@ -243,8 +237,8 @@ describe("E2E diagram C++ generation", () => {
         .addScope("s")
         .addCos("c")
         .addGpio("gpio", [0])
-        .connect("gpio", "pin", 0, "c", "v", 0)
-        .connect("c", "cos", 0, "s", "sink", 0)
+        .connect("gpio", "sinks", 0, "c", "out", 0)
+        .connect("c", "downstream", 0, "s", "out", 0)
         .build(),
     );
     expect(cpp).toContain("gpio_p0_items[1] = {c_in}");
@@ -257,8 +251,8 @@ describe("E2E diagram C++ generation", () => {
         .addScope("scope_b")
         .addConstant("const_a", 99)
         .addConstant("const_b", 7)
-        .connect("const_a", "v", 0, "scope_a", "sink", 0)
-        .connect("const_b", "v", 0, "scope_b", "sink", 0)
+        .connect("const_a", "downstream", 0, "scope_a", "out", 0)
+        .connect("const_b", "downstream", 0, "scope_b", "out", 0)
         .build(),
     );
     expect(cpp).toContain("const_a_dn_items[1] = {scope_a_in[0]}");
@@ -284,13 +278,13 @@ describe("E2E diagram C++ generation", () => {
         .addConstant("c2", 2)
         .addConstant("c3", 3)
         .addConstant("c4", 4)
-        .connect("c1", "v", 0, "p_left", "v", 0)
-        .connect("c2", "v", 0, "p_left", "v", 1)
-        .connect("c3", "v", 0, "p_right", "v", 0)
-        .connect("c4", "v", 0, "p_right", "v", 1)
-        .connect("p_left", "p", 0, "p_root", "v", 0)
-        .connect("p_right", "p", 0, "p_root", "v", 1)
-        .connect("p_root", "p", 0, "s", "sink", 0)
+        .connect("c1", "downstream", 0, "p_left", "out", 0)
+        .connect("c2", "downstream", 0, "p_left", "out", 1)
+        .connect("c3", "downstream", 0, "p_right", "out", 0)
+        .connect("c4", "downstream", 0, "p_right", "out", 1)
+        .connect("p_left", "downstream", 0, "p_root", "out", 0)
+        .connect("p_right", "downstream", 0, "p_root", "out", 1)
+        .connect("p_root", "downstream", 0, "s", "out", 0)
         .build(),
     );
     expect(cpp).toContain("p_left_in");
@@ -305,9 +299,9 @@ describe("E2E diagram C++ generation", () => {
         .addProduct("p")
         .addGpio("gpio", [2])
         .addConstant("amp", 2)
-        .connect("gpio", "pin", 0, "p", "v", 0)
-        .connect("amp", "v", 0, "p", "v", 1)
-        .connect("p", "p", 0, "s", "sink", 0)
+        .connect("gpio", "sinks", 0, "p", "out", 0)
+        .connect("amp", "downstream", 0, "p", "out", 1)
+        .connect("p", "downstream", 0, "s", "out", 0)
         .build(),
     );
     expect(cpp).toContain("gpio_p0_items[1] = {p_in[0]}");
@@ -321,8 +315,8 @@ describe("E2E diagram C++ generation", () => {
         .addScope("s1")
         .addGpio("g0", [4])
         .addGpio("g1", [5])
-        .connect("g0", "pin", 0, "s0", "sink", 0)
-        .connect("g1", "pin", 0, "s1", "sink", 0)
+        .connect("g0", "sinks", 0, "s0", "out", 0)
+        .connect("g1", "sinks", 0, "s1", "out", 0)
         .build(),
     );
     expect(cpp).toContain("g0_p0_items[1] = {s0_in[0]}");

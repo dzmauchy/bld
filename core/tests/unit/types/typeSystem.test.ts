@@ -44,14 +44,12 @@ describe("TypeSystem & DataTypes", () => {
   });
 
   test("loads from library types catalog", () => {
-    const boolType = ts.getPrimitive("bool");
+    const boolType = ts.getPrimitive("Bool");
     expect(boolType).toBeDefined();
     expect(boolType?.name).toBe("Boolean");
+    expect(boolType?.isArgCompatibleWith("i8")).toBe(false);
 
-    expect(boolType?.isArgCompatibleWith("i8")).toBe(true);
-    expect(boolType?.isArgCompatibleWith("f32")).toBe(true);
-
-    const pssTemplate = ts.getParameterizedTemplate("pss");
+    const pssTemplate = ts.getParameterizedTemplate("Pss");
     expect(pssTemplate).toBeDefined();
     expect(pssTemplate?.params).toContain("T");
   });
@@ -89,9 +87,9 @@ describe("TypeSystem & DataTypes", () => {
 
   test("keeps declared arg compatibility as type metadata", () => {
     const f32 = ts.getPrimitive("f32");
-    expect(f32?.isArgCompatibleWith("i32")).toBe(true);
+    expect(f32?.isArgCompatibleWith("i32")).toBe(false);
     expect(f32?.isArgCompatibleWith("str")).toBe(false);
-    expect(ts.getParameterizedTemplate("array")?.params).toContain("T");
+    expect(ts.getParameterizedTemplate("Array")?.params).toContain("T");
   });
 
   test("TypeSystem.fromLibrary returns the library type system", async () => {

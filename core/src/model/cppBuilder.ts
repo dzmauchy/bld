@@ -52,7 +52,7 @@ export class CppDiagramBuilder extends DiagramSourceBuilder {
     const meta = diagram.toJSON();
     const lines: string[] = [
       "#include <base.hpp>",
-      "#include \"wasm_host.hpp\"",
+      "#include <browser/host.hpp>",
       "",
       "using push::f32::F32;",
       "",
@@ -272,13 +272,14 @@ function emitPushArray(ident: string, type: string, values: string[]): string[] 
 }
 
 function diagramComment(meta: { id: string; title: string; blocks: unknown; connections: unknown }): string {
-  // Consecutive // lines stay valid JSON for the model. The in-browser clang
-  // frontend drops this comment before compiling; some payloads hang it.
+  // A javadoc block is attached by clang without -fparse-all-comments. The
+  // in-browser frontend drops this comment before compiling; some payloads hang it.
   const json = JSON.stringify({ id: meta.id, title: meta.title, blocks: meta.blocks, connections: meta.connections });
-  return wrapJson(json)
+  const body = wrapJson(json)
     .split("\n")
-    .map((line) => `// ${line}`)
+    .map((line) => ` * ${line}`)
     .join("\n");
+  return `/**\n${body}\n */`;
 }
 
 function wrapJson(json: string, width = 16): string {
@@ -313,8 +314,9 @@ function elementType(type: string): string {
   const open = type.indexOf("<");
   const close = type.lastIndexOf(">");
   if (open === -1 || close <= open) return type;
-  const inner = type.slice(open + 1, close);
-  return type.startsWith("VectorizedInput<") ? `${inner}*` : inner;
+  const inner = type.slice(open + 1, close).trim();
+  // Vectorized<T> is Array<T*>, so the element stored by arrayFrom is T*.
+  return /\bVectorized\s*</.test(type) ? `${inner}*` : inner;
 }
 
 function moveExpr(type: string, ident: string): string {

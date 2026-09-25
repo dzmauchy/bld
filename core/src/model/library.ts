@@ -4,7 +4,7 @@
 import { TypeSystem, type TypeCatalogEntry } from "../types";
 import { loadAsset, resolveUrl } from "./appAssets";
 import type { RawBlockCatalogEntry } from "./blockDefinition";
-import { ClangAstDumper } from "cpp";
+import { ClangAstDumper, type ResolvedApply } from "cpp";
 import { CompilationModel } from "./compiler";
 import { CppBlockCatalog } from "./cppBlockCatalog";
 import { HeaderCatalog } from "./headerCatalog";
@@ -40,6 +40,7 @@ export interface LibrarySources {
   types?: Record<string, TypeCatalogEntry>;
   namespaces?: Record<string, unknown>;
   blocks?: Record<string, RawBlockCatalogEntry>;
+  signatures?: ReadonlyMap<string, ResolvedApply>;
   compilationModel?: CompilationModel | undefined;
 }
 
@@ -92,6 +93,9 @@ export class Library {
       const files = compilationModel.getFiles();
       if (files["base.hpp"]) ClangAstDumper.bindLibraryFiles(files);
     }
+    if (sources.signatures && sources.signatures.size > 0) {
+      CppBlockCatalog.shared.clangTypeCatalog.bindResolved(sources.signatures);
+    }
     return lib;
   }
 
@@ -108,6 +112,7 @@ export class Library {
       types: catalog.types,
       namespaces: catalog.namespaces,
       blocks: catalog.blocks,
+      signatures: catalog.signatures,
       compilationModel,
     });
   }

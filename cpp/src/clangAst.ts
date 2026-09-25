@@ -1,8 +1,8 @@
 /**
  * @title Clang AST Types
  *
- * Consumes `clang++ -Xclang -ast-dump=json -fparse-all-comments` output to
- * recover C++ types, detect incompatibilities, and read JSON comments.
+ * Consumes `clang++ -Xclang -ast-dump=json` output to recover C++ types,
+ * detect incompatibilities, and read javadoc comments.
  * No custom unification or port-type algebra, and no separate C++ parser.
  */
 import { ClangAstDumper, type ClangDumpResult } from "./clangAstDumper.ts";
@@ -25,7 +25,8 @@ export type ClangAstJson = {
   range?: { begin?: ClangAstLoc; end?: ClangAstLoc };
   type?: { qualType?: string; desugaredQualType?: string };
   inner?: ClangAstJson[];
-  bases?: { type?: { qualType?: string } }[];
+  bases?: { type?: { qualType?: string; desugaredQualType?: string } }[];
+  referencedDecl?: { kind?: string; name?: string; type?: { qualType?: string; desugaredQualType?: string } };
 };
 
 export class JsonComment {
@@ -132,7 +133,11 @@ export class ClangQualType {
   }
 
   get isVectorized(): boolean {
-    return /\bVectorizedInput\s*</.test(this.qualType) || /\bArray\s*</.test(this.canonical);
+    return /\bVectorized\s*</.test(this.qualType) || /\bVectorized\s*</.test(this.canonical);
+  }
+
+  get isStream(): boolean {
+    return this.isVectorized || (this.isPointer && !this.isVectorized);
   }
 
   get isPointer(): boolean {
@@ -154,7 +159,15 @@ export class ClangFunction {
     readonly name: string,
     readonly returnType: ClangQualType,
     readonly parameters: ClangQualType[],
+    readonly parameterNames: readonly string[] = [],
   ) {}
+
+  streamParameters(): { name: string; type: ClangQualType }[] {
+    return this.parameters.flatMap((type, index) => {
+      if (!type.isStream) return [];
+      return [{ name: this.parameterNames[index] || `arg${index}`, type }];
+    });
+  }
 
   isCopyOrMoveOf(recordName: string): boolean {
     if (this.parameters.length !== 1) return false;
@@ -297,11 +310,8 @@ export class ClangTypeCatalog {
   ensure(): ClangTranslationUnit {
     if (this.unit) return this.unit;
     const library = this.nativeFiles();
-    const files = new Map<string, string>([
-      ["bld.hpp", library["bld.hpp"] ?? ""],
-      ["base.hpp", library["base.hpp"] ?? ""],
-      ["probe.cpp", '#include "base.hpp"\n'],
-    ]);
+    const files = new Map<string, string>(Object.entries(library));
+    files.set("probe.cpp", library["base.hpp"] ? '#include "base.hpp"\n' : includeAllHeaders(library));
     const dump = this.getDumper().dump(files, "probe.cpp");
     if (!dump.ok || dump.ast === undefined) {
       throw new Error(`clang++ AST dump of the C++ library failed\n${dump.diagnostics}`);
@@ -314,27 +324,35 @@ export class ClangTypeCatalog {
     const cached = this.shapes.get(cppClass);
     if (cached) return cached;
     const unit = this.ensure();
-    const apply = unit.resolveMethod(cppClass, "apply");
+    const signature = this.signatureFor(cppClass);
+    const apply = signature?.apply ?? unit.resolveMethod(cppClass, "apply");
     if (!apply) throw new Error(`No apply() method on ${cppClass} in clang AST`);
     const record = unit.record(cppClass.replace(/::/g, "."));
-    const shape = new ClangApplyShape(
-      apply,
-      unit.resolveMethod(cppClass, "connectPin"),
-      record?.primaryConstructor(),
-    );
+    const connectPin = signature ? signature.connectPin : unit.resolveMethod(cppClass, "connectPin");
+    const shape = new ClangApplyShape(apply, connectPin, record?.primaryConstructor());
     this.shapes.set(cppClass, shape);
     return shape;
   }
 
   dumpProbe(source: string): ClangDumpResult {
     const library = this.nativeFiles();
-    const files = new Map<string, string>([
-      ["bld.hpp", library["bld.hpp"] ?? ""],
-      ["base.hpp", library["base.hpp"] ?? ""],
-      ["wasm_host.hpp", library["wasm_host.hpp"] ?? ""],
-      ["probe.cpp", prepareProbeSource(source)],
-    ]);
+    const files = new Map<string, string>(Object.entries(library));
+    files.set("probe.cpp", prepareProbeSource(source));
     return this.getDumper().dump(files, "probe.cpp");
+  }
+
+  private resolved = new Map<string, ResolvedApply>();
+
+  bindResolved(signatures: ReadonlyMap<string, ResolvedApply>): void {
+    this.resolved = new Map(signatures);
+    for (const [cppClass, signature] of signatures) ClangTypeCatalog.sharedSignatures.set(cppClass, signature);
+    this.shapes.clear();
+  }
+
+  private static readonly sharedSignatures = new Map<string, ResolvedApply>();
+
+  private signatureFor(cppClass: string): ResolvedApply | undefined {
+    return this.resolved.get(cppClass) ?? ClangTypeCatalog.sharedSignatures.get(cppClass);
   }
 }
 
@@ -359,7 +377,7 @@ function walk(
 
   if (kind === "CXXRecordDecl" && name && node.inner) {
     const qualified = [...nextNs, name].join(".");
-    const bases = (node.bases ?? []).map((base) => (base.type?.qualType ?? "").replace(/::/g, ".")).filter(Boolean);
+    const bases = (node.bases ?? []).map((base) => baseRecordName(base)).filter(Boolean);
     const constructors: ClangFunction[] = [];
     const methods: ClangFunction[] = [];
     for (const child of node.inner) {
@@ -385,10 +403,296 @@ function walk(
 
 function functionFromAst(name: string, node: ClangAstJson): ClangFunction {
   const parsed = ClangQualType.fromAst(node.type).splitFunction();
-  const params = (node.inner ?? [])
-    .filter((child) => child.kind === "ParmVarDecl")
-    .map((child) => ClangQualType.fromAst(child.type));
-  return new ClangFunction(name, parsed.returnType, params.length > 0 ? params : parsed.parameters);
+  const decls = (node.inner ?? []).filter((child) => child.kind === "ParmVarDecl");
+  const params = decls.map((child) => ClangQualType.fromAst(child.type));
+  const names = decls.map((child) => child.name ?? "");
+  return new ClangFunction(
+    name,
+    parsed.returnType,
+    params.length > 0 ? params : parsed.parameters,
+    names,
+  );
+}
+
+function baseRecordName(base: { type?: { qualType?: string; desugaredQualType?: string } }): string {
+  const raw = base.type?.desugaredQualType || base.type?.qualType || "";
+  const head = raw.split("<")[0] ?? "";
+  return head.replace(/::/g, ".").replace(/\s+/g, "").trim();
+}
+
+function includeAllHeaders(library: Record<string, string>): string {
+  return Object.keys(library)
+    .filter((name) => /\.(?:h|hh|hpp|hxx)$/i.test(name))
+    .map((name) => `#include "${name}"`)
+    .join("\n");
+}
+
+export type ResolvedApply = {
+  apply: ClangFunction;
+  connectPin?: ClangFunction;
+};
+
+export class MemberPointerType {
+  static parse(qualType: string): { returnType: ClangQualType; parameters: ClangQualType[] } | undefined {
+    const marker = qualType.indexOf("::*)");
+    if (marker < 0) return undefined;
+    const open = qualType.lastIndexOf("(", marker);
+    if (open < 0) return undefined;
+    const returnType = qualType.slice(0, open).trim();
+    const rest = qualType.slice(marker + "::*)".length);
+    const paramsOpen = rest.indexOf("(");
+    const paramsClose = rest.lastIndexOf(")");
+    if (paramsOpen < 0 || paramsClose < paramsOpen) return undefined;
+    const inside = rest.slice(paramsOpen + 1, paramsClose);
+    return {
+      returnType: new ClangQualType(returnType),
+      parameters: splitParams(inside).map((param) => new ClangQualType(param)),
+    };
+  }
+}
+
+export class ApplySignatureProbe {
+  static source(headers: readonly string[], classes: readonly string[]): string {
+    const lines = headers.filter((name) => /\.(?:h|hh|hpp|hxx)$/i.test(name)).map((name) => `#include "${name}"`);
+    lines.push(
+      "",
+      "template <class T>",
+      "auto take_apply(int) -> decltype(&T::apply) { return &T::apply; }",
+      "template <class T>",
+      "auto take_apply(...) -> void* { return nullptr; }",
+      "template <class T>",
+      "auto take_pin(int) -> decltype(&T::connectPin) { return &T::connectPin; }",
+      "template <class T>",
+      "auto take_pin(...) -> void* { return nullptr; }",
+      "",
+      "void infer_signatures() {",
+    );
+    for (const cppClass of classes) {
+      const ident = probeIdent(cppClass);
+      lines.push(`  auto ${ident}_apply = take_apply<${cppClass}>(0);`);
+      lines.push(`  auto ${ident}_pin = take_pin<${cppClass}>(0);`);
+    }
+    lines.push("}", "");
+    return lines.join("\n");
+  }
+
+  static read(unit: ClangTranslationUnit, cppClass: string, names?: ClangFunction, pinNames?: ClangFunction): ResolvedApply {
+    const ident = probeIdent(cppClass);
+    const applyType = unit.varType(`${ident}_apply`);
+    const applySpelling = applyType ? memberPointerSpelling(applyType) : undefined;
+    if (!applySpelling) {
+      throw new Error(`No apply() method on ${cppClass} in clang AST`);
+    }
+    const parsed = MemberPointerType.parse(applySpelling);
+    if (!parsed) throw new Error(`Cannot read apply() type of ${cppClass}: ${applySpelling}`);
+    const apply = namedFunction("apply", parsed.returnType, parsed.parameters, names);
+    const pinType = unit.varType(`${ident}_pin`);
+    const pinSpelling = pinType ? memberPointerSpelling(pinType) : undefined;
+    const pinParsed = pinSpelling ? MemberPointerType.parse(pinSpelling) : undefined;
+    const connectPin = pinParsed ? namedFunction("connectPin", pinParsed.returnType, pinParsed.parameters, pinNames) : undefined;
+    return connectPin ? { apply, connectPin } : { apply };
+  }
+}
+
+function memberPointerSpelling(type: ClangQualType): string | undefined {
+  const desugared = type.desugaredQualType ?? "";
+  if (desugared.includes("::*)")) return desugared;
+  if (type.qualType.includes("::*)")) return type.qualType;
+  return undefined;
+}
+
+function namedFunction(
+  name: string,
+  returnType: ClangQualType,
+  parameters: ClangQualType[],
+  source: ClangFunction | undefined,
+): ClangFunction {
+  const names = parameters.map((_, index) => source?.parameterNames[index] || `arg${index}`);
+  return new ClangFunction(name, returnType, parameters, names);
+}
+
+function probeIdent(cppClass: string): string {
+  const cleaned = cppClass.replace(/[^A-Za-z0-9_]/g, "_");
+  return /^[A-Za-z_]/.test(cleaned) ? cleaned : `b_${cleaned}`;
+}
+
+export class DocElement {
+  constructor(
+    readonly name: string,
+    readonly attributes: Readonly<Record<string, string>>,
+    readonly children: readonly DocElement[],
+    readonly text: string,
+  ) {}
+
+  elements(name: string): DocElement[] {
+    return this.children.filter((child) => child.name === name);
+  }
+
+  attr(name: string): string | undefined {
+    return this.attributes[name];
+  }
+
+  toValue(): unknown {
+    const record: Record<string, unknown> = {};
+    for (const [key, value] of Object.entries(this.attributes)) record[key] = coerceAttr(value);
+    const groups = new Map<string, DocElement[]>();
+    for (const child of this.children) {
+      const list = groups.get(child.name) ?? [];
+      list.push(child);
+      groups.set(child.name, list);
+    }
+    for (const [name, group] of groups) {
+      const values = group.map((child) => child.toValue());
+      record[name] = values.length === 1 ? values[0] : values;
+    }
+    const body = this.text.trim();
+    if (body && Object.keys(record).length === 0) return body;
+    if (body) record.text = body;
+    return record;
+  }
+
+  static parse(source: string): DocElement {
+    const parser = new DocParser(source.trim());
+    const element = parser.element();
+    return element;
+  }
+}
+
+export class DocComment {
+  static of(decl: ClangAstJson): DocElement | undefined {
+    const comment = ClangComment.of(decl);
+    if (!comment) return undefined;
+    const text = comment.joinedText().trim();
+    if (!text.startsWith("<")) return undefined;
+    return DocElement.parse(text);
+  }
+}
+
+class DocParser {
+  private index = 0;
+
+  constructor(private readonly source: string) {}
+
+  element(): DocElement {
+    this.skipSpace();
+    if (this.source[this.index] !== "<") throw new Error(`Expected an XML tag in clang comment: ${this.source.slice(this.index, this.index + 40)}`);
+    this.index += 1;
+    const name = this.ident();
+    const attributes = this.attributes();
+    this.skipSpace();
+    if (this.source.startsWith("/>", this.index)) {
+      this.index += 2;
+      return new DocElement(name, attributes, [], "");
+    }
+    if (this.source[this.index] !== ">") throw new Error(`Unclosed tag <${name}> in clang comment`);
+    this.index += 1;
+    const children: DocElement[] = [];
+    let text = "";
+    while (this.index < this.source.length) {
+      if (this.source.startsWith(`</${name}`, this.index)) {
+        this.index += name.length + 2;
+        this.skipSpace();
+        if (this.source[this.index] === ">") this.index += 1;
+        break;
+      }
+      if (this.source[this.index] === "<") {
+        children.push(this.element());
+        continue;
+      }
+      const start = this.index;
+      while (this.index < this.source.length && this.source[this.index] !== "<") this.index += 1;
+      text += this.source.slice(start, this.index);
+    }
+    return new DocElement(name, attributes, children, text);
+  }
+
+  private attributes(): Record<string, string> {
+    const attributes: Record<string, string> = {};
+    while (this.index < this.source.length) {
+      this.skipSpace();
+      if (this.source.startsWith("/>", this.index) || this.source[this.index] === ">") break;
+      const key = this.ident();
+      this.skipSpace();
+      if (this.source[this.index] !== "=") throw new Error(`Expected = after attribute ${key}`);
+      this.index += 1;
+      this.skipSpace();
+      const quote = this.source[this.index];
+      if (quote !== '"' && quote !== "'") throw new Error(`Expected a quoted attribute value for ${key}`);
+      this.index += 1;
+      const start = this.index;
+      while (this.index < this.source.length && this.source[this.index] !== quote) this.index += 1;
+      attributes[key] = this.source.slice(start, this.index);
+      if (this.source[this.index] === quote) this.index += 1;
+    }
+    return attributes;
+  }
+
+  private ident(): string {
+    const start = this.index;
+    while (this.index < this.source.length && /[A-Za-z0-9_:-]/.test(this.source[this.index] ?? "")) this.index += 1;
+    const name = this.source.slice(start, this.index);
+    if (!name) throw new Error("Expected a name in clang comment XML");
+    return name;
+  }
+
+  private skipSpace(): void {
+    while (this.index < this.source.length && /\s/.test(this.source[this.index] ?? "")) this.index += 1;
+  }
+}
+
+function coerceAttr(value: string): string | number | boolean {
+  if (value === "true") return true;
+  if (value === "false") return false;
+  if (/^-?\d+$/.test(value)) return Number(value);
+  if (/^-?\d+\.\d+$/.test(value)) return Number(value);
+  return value;
+}
+
+export class ClangInputFailure {
+  constructor(
+    readonly inputName: string,
+    readonly accepted: string,
+    readonly received: string,
+  ) {}
+
+  get message(): string {
+    const accepted = this.accepted ? ` (${this.accepted})` : "";
+    const received = this.received || "the connected value";
+    return `input "${this.inputName}"${accepted} cannot accept ${received}`;
+  }
+
+  static fromAst(ast: unknown): ClangInputFailure | undefined {
+    if (!ast || typeof ast !== "object") return undefined;
+    let found: ClangInputFailure | undefined;
+    const walk = (node: ClangAstJson): void => {
+      if (found) return;
+      if (node.kind === "RecoveryExpr") {
+        const refs = referencedVars(node);
+        const input = refs.find((ref) => ref.name.startsWith("input_"));
+        if (input) {
+          const received = refs.find((ref) => ref.name !== input.name);
+          found = new ClangInputFailure(input.name.slice("input_".length), input.type, received?.type ?? "");
+          return;
+        }
+      }
+      for (const child of node.inner ?? []) walk(child);
+    };
+    walk(ast as ClangAstJson);
+    return found;
+  }
+}
+
+function referencedVars(node: ClangAstJson): { name: string; type: string }[] {
+  const found: { name: string; type: string }[] = [];
+  const walk = (current: ClangAstJson): void => {
+    const decl = current.referencedDecl;
+    if (decl?.kind === "VarDecl" && decl.name) {
+      found.push({ name: decl.name, type: decl.type?.qualType ?? current.type?.qualType ?? "" });
+    }
+    for (const child of current.inner ?? []) walk(child);
+  };
+  walk(node);
+  return found;
 }
 
 function splitTopLevelParen(qualType: string): { before: string; inside: string } | undefined {

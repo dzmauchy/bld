@@ -47,9 +47,9 @@ describe("Library and Asset Loader", () => {
 
     // In-memory TypeSystem populated
     expect(lib.typeSystem).toBeInstanceOf(TypeSystem);
-    expect(lib.typeSystem.getPrimitive("bool")).toBeDefined();
+    expect(lib.typeSystem.getPrimitive("Bool")).toBeDefined();
     expect(lib.typeSystem.getPrimitive("f32")).toBeDefined();
-    expect(lib.typeSystem.getParameterizedTemplate("pss")).toBeDefined();
+    expect(lib.typeSystem.getParameterizedTemplate("Pss")).toBeDefined();
 
     // In-memory Palette populated
     expect(lib.palette).toBeInstanceOf(Palette);
@@ -76,12 +76,31 @@ describe("Library and Asset Loader", () => {
 
   test("fetches a remote library archive and unpacks it with modern-tar", async () => {
     const header = [
-      '/*{"kind":"type","id":"custom_t","name":"Custom Type","description":"A custom test type"}*/',
+      "/**",
+      ' * <type name="Custom Type" description="A custom test type"/>',
+      " */",
       "using custom_t = int;",
-      '/*{"kind":"namespace","name":"Custom NS"}*/',
+      "class Block {",
+      " public:",
+      "  explicit Block(unsigned blockId) : blockId(blockId) {}",
+      "  virtual ~Block() = default;",
+      " protected:",
+      "  unsigned blockId;",
+      "};",
+      "/**",
+      ' * <namespace description="Custom NS"/>',
+      " */",
       "namespace custom_ns {",
-      '/*{"kind":"block","id":"custom_block","ns":["custom_ns"],"icon":"custom.svg","title":"Custom Block","description":"A custom test block"}*/',
-      "class CustomBlock {};",
+      "/**",
+      ' * <block icon="custom.svg" title="Custom Block" description="A custom test block">',
+      ' *   <input icon="in.svg" description="Downstream"/>',
+      " * </block>",
+      " */",
+      "class CustomBlock : public Block {",
+      " public:",
+      "  explicit CustomBlock(unsigned blockId) : Block(blockId) {}",
+      "  void apply(custom_t* downstream) { (void)downstream; }",
+      "};",
       "}",
     ].join("\n");
     const archive = await gzipTar({ "plugin.hpp": header });
@@ -197,9 +216,27 @@ describe("Library and Asset Loader", () => {
 
   test("relative archive locations load from internal resources", async () => {
     const header = [
+      "class Block {",
+      " public:",
+      "  explicit Block(unsigned blockId) : blockId(blockId) {}",
+      "  virtual ~Block() = default;",
+      " protected:",
+      "  unsigned blockId;",
+      "};",
+      "/**",
+      ' * <namespace description="Samples"/>',
+      " */",
       "namespace samples {",
-      '/*{"kind":"block","id":"local_block","ns":["samples"],"icon":"local.svg","title":"Local","description":"Loaded from an internal header"}*/',
-      "class Local {};",
+      "/**",
+      ' * <block icon="local.svg" title="Local" description="Loaded from an internal header">',
+      ' *   <input icon="in.svg" description="Downstream"/>',
+      " * </block>",
+      " */",
+      "class LocalBlock : public Block {",
+      " public:",
+      "  explicit LocalBlock(unsigned blockId) : Block(blockId) {}",
+      "  void apply(int* downstream) { (void)downstream; }",
+      "};",
       "}",
     ].join("\n");
     registerAppAssets({
@@ -218,7 +255,7 @@ describe("Library and Asset Loader", () => {
       const lib = await Library.load("internal.json");
       expect(fetchMock).not.toHaveBeenCalled();
       expect(lib.palette.getBlock("local_block")?.title).toBe("Local");
-      expect(lib.compilationModel.getFile("block.hpp")).toContain("class Local");
+      expect(lib.compilationModel.getFile("block.hpp")).toContain("class LocalBlock");
     } finally {
       globalThis.fetch = originalFetch;
       clearRegisteredAppAssets();
@@ -230,7 +267,7 @@ describe("Library and Asset Loader", () => {
       "include/bld.hpp": "namespace bld {}",
       "notes.txt": "ignore",
     }));
-    expect(archive.files()).toEqual({ "bld.hpp": "namespace bld {}" });
+    expect(archive.files()).toEqual({ "include/bld.hpp": "namespace bld {}" });
   });
 
   test("header block classes match the C++ catalog", async () => {

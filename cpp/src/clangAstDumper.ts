@@ -1,9 +1,9 @@
 /**
  * @title Clang AST Dumper
  *
- * Invokes `clang++ -fsyntax-only -Xclang -ast-dump=json -fparse-all-comments`
- * and returns the dump. Comments ride the AST as FullComment nodes, so header
- * and diagram metadata needs no separate C++ parser.
+ * Invokes `clang++ -fsyntax-only -Xclang -ast-dump=json` and returns the dump.
+ * Javadoc comments ride the AST as FullComment nodes, so header and diagram
+ * metadata needs no separate C++ parser.
  * Host (Node) and wasm dumpers register themselves against this contract.
  */
 export class ClangDumpResult {

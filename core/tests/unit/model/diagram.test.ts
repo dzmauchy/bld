@@ -31,7 +31,7 @@ describe("Palette", () => {
     expect(scope).toBeDefined();
     expect(scope?.title).toBe("Scope");
     expect(scope?.category).toBe("sinks");
-    expect(scope?.getOutput("sink")).toBeDefined();
+    expect(scope?.getOutput("out")).toBeDefined();
     expect(scope?.getConfig("period")?.defaultValue).toBe(60);
     expect(scope?.getConfig("precision")?.defaultValue).toBe(10);
   });
@@ -82,8 +82,8 @@ describe("Diagram & Drag/Drop Blocks", () => {
     const cosGen = diagram.addBlock("cos_gen_f32", { x: 100, y: 10 });
 
     diagram.connect(
-      new PortEndpoint(cosGen.id, "input", "v", 0),
-      new PortEndpoint(scope.id, "output", "sink", 0),
+      new PortEndpoint(cosGen.id, "input", "downstream", 0),
+      new PortEndpoint(scope.id, "output", "out", 0),
     );
     expect(diagram.getConnections()).toHaveLength(1);
 
@@ -100,14 +100,14 @@ describe("Type Checking & Connections", () => {
     const cosGen = diagram.addBlock("cos_gen_f32", { x: 100, y: 10 });
 
     const check = diagram.canConnect(
-      new PortEndpoint(cosGen.id, "input", "v", 0),
-      new PortEndpoint(scope.id, "output", "sink", 0),
+      new PortEndpoint(cosGen.id, "input", "downstream", 0),
+      new PortEndpoint(scope.id, "output", "out", 0),
     );
     expect(check.ok).toBe(true);
 
     const conn = diagram.connect(
-      new PortEndpoint(cosGen.id, "input", "v", 0),
-      new PortEndpoint(scope.id, "output", "sink", 0),
+      new PortEndpoint(cosGen.id, "input", "downstream", 0),
+      new PortEndpoint(scope.id, "output", "out", 0),
     );
     expect(conn.id).toBeDefined();
     expect(diagram.getConnections()).toHaveLength(1);
@@ -119,8 +119,8 @@ describe("Type Checking & Connections", () => {
     const gpio = diagram.addBlock("gpio_in_f32", { x: 100, y: 10 });
 
     const check = diagram.canConnect(
-      new PortEndpoint(gpio.id, "input", "pin", 0),
-      new PortEndpoint(scope.id, "output", "sink", 0),
+      new PortEndpoint(gpio.id, "input", "sinks", 0),
+      new PortEndpoint(scope.id, "output", "out", 0),
     );
     expect(check.ok).toBe(true);
   });
@@ -131,7 +131,7 @@ describe("Type Checking & Connections", () => {
 
     const check = diagram.canConnect(
       new PortEndpoint(prod.id, "output", "p", 0),
-      new PortEndpoint(prod.id, "input", "v", 0),
+      new PortEndpoint(prod.id, "input", "downstream", 0),
     );
     expect(check.ok).toBe(false);
     expect(check.reason).toContain("itself");
@@ -143,13 +143,13 @@ describe("Type Checking & Connections", () => {
     const cosGen = diagram.addBlock("cos_gen_f32", { x: 100, y: 10 });
 
     diagram.connect(
-      new PortEndpoint(cosGen.id, "input", "v", 0),
-      new PortEndpoint(scope.id, "output", "sink", 0),
+      new PortEndpoint(cosGen.id, "input", "downstream", 0),
+      new PortEndpoint(scope.id, "output", "out", 0),
     );
 
     const check = diagram.canConnect(
-      new PortEndpoint(cosGen.id, "input", "v", 0),
-      new PortEndpoint(scope.id, "output", "sink", 0),
+      new PortEndpoint(cosGen.id, "input", "downstream", 0),
+      new PortEndpoint(scope.id, "output", "out", 0),
     );
     expect(check.ok).toBe(false);
     expect(check.reason).toContain("already exists");
@@ -200,8 +200,8 @@ describe("Wasm Code Generation", () => {
     });
 
     diagram.connect(
-      new PortEndpoint(cosGen.id, "input", "v", 0),
-      new PortEndpoint(scope.id, "output", "sink", 0),
+      new PortEndpoint(cosGen.id, "input", "downstream", 0),
+      new PortEndpoint(scope.id, "output", "out", 0),
     );
 
     const cpp = diagram.emitText(new DiagramCompiler({ files: {} }));
@@ -224,12 +224,12 @@ describe("Wasm Code Generation", () => {
     expect(diagram.hasBlock("missing")).toBe(false);
 
     const conn = diagram.connect(
-      new PortEndpoint(cosGen.id, "input", "v", 0),
-      new PortEndpoint(scope.id, "output", "sink", 0),
+      new PortEndpoint(cosGen.id, "input", "downstream", 0),
+      new PortEndpoint(scope.id, "output", "out", 0),
     );
     expect(diagram.getConnection(conn.id)).toBe(conn);
     expect(diagram.getConnectionsForBlock(scope.id)).toEqual([conn]);
-    expect(conn.connectsEndpoint(new PortEndpoint(scope.id, "output", "sink", 0))).toBe(true);
+    expect(conn.connectsEndpoint(new PortEndpoint(scope.id, "output", "out", 0))).toBe(true);
 
     const restored = Connection.fromJSON(conn.id, conn.toJSON());
     expect(restored.from.equals(conn.from)).toBe(true);
@@ -244,13 +244,13 @@ describe("Wasm Code Generation", () => {
     const diagram = new Diagram("diag_1", "Test Diagram", palette);
     const scope = diagram.addBlock("scope_f32", { x: 10, y: 20 }, "scope_0", { precision: 25 });
 
-    expect(scope.getOutputPorts().map((port) => port.id)).toContain("sink");
+    expect(scope.getOutputPorts().map((port) => port.id)).toContain("out");
     expect(scope.getInputPorts()).toEqual([]);
     expect(scope.getAllConf()).toMatchObject({ period: 60, precision: 25 });
     expect(scope.definition.getDefaultConfig()).toMatchObject({ period: 60, precision: 10 });
 
-    const endpoint = new PortEndpoint(scope.id, "output", "sink", 0);
-    expect(endpoint.toString()).toBe(`${scope.id}.output.sink[0]`);
+    const endpoint = new PortEndpoint(scope.id, "output", "out", 0);
+    expect(endpoint.toString()).toBe(`${scope.id}.output.out[0]`);
   });
 
   test("forwards compiled wasm to runtime.instantiate in run", async () => {
@@ -287,26 +287,27 @@ describe("Diagram port type inference", () => {
     const constant = diagram.addBlock("const_f32", { x: 2, y: 0 }, "constant");
     const gpio = diagram.addBlock("gpio_in_f32", { x: 3, y: 0 }, "gpio", { pins: [0, 2, 4] });
 
-    const sink = diagram.inferPortType(scope.id, "sink", "output");
+    const sink = diagram.inferPortType(scope.id, "out", "output");
     expect(sink.isVector).toBe(true);
-    expect(sink.qualType).toContain("VectorizedInput");
+    expect(sink.qualType).toContain("Vectorized<");
     expect(sink.desugaredQualType).toMatch(/Consumer/);
 
-    const cosOut = diagram.inferPortType(cosine.id, "cos", "output");
+    const cosOut = diagram.inferPortType(cosine.id, "out", "output");
     expect(cosOut.isVector).toBe(false);
-    expect(cosOut.qualType).toMatch(/Consumer|Pss|Push/);
+    expect(cosOut.qualType).toMatch(/\*/);
 
-    const cosIn = diagram.inferPortType(cosine.id, "v", "input");
-    expect(cosIn.qualType).toMatch(/\*/);
+    const cosIn = diagram.inferPortType(cosine.id, "downstream", "input");
+    expect(cosIn.isVector).toBe(true);
+    expect(cosIn.qualType).toContain("Vectorized<");
 
-    const constIn = diagram.inferPortType(constant.id, "v");
+    const constIn = diagram.inferPortType(constant.id, "downstream");
     expect(constIn.isVector).toBe(true);
-    expect(constIn.qualType).toContain("VectorizedInput");
+    expect(constIn.qualType).toContain("Vectorized<");
 
-    const pin = diagram.inferPortType(gpio.id, "pin", "input");
+    const pin = diagram.inferPortType(gpio.id, "sinks", "input");
     expect(pin.isVector).toBe(true);
     expect(pin.vectorLength).toBe(3);
-    expect(pin.qualType).toContain("VectorizedInput");
+    expect(pin.qualType).toContain("Vectorized<");
   });
 
   test("uses clang++ to accept compatible connections and reject type errors", () => {
@@ -314,38 +315,34 @@ describe("Diagram port type inference", () => {
     const scope = diagram.addBlock("scope_f32", { x: 0, y: 0 }, "s");
     const constant = diagram.addBlock("const_f32", { x: 1, y: 0 }, "c");
     const allowed = diagram.canConnect(
-      new PortEndpoint(constant.id, "input", "v", 0),
-      new PortEndpoint(scope.id, "output", "sink", 1),
+      new PortEndpoint(constant.id, "input", "downstream", 0),
+      new PortEndpoint(scope.id, "output", "out", 1),
     );
     expect(allowed.ok).toBe(true);
 
     diagram.connect(
-      new PortEndpoint(constant.id, "input", "v", 0),
-      new PortEndpoint(scope.id, "output", "sink", 1),
+      new PortEndpoint(constant.id, "input", "downstream", 0),
+      new PortEndpoint(scope.id, "output", "out", 1),
     );
 
     const types = diagram.inferPortTypes();
-    const from = types.require(constant.id, "input", "v");
-    const to = types.require(scope.id, "output", "sink");
-    expect(from.qualType).toContain("VectorizedInput");
-    expect(to.qualType).toContain("VectorizedInput");
+    const from = types.require(constant.id, "input", "downstream");
+    const to = types.require(scope.id, "output", "out");
+    expect(from.qualType).toContain("Vectorized<");
+    expect(to.qualType).toContain("Vectorized<");
     expect(to.vectorLength).toBe(2);
     expect(from.vectorLength).toBe(1);
   });
 
-  test("detects type incompatibilities from clang++ diagnostics", () => {
-    const dump = new Diagram("bad", "bad", palette).catalog.clangTypeCatalog.dumpProbe(`
-#include "base.hpp"
-void check() {
-  VectorizedInput<Pss<F32>> dn{};
-  dn.push_back(0);
-  Pss<f32> *from = nullptr;
-  int *to = nullptr;
-  to = from;
-}
-`);
-    expect(dump.ok).toBe(false);
-    expect(dump.hasTypeError).toBe(true);
-    expect(dump.diagnostics).toMatch(/incompatible|no matching|cannot convert/i);
+  test("names the input clang rejected in the dumped AST", () => {
+    const diagram = new Diagram("bad", "bad", palette);
+    const scope = diagram.addBlock("scope_f64", { x: 0, y: 0 }, "s");
+    const constant = diagram.addBlock("const_f32", { x: 1, y: 0 }, "c");
+    const check = diagram.canConnect(
+      new PortEndpoint(constant.id, "input", "downstream", 0),
+      new PortEndpoint(scope.id, "output", "out", 0),
+    );
+    expect(check.ok).toBe(false);
+    expect(check.reason).toContain('input "downstream"');
   });
 });

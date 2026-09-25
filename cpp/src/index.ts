@@ -11,17 +11,23 @@ export { ClangAstDumper, ClangDumpResult } from "./clangAstDumper.ts";
 export { BrowserClangAstDumper } from "./browserClangAstDumper.ts";
 export { CppTypeNames, cppIdent } from "./cppLiterals.ts";
 export {
+  ApplySignatureProbe,
   ClangApplyShape,
   ClangComment,
   ClangFunction,
+  ClangInputFailure,
   ClangQualType,
   ClangRecord,
   ClangSourceComments,
   ClangTranslationUnit,
   ClangTypeCatalog,
+  DocComment,
+  DocElement,
   JsonComment,
+  MemberPointerType,
   isMainFileNode,
 } from "./clangAst.ts";
+export type { ResolvedApply } from "./clangAst.ts";
 export type { ClangAstJson, ClangAstLoc } from "./clangAst.ts";
 export { WasmLinker } from "./linker.ts";
 export { EmscriptenTool } from "./emscripten.ts";
