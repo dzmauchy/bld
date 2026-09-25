@@ -36,17 +36,7 @@ function emit(build: (diagram: Diagram) => void): string {
 describe("diagram C++ generation topologies", () => {
   test("every catalog block can be constructed", () => {
     const cpp = emit((d) => {
-      d.addBlock("scope_f32", { x: 0, y: 0 }, "scope");
-      d.addBlock("cos_f32", { x: 1, y: 0 }, "cos");
-      d.addBlock("sin_f32", { x: 2, y: 0 }, "sin");
-      d.addBlock("product_f32", { x: 3, y: 0 }, "product");
-      d.addBlock("sum_f32", { x: 4, y: 0 }, "sum");
-      d.addBlock("const_f32", { x: 5, y: 0 }, "constant");
-      d.addBlock("cos_gen_f32", { x: 6, y: 0 }, "cos_gen");
-      d.addBlock("sin_gen_f32", { x: 7, y: 0 }, "sin_gen");
-      d.addBlock("rand_gen_f32", { x: 8, y: 0 }, "rand_gen");
-      d.addBlock("pulse_gen_f32", { x: 9, y: 0 }, "pulse_gen");
-      d.addBlock("gpio_in_f32", { x: 10, y: 0 }, "gpio");
+      for (const ref of defaultCppBlockCatalog.refs()) d.addBlock(ref, { x: 0, y: 0 }, ref);
     });
     for (const ref of defaultCppBlockCatalog.refs()) {
       expect(cpp).toContain(defaultCppBlockCatalog.require(ref).cppClass);
@@ -60,15 +50,15 @@ describe("diagram C++ generation topologies", () => {
       d.addBlock("cos_f32", { x: 2, y: 0 }, "c");
       d.addBlock("sin_f32", { x: 3, y: 0 }, "n");
       d.addBlock("const_f32", { x: 4, y: 0 }, "theta", { v: 0.5 });
-      connect(d, "theta", "v", 0, "c", "v", 0);
-      connect(d, "theta", "v", 0, "n", "v", 0);
-      connect(d, "c", "cos", 0, "p", "v", 0);
-      connect(d, "n", "sin", 0, "p", "v", 1);
-      connect(d, "p", "p", 0, "s", "sink", 0);
+      connect(d, "theta", "downstream", 0, "c", "out", 0);
+      connect(d, "theta", "downstream", 0, "n", "out", 0);
+      connect(d, "c", "downstream", 0, "p", "out", 0);
+      connect(d, "n", "downstream", 0, "p", "out", 1);
+      connect(d, "p", "downstream", 0, "s", "out", 0);
     });
     expect(cpp).toContain("theta_dn_items[2] = {c_in, n_in}");
     expect(cpp).toContain("auto theta_dn = arrayFrom(theta_dn_items, 2u)");
-    expect(cpp).toContain("p->apply(static_cast<VectorizedInput<Pss<F32>>&&>(p_dn), static_cast<u8>(2))");
+    expect(cpp).toContain("p->apply(static_cast<Vectorized<Pss<float>>&&>(p_dn), static_cast<u8>(2))");
   });
 
   test("gpio AND product into scope", () => {
@@ -76,9 +66,9 @@ describe("diagram C++ generation topologies", () => {
       d.addBlock("scope_f32", { x: 0, y: 0 }, "s");
       d.addBlock("product_f32", { x: 1, y: 0 }, "p");
       d.addBlock("gpio_in_f32", { x: 2, y: 0 }, "gpio", { pins: [0, 1] });
-      connect(d, "gpio", "pin", 0, "p", "v", 0);
-      connect(d, "gpio", "pin", 1, "p", "v", 1);
-      connect(d, "p", "p", 0, "s", "sink", 0);
+      connect(d, "gpio", "sinks", 0, "p", "out", 0);
+      connect(d, "gpio", "sinks", 1, "p", "out", 1);
+      connect(d, "p", "downstream", 0, "s", "out", 0);
     });
     expect(cpp).toContain("gpio_p0_items[1] = {p_in[0]}");
     expect(cpp).toContain("gpio_p1_items[1] = {p_in[1]}");
@@ -91,10 +81,10 @@ describe("diagram C++ generation topologies", () => {
       d.addBlock("cos_f32", { x: 1, y: 0 }, "c");
       d.addBlock("sin_f32", { x: 2, y: 0 }, "n");
       d.addBlock("gpio_in_f32", { x: 3, y: 0 }, "gpio", { pins: [0] });
-      connect(d, "gpio", "pin", 0, "c", "v", 0);
-      connect(d, "gpio", "pin", 0, "n", "v", 0);
-      connect(d, "c", "cos", 0, "s", "sink", 0);
-      connect(d, "n", "sin", 0, "s", "sink", 1);
+      connect(d, "gpio", "sinks", 0, "c", "out", 0);
+      connect(d, "gpio", "sinks", 0, "n", "out", 0);
+      connect(d, "c", "downstream", 0, "s", "out", 0);
+      connect(d, "n", "downstream", 0, "s", "out", 1);
     });
     expect(cpp).toContain("gpio_p0_items[2] = {c_in, n_in}");
     expect(cpp).toContain("auto gpio_p0 = arrayFrom(gpio_p0_items, 2u)");
@@ -124,9 +114,9 @@ describe("diagram C++ generation topologies", () => {
       d.addBlock("scope_f32", { x: 0, y: 0 }, "s");
       d.addBlock("sum_f32", { x: 1, y: 0 }, "sum");
       d.addBlock("gpio_in_f32", { x: 2, y: 0 }, "gpio", { pins: [0, 1] });
-      connect(d, "gpio", "pin", 0, "sum", "v", 0);
-      connect(d, "gpio", "pin", 1, "sum", "v", 1);
-      connect(d, "sum", "s", 0, "s", "sink", 0);
+      connect(d, "gpio", "sinks", 0, "sum", "out", 0);
+      connect(d, "gpio", "sinks", 1, "sum", "out", 1);
+      connect(d, "sum", "downstream", 0, "s", "out", 0);
     });
     expect(cpp).toContain("SumF32");
     expect(cpp).toContain("gpio_p0_items[1] = {sum_in[0]}");
@@ -138,8 +128,8 @@ describe("diagram C++ generation topologies", () => {
       d.addBlock("scope_f32", { x: 0, y: 0 }, "s");
       d.addBlock("cos_gen_f32", { x: 1, y: 0 }, "cg");
       d.addBlock("pulse_gen_f32", { x: 2, y: 0 }, "pg");
-      connect(d, "cg", "v", 0, "s", "sink", 0);
-      connect(d, "pg", "v", 0, "s", "sink", 1);
+      connect(d, "cg", "downstream", 0, "s", "out", 0);
+      connect(d, "pg", "downstream", 0, "s", "out", 1);
     });
     expect(cpp).toContain("cg_dn_items[1] = {s_in[0]}");
     expect(cpp).toContain("pg_dn_items[1] = {s_in[1]}");

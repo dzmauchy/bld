@@ -13,12 +13,12 @@ describe("clang++ AST type dump", () => {
 
   test("dumps QualTypes for library apply methods", () => {
     const scope = catalog.shapeFor("push::f32::sinks::ScopeF32");
-    expect(scope.apply.returnType.qualType).toContain("VectorizedInput");
+    expect(scope.apply.returnType.qualType).toContain("Vectorized<");
     expect(scope.exposesConsumerBank).toBe(true);
 
     const cosine = catalog.shapeFor("push::f32::transformers::CosF32");
     expect(cosine.returnsScalarConsumer).toBe(true);
-    expect(cosine.downstreamType()?.qualType).toContain("VectorizedInput");
+    expect(cosine.downstreamType()?.qualType).toContain("Vectorized<");
 
     const product = catalog.shapeFor("push::f32::transformers::ProductF32");
     expect(product.returnsIndexedConsumers).toBe(true);
@@ -30,7 +30,7 @@ describe("clang++ AST type dump", () => {
 
     const gpio = catalog.shapeFor("push::f32::sources::GpioInF32");
     expect(gpio.registersHostPins).toBe(true);
-    expect(gpio.connectPin?.parameters[1]?.qualType).toContain("VectorizedInput");
+    expect(gpio.connectPin?.parameters[1]?.qualType).toContain("Vectorized<");
   });
 
   test("detects type incompatibilities from clang diagnostics", () => {
@@ -40,7 +40,7 @@ void check() {
   Pss<f32> *from = nullptr;
   int *to = nullptr;
   to = from;
-  VectorizedInput<Pss<F32>> dn{};
+  Vectorized<Pss<float>> dn{};
   dn.push_back(0);
 }
 `);
@@ -56,9 +56,9 @@ void check() {
   auto* scope = new push::f32::sinks::ScopeF32(0u, 60u, 10u);
   auto sinks = scope->apply(static_cast<u8>(1));
   auto* cosine = new push::f32::transformers::CosF32(1u);
-  auto dn = VectorizedInput<Pss<F32>>{};
+  auto dn = Vectorized<Pss<float>>{};
   dn.push_back(sinks[0]);
-  auto* input = cosine->apply(static_cast<VectorizedInput<Pss<F32>>&&>(dn));
+  auto* input = cosine->apply(static_cast<Vectorized<Pss<float>>&&>(dn));
   (void)input;
 }
 `);
@@ -75,7 +75,7 @@ void probe() {
 `);
     expect(dump.ok, dump.diagnostics).toBe(true);
     const unit = ClangTranslationUnit.parse(dump.ast);
-    expect(unit.varType("port_scope_output_sink")?.qualType).toContain("VectorizedInput");
+    expect(unit.varType("port_scope_output_sink")?.qualType).toContain("Vectorized<");
     expect(unit.varType("port_scope_output_sink")?.desugaredQualType).toMatch(/Consumer/);
   });
 });

@@ -32,7 +32,7 @@ export class LibraryArchive {
     const decoder = new TextDecoder();
     for (const entry of entries) {
       if (!entry.data) continue;
-      const name = headerFileName(entry.header.name);
+      const name = headerPath(entry.header.name);
       if (!name || !HEADER_NAME.test(name)) continue;
       files.set(name, decoder.decode(entry.data));
     }
@@ -70,11 +70,10 @@ function archiveUrls(location: string): string[] {
   return urls;
 }
 
-function headerFileName(name: string): string {
-  const cleaned = name.replaceAll("\\", "/").replace(/^\.\/+/, "");
-  if (cleaned.endsWith("/")) return "";
-  const slash = cleaned.lastIndexOf("/");
-  return slash === -1 ? cleaned : cleaned.slice(slash + 1);
+function headerPath(name: string): string {
+  const cleaned = name.replaceAll("\\", "/").replace(/^\.\/+/, "").replace(/^\/+/, "");
+  if (!cleaned || cleaned.endsWith("/") || cleaned.split("/").includes("..")) return "";
+  return cleaned;
 }
 
 function copyBytes(bytes: Uint8Array | ArrayBuffer): Uint8Array<ArrayBuffer> {

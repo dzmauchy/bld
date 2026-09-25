@@ -7,7 +7,7 @@ describe("toolchain argument builders", () => {
     expect(args).toContain("-fsyntax-only");
     expect(args).toContain("-Xclang");
     expect(args).toContain("-ast-dump=json");
-    expect(args).toContain("-fparse-all-comments");
+    expect(args).not.toContain("-fparse-all-comments");
     expect(args.at(-1)).toBe("/work/add.cpp");
     expect(args).not.toContain("-c");
   });
@@ -17,7 +17,7 @@ describe("toolchain argument builders", () => {
     expect(args).toContain("-fsyntax-only");
     expect(args).toContain("-Xclang");
     expect(args).toContain("-ast-dump");
-    expect(args).toContain("-fparse-all-comments");
+    expect(args).not.toContain("-fparse-all-comments");
     expect(args).not.toContain("-ast-dump=json");
     expect(args.at(-1)).toBe("/work/add.cpp");
     expect(args).not.toContain("-c");

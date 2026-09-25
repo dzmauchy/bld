@@ -69,9 +69,15 @@ export class DiagramMetaCommentFilter {
   }
 
   private isDiagramMeta(body: string): boolean {
-    if (!body.startsWith("{")) return false;
+    const text = body
+      .split("\n")
+      .map((line) => line.replace(/^\s*\*\s?/, ""))
+      .join("\n")
+      .trim()
+      .replace(/^\*\s?/, "");
+    if (!text.startsWith("{")) return false;
     try {
-      const parsed = JSON.parse(body) as unknown;
+      const parsed = JSON.parse(text) as unknown;
       if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) return false;
       const record = parsed as Record<string, unknown>;
       return Boolean(

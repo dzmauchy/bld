@@ -17,6 +17,8 @@ export class PortDefinition extends PropertyDefinition {
     type: DataType,
     readonly vector: boolean = false,
     readonly concept?: unknown,
+    readonly icon = "",
+    readonly description = "",
   ) {
     super(id, type);
   }
@@ -37,14 +39,14 @@ export class PortDefinition extends PropertyDefinition {
 }
 
 export class InputPortDefinition extends PortDefinition {
-  constructor(id: string, type: DataType, vector = false, concept?: unknown) {
-    super(id, "input", type, vector, concept);
+  constructor(id: string, type: DataType, vector = false, concept?: unknown, icon = "", description = "") {
+    super(id, "input", type, vector, concept, icon, description);
   }
 }
 
 export class OutputPortDefinition extends PortDefinition {
-  constructor(id: string, type: DataType, vector = false, concept?: unknown) {
-    super(id, "output", type, vector, concept);
+  constructor(id: string, type: DataType, vector = false, concept?: unknown, icon = "", description = "") {
+    super(id, "output", type, vector, concept, icon, description);
   }
 }
 
@@ -63,6 +65,8 @@ export interface RawPortCatalogEntry {
   vector?: boolean;
   type: TypeDescriptor | string;
   concept?: unknown;
+  icon?: string;
+  description?: string;
 }
 
 export interface RawConfigPropertyCatalogEntry {
@@ -129,7 +133,10 @@ export class BlockDefinition {
     const category = ns.length >= 3 ? ns[2] : ns[ns.length - 1] ?? "";
 
     const buildPorts = (entries: Record<string, RawPortCatalogEntry> | undefined, Cls: typeof InputPortDefinition | typeof OutputPortDefinition) =>
-      new Map(Object.entries(entries ?? {}).map(([portId, e]) => [portId, new Cls(portId, typeSystem.parse(e.type), Boolean(e.vector), e.concept)]));
+      new Map(Object.entries(entries ?? {}).map(([portId, e]) => [
+        portId,
+        new Cls(portId, typeSystem.parse(e.type), Boolean(e.vector), e.concept, e.icon ?? "", e.description ?? ""),
+      ]));
 
     const config = new Map(
       Object.entries(raw.conf ?? {}).map(([confId, entry]) => {

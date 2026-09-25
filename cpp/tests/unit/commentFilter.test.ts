@@ -49,6 +49,20 @@ describe("DiagramMetaCommentFilter", () => {
     expect(filtered).not.toContain("bld_clang_source_padding");
   });
 
+  test("drops a javadoc diagram comment", () => {
+    const source = [
+      "/**",
+      ' * {"id":"demo","title":"Demo",',
+      ' * "blocks":{},"connections":{}}',
+      " */",
+      "extern \"C\" void mount() {}",
+      "",
+    ].join("\n");
+    const filtered = filter.apply(source);
+    expect(filtered).not.toContain("demo");
+    expect(filtered).toContain("void mount()");
+  });
+
   test("keeps ordinary line comments", () => {
     const source = "// not json\nextern \"C\" int add() { return 1; }\n";
     expect(filter.apply(source)).toBe(source);

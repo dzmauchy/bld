@@ -32,8 +32,8 @@ function createTestDiagram(): Diagram {
     v: 3.14,
   });
   diagram.connect(
-    new PortEndpoint(constant.id, "input", "v", 0),
-    new PortEndpoint(scope.id, "output", "sink", 0),
+    new PortEndpoint(constant.id, "input", "downstream", 0),
+    new PortEndpoint(scope.id, "output", "out", 0),
   );
   return diagram;
 }
@@ -91,9 +91,9 @@ describe("DiagramCompiler C++ generation", () => {
     expect(captured).toHaveLength(1);
     const files = captured[0];
     expect(files?.get("diagram.cpp")).toContain("void mount()");
-    expect(files?.get("diagram.cpp")).toContain("#include \"wasm_host.hpp\"");
-    expect(files?.get("base.hpp")).toContain("class ScopeF32");
-    expect(files?.get("wasm_host.hpp")).toContain("void start()");
+    expect(files?.get("diagram.cpp")).toContain("#include <browser/host.hpp>");
+    expect(files?.get("base/f32_blocks.hpp")).toContain("class ScopeF32");
+    expect(files?.get("browser/host.hpp")).toContain("void start()");
     expect(files?.get("wasm_host.cpp")).toBeUndefined();
   });
 

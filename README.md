@@ -52,7 +52,7 @@ The project features a **client-side only** architecture:
 - **C++ Diagram Builder**: Generates C++ that instantiates `push::f32` blocks from the base library and delegates wasm compilation to the `cpp` workspace.
 - **Web Worker Thread Isolation**: All runtime execution runs off the main thread with non-blocking RPC communication and streaming pin updates.
 - **Sliding Scope Buffers**: High-rate signal capture in the browser uses a `Float32Array`/`Float64Array` ring with a single write pointer.
-- **Auto-descriptive header library**: Blocks, types, namespaces, ports, and config are JSON comments on the header-only C++ base library. Core reads them from `clang++ -fsyntax-only -Xclang -ast-dump=json -fparse-all-comments`.
+- **Auto-descriptive header library**: Blocks, types, namespaces, ports, and config are javadoc comments on the header-only C++ base library. Core reads them from `clang++ -fsyntax-only -Xclang -ast-dump=json`.
 - **Clang type checks**: Port types and connection compatibility come from `clang++` AST dumps. Configuration properties that match their defaults are omitted from the diagram comment.
 - **Production-Ready UI Stack**: Built on Solid.js, Web Awesome, dark mode by default, and bundled with Rsbuild.
 
@@ -361,8 +361,8 @@ classDiagram
     ClangTypeCatalog --> DataType
 ```
 
-- **Primitive types**: Scalars declared in `bld.hpp`, such as `f32`, `i32`, and `bool`.
-- **Parameterized types**: Stream and collection templates declared in the headers, such as `pss` and `array`.
+- **Primitive types**: Scalars declared in `core/types.hpp`, such as `f32`, `i32`, and `Bool`.
+- **Parameterized types**: Stream and collection templates declared in the headers, such as `Pss` and `Array`.
 - **Port types**: QualTypes from clang++ dumps decide whether a connection type-checks and how `apply` is emitted.
 
 ---
@@ -373,46 +373,48 @@ The standard library includes fundamental building blocks for digital signal pro
 
 | Block Reference | Category | Inputs | Outputs | Description |
 |---|---|---|---|---|
-| `const_f32` | Source | None | `v` (`pss<f32>`) | Emits a constant floating-point value. |
-| `sin_gen_f32` | Source | None | `v` (`pss<f32>`) | Periodic harmonic sine wave generator over time. |
-| `cos_gen_f32` | Source | None | `v` (`pss<f32>`) | Periodic harmonic cosine wave generator over time. |
-| `rand_gen_f32` | Source | None | `v` (`pss<f32>`) | Pseudo-random uniform noise generator. |
-| `pulse_gen_f32` | Source | None | `v` (`pss<f32>`) | Square wave pulse generator with configurable period and duty cycle. |
-| `gpio_in_f32` | Source | Hardware Pin | `pin` (`pss<f32>`) | Multi-pin digital GPIO input with reactive push notification. |
-| `sin_f32` | Transformer | `v` (`pss<f32>`) | `sin` (`pss<f32>`) | Unary sine function applied to incoming push values. |
-| `cos_f32` | Transformer | `v` (`pss<f32>`) | `cos` (`pss<f32>`) | Unary cosine function applied to incoming push values. |
-| `sum_f32` | Transformer | `v` (vector `pss<f32>`) | `s` (`pss<f32>`) | Multi-channel vector summation. |
-| `product_f32` | Transformer | `v` (vector `pss<f32>`) | `p` (`pss<f32>`) | Multi-channel vector multiplication. |
-| `scope_f32` | Sink | `sink` (vector `pss<f32>`) | None | Sliding circular buffer oscilloscope for real-time visualization. |
+| `const_f32` | Source | `downstream` (`Vectorized<Pss<f32>>`) | None | Emits a constant floating-point value. |
+| `sin_gen_f32` | Source | `downstream` (`Vectorized<Pss<f32>>`) | None | Periodic harmonic sine wave generator over time. |
+| `cos_gen_f32` | Source | `downstream` (`Vectorized<Pss<f32>>`) | None | Periodic harmonic cosine wave generator over time. |
+| `rand_gen_f32` | Source | `downstream` (`Vectorized<Pss<f32>>`) | None | Pseudo-random uniform noise generator. |
+| `pulse_gen_f32` | Source | `downstream` (`Vectorized<Pss<f32>>`) | None | Square wave pulse generator with configurable period and duty cycle. |
+| `gpio_in_f32` | Source | `sinks` (`Vectorized<Pss<f32>>`) | None | Multi-pin digital GPIO input with reactive push notification. |
+| `sin_f32` | Transformer | `downstream` (`Vectorized<Pss<f32>>`) | `out` (consumer) | Unary sine function applied to incoming push values. |
+| `cos_f32` | Transformer | `downstream` (`Vectorized<Pss<f32>>`) | `out` (consumer) | Unary cosine function applied to incoming push values. |
+| `sum_f32` | Transformer | `downstream` (`Vectorized<Pss<f32>>`) | `out` (`Vectorized<Pss<f32>>`) | Multi-channel vector summation. |
+| `product_f32` | Transformer | `downstream` (`Vectorized<Pss<f32>>`) | `out` (`Vectorized<Pss<f32>>`) | Multi-channel vector multiplication. |
+| `scope_f32` | Sink | None | `out` (`Vectorized<Pss<f32>>`) | Sliding circular buffer oscilloscope for real-time visualization. |
 
 ---
 
 ## Diagram File
 
-A diagram is a C++ entry point. Consecutive `//` comments hold one JSON object that records blocks and connections, and `mount()` constructs and wires the blocks. The host `start()` calls `mount()` and then each block's `onStart`. `mount()` does not start the diagram. Arrays in `mount()` are filled with `arrayFrom`.
+A diagram is a C++ entry point. A javadoc comment holds one JSON object that records blocks and connections, and `mount()` constructs and wires the blocks. The host `start()` calls `mount()` and then each block's `onStart`. `mount()` does not start the diagram. Arrays in `mount()` are filled with `arrayFrom`. Inputs are `apply` parameters and outputs are the return value. A vectorized port has type `Vectorized<...>`.
 
 Libraries are a JSON manifest. `location` is the URL of a tar.gz archive, unpacked with modern-tar. The base library location is the [bld-base](https://github.com/dzmauchy/bld-base) release artifact. The only schema is `core/assets/schemas/library.schema.json`.
 
 ```cpp
 #include <base.hpp>
-#include "wasm_host.hpp"
+#include <browser/host.hpp>
 
 using push::f32::F32;
 
-// {"id":"signal_generator_demo",
-// "title":"Signal Generator to Scope",
-// "blocks":{"scope_0":{"ref":"scope_f32","x":280,"y":100},
-// "cos_gen_0":{"ref":"cos_gen_f32","x":40,"y":100,"conf":{"precision":11}}},
-// "connections":{"cos_gen_0__scope_0":{
-// "from":{"block":"cos_gen_0","port":{"type":"input","id":"v","vector_index":0}},
-// "to":{"block":"scope_0","port":{"type":"output","id":"sink","vector_index":0}}}}}
+/**
+ * {"id":"signal_generator_demo",
+ * "title":"Signal Generator to Scope",
+ * "blocks":{"scope_0":{"ref":"scope_f32","x":280,"y":100},
+ * "cos_gen_0":{"ref":"cos_gen_f32","x":40,"y":100,"conf":{"precision":11}}},
+ * "connections":{"cos_gen_0__scope_0":{
+ * "from":{"block":"cos_gen_0","port":{"type":"input","id":"downstream","vector_index":0}},
+ * "to":{"block":"scope_0","port":{"type":"output","id":"out","vector_index":0}}}}}
+ */
 extern "C" void mount() {
   auto* scope_0 = new push::f32::sinks::ScopeF32(0u, 60u, 10u);
   auto* cos_gen_0 = new push::f32::sources::CosGenF32(1u, 11u, 1.f, 1.f, 0.f);
   auto scope_0_in = scope_0->apply(static_cast<u8>(1));
-  Pss<F32>* cos_gen_0_dn_items[1] = {scope_0_in[0]};
+  Pss<float>* cos_gen_0_dn_items[1] = {scope_0_in[0]};
   auto cos_gen_0_dn = arrayFrom(cos_gen_0_dn_items, 1u);
-  cos_gen_0->apply(static_cast<VectorizedInput<Pss<F32>>&&>(cos_gen_0_dn));
+  cos_gen_0->apply(static_cast<Vectorized<Pss<float>>&&>(cos_gen_0_dn));
 }
 ```
 

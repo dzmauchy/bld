@@ -117,13 +117,13 @@ describe("CppWasmCompiler", () => {
     const json = await compiler.dumpAst(new Map([["demo.cpp", source]]), "demo.cpp");
     expect(json.ok).toBe(true);
     expect(clang.runs.at(-1)).toContain("-ast-dump=json");
-    expect(clang.runs.at(-1)).toContain("-fparse-all-comments");
+    expect(clang.runs.at(-1)).not.toContain("-fparse-all-comments");
     expect(new TextDecoder().decode(clangFs.readFile("/work/demo.cpp"))).toContain('"blocks"');
 
     const text = await compiler.emitAst(new Map([["demo.cpp", source]]), "demo.cpp");
     expect(text.ok).toBe(true);
     expect(clang.runs.at(-1)).toContain("-ast-dump");
-    expect(clang.runs.at(-1)).toContain("-fparse-all-comments");
+    expect(clang.runs.at(-1)).not.toContain("-fparse-all-comments");
     expect(new TextDecoder().decode(clangFs.readFile("/work/demo.cpp"))).toContain('"blocks"');
   });
 
