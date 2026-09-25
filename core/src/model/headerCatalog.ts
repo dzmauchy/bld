@@ -231,14 +231,17 @@ export class HeaderCatalog {
     const implementation = comment.elements("implementation").map((element) => element.text.trim()).filter(Boolean);
     if (implementation.length > 0) raw.implementation = implementation;
     this.blockMap[id] = raw;
-    this.pending.push({
+    const pending: PendingBlock = {
       id,
       cpp,
       inputs: comment.elements("input").map(readCommentPort),
       outputs: comment.elements("output").map(readCommentPort),
-      apply: unit.resolveMethod(cpp, "apply"),
-      connectPin: unit.resolveMethod(cpp, "connectPin"),
-    });
+    };
+    const apply = unit.resolveMethod(cpp, "apply");
+    const connectPin = unit.resolveMethod(cpp, "connectPin");
+    if (apply) pending.apply = apply;
+    if (connectPin) pending.connectPin = connectPin;
+    this.pending.push(pending);
   }
 
   private async assignPortTypes(files: Map<string, string>, dumper: ClangAstDumper): Promise<void> {
