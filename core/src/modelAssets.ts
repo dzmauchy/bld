@@ -1,8 +1,6 @@
 export const modelAssetFiles = [
   "appAssets.ts",
   "blockDefinition.ts",
-  "clangAst.ts",
-  "clangAstDumper.ts",
   "compiler.ts",
   "compilerContext.ts",
   "connection.ts",
@@ -12,8 +10,8 @@ export const modelAssetFiles = [
   "diagramBlock.ts",
   "endpoint.ts",
   "headerCatalog.ts",
-  "hostClangAstDumper.ts",
   "index.ts",
+  "inferredPortType.ts",
   "library.ts",
   "libraryArchive.ts",
   "palette.ts",

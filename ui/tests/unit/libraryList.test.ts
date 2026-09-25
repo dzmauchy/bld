@@ -1,7 +1,7 @@
 import { expect, test } from "@rstest/core";
 import { Library, type PackageManifest } from "core";
 import baseManifest from "core/assets/base.json?raw";
-import "core/model/hostClangAstDumper.ts";
+import "cpp/hostClangAstDumper.ts";
 import { LibraryList } from "../../src/libraries/libraryList.js";
 
 test("default libraries are the base library", () => {

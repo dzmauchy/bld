@@ -1,21 +1,22 @@
 /**
  * @title Diagram
  */
-import { TypeSystem } from "../types";
-import { BlockDefinition } from "./blockDefinition";
 import {
+  ClangAstDumper,
   ClangComment,
   ClangTranslationUnit,
-  InferredPortType,
+  CppTypeNames,
+  cppIdent,
   isMainFileNode,
   type ClangAstJson,
   type ClangTypeCatalog,
-} from "./clangAst";
-import { ClangAstDumper } from "./clangAstDumper";
+} from "cpp";
+import { TypeSystem } from "../types";
+import { BlockDefinition } from "./blockDefinition";
 import { DiagramCompiler, type WasmRuntimeLike, type WasmSessionLike, type CompileOptionsLike } from "./compiler";
 import { Connection, type RawConnectionJson } from "./connection";
-import { CppBlockCatalog, CppTypeNames, defaultCppBlockCatalog, type BlockPortTopology } from "./cppBlockCatalog";
-import { cppIdent } from "./cppBuilder";
+import { CppBlockCatalog, defaultCppBlockCatalog, type BlockPortTopology } from "./cppBlockCatalog";
+import { InferredPortType } from "./inferredPortType";
 import { DiagramBlock, type RawBlockJson } from "./diagramBlock";
 import { PortEndpoint } from "./endpoint";
 import { Library } from "./library";

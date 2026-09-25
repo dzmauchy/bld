@@ -1,6 +1,6 @@
 import { beforeAll, describe, expect, test } from "@rstest/core";
-import { ClangTranslationUnit, ClangTypeCatalog } from "../../../src/model/clangAst.ts";
-import { HostClangAstDumper } from "../../../src/model/hostClangAstDumper.ts";
+import { ClangTranslationUnit, ClangTypeCatalog } from "cpp";
+import { HostClangAstDumper } from "cpp/hostClangAstDumper.ts";
 import { Library } from "../../../src/model/library.ts";
 
 describe("clang++ AST type dump", () => {

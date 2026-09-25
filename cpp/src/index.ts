@@ -5,7 +5,24 @@ export { WasmExecutor, ExecutedWasm } from "./executor.ts";
 export { MemoryFileSystem, EmscriptenFileSystem, VirtualFileSystem } from "./filesystem.ts";
 export { isCppSource, isHeader, objectPathFor, workPath, normalizeRelativePath } from "./paths.ts";
 export { CppWasmCompiler, WorkerCppWasmCompiler } from "./compiler.ts";
+export type { ICppCompiler } from "./compiler.ts";
 export { ClangFrontend } from "./clang.ts";
+export { ClangAstDumper, ClangDumpResult } from "./clangAstDumper.ts";
+export { BrowserClangAstDumper } from "./browserClangAstDumper.ts";
+export { CppTypeNames, cppIdent } from "./cppLiterals.ts";
+export {
+  ClangApplyShape,
+  ClangComment,
+  ClangFunction,
+  ClangQualType,
+  ClangRecord,
+  ClangSourceComments,
+  ClangTranslationUnit,
+  ClangTypeCatalog,
+  JsonComment,
+  isMainFileNode,
+} from "./clangAst.ts";
+export type { ClangAstJson, ClangAstLoc } from "./clangAst.ts";
 export { WasmLinker } from "./linker.ts";
 export { EmscriptenTool } from "./emscripten.ts";
 export { ObjectFile } from "./object-file.ts";

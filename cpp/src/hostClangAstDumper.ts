@@ -1,3 +1,4 @@
+/// <reference types="node" />
 /**
  * @title Host Clang AST Dumper
  *
@@ -7,7 +8,7 @@ import { spawnSync } from "node:child_process";
 import { existsSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
-import { ClangAstDumper, ClangDumpResult } from "./clangAstDumper";
+import { ClangAstDumper, ClangDumpResult } from "./clangAstDumper.ts";
 
 export class HostClangAstDumper extends ClangAstDumper {
   private static instance: HostClangAstDumper | undefined;

@@ -3,7 +3,8 @@
  */
 import type { Diagram } from "./diagram";
 import { normalizeAssetPath } from "./appAssets";
-import { CppDiagramBuilder, type ICppCompiler } from "./cppBuilder";
+import type { ICppCompiler } from "cpp";
+import { CppDiagramBuilder } from "./cppBuilder";
 import { defaultCppBlockCatalog } from "./cppBlockCatalog";
 
 export type { ICppCompiler };
@@ -11,7 +12,6 @@ export { CppDiagramBuilder } from "./cppBuilder";
 export {
   BlockPortTopology,
   CppBlockCatalog,
-  CppTypeNames,
   defaultCppBlockCatalog,
 } from "./cppBlockCatalog";
 export {
