@@ -10,13 +10,13 @@ import { render } from "@solidjs/web";
 import { App } from "./App.js";
 import { ToolchainServiceWorker } from "cpp";
 import { BrowserClangAstDumper } from "./libraries/browserClangAstDumper.js";
-import { SplashScreen } from "./view/splash/SplashScreen.js";
+import { BldSplash } from "./view/splash/BldSplash.js";
 
 await new ToolchainServiceWorker().claim();
 ClangAstDumper.register(BrowserClangAstDumper.shared());
 
-const splash = document.querySelector("[data-splash]");
-const splashScreen = splash instanceof HTMLElement ? new SplashScreen(splash, window) : undefined;
+const splash = document.querySelector(BldSplash.tagName);
+const splashScreen = splash instanceof BldSplash ? splash : undefined;
 
 const root = document.querySelector("#root");
 if (root instanceof HTMLElement) {

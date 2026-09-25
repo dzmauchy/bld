@@ -13,8 +13,11 @@ export default defineConfig({
   },
   html: {
     template: "./index.html",
+    scriptLoading: "module",
   },
   output: {
+    module: true,
+    overrideBrowserslist: ["chrome >= 135", "edge >= 135", "firefox >= 135", "safari >= 18.4"],
     copy: [
       { from: "../core/assets/schemas", to: "schemas" },
       { from: "../cpp/public/llvm-toolchain-sw.js", to: "./" },
@@ -24,6 +27,11 @@ export default defineConfig({
     },
   },
   tools: {
+    swc: {
+      jsc: {
+        target: "esnext",
+      },
+    },
     rspack: {
       node: {
         __dirname: "mock",

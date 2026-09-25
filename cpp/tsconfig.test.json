@@ -6,7 +6,7 @@
   "compilerOptions": {
     "allowJs": true,
     "lib": [
-      "ESNext",
+      "ES2025",
       "DOM",
       "DOM.Iterable",
       "WebWorker"

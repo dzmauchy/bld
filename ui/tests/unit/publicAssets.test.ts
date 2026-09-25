@@ -28,6 +28,14 @@ test("rsbuild compiles the Solid 2 TSX entry", () => {
   );
   expect(names).toContain(PLUGIN_SOLID_NAME);
   expect(config.source?.entry).toEqual({ index: "./src/index.tsx" });
+  expect(config.output?.module).toBe(true);
+  expect(config.html?.scriptLoading).toBe("module");
+  expect(config.output?.overrideBrowserslist).toEqual([
+    "chrome >= 135",
+    "edge >= 135",
+    "firefox >= 135",
+    "safari >= 18.4",
+  ]);
 });
 
 test("Cloudflare _headers enable cross-origin isolation for every asset", () => {
