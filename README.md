@@ -64,8 +64,7 @@ The repository is structured as an npm multi-workspace monorepo:
 
 ```
 bld/
-├── core/        # Domain model, Diagram, TypeSystem, Schemas, and C++ diagram builder
-├── runtime/     # Wasm session, worker bridge, sliding scope buffers
+├── core/        # Domain model, Diagram, TypeSystem, C++ builder, wasm session, and scope buffers
 ├── cpp/         # In-browser clang/lld compilation
 └── ui/          # Solid.js frontend, canvas, Web Awesome components, worker runners, and Rsbuild config
 ```
@@ -74,8 +73,7 @@ bld/
 
 | Package | Purpose | Key Responsibilities |
 |---|---|---|
-| **`runtime`** | Wasm session & scopes | Worker RPC (`WasmRuntime`, `WasmSession`), WASI/env bindings, sliding scope buffers. |
-| **`core`** | Domain model & C++ builder | `Library` points at a tar.gz URL, `LibraryArchive` unpacks it with modern-tar, `HeaderCatalog` parses JSON comments, `Diagram` is a `mount()` entry point, `CppDiagramBuilder` and `DiagramCompiler` delegate wasm compilation to `cpp`. |
+| **`core`** | Domain model, C++ builder, and wasm session | `Library` points at a tar.gz URL, `LibraryArchive` unpacks it with modern-tar, `HeaderCatalog` parses JSON comments, `Diagram` is a `mount()` entry point, `CppDiagramBuilder` and `DiagramCompiler` delegate wasm compilation to `cpp`. Worker RPC (`WasmRuntime`, `WasmSession`), host env bindings, and sliding scope buffers live in `core/src/runtime`. |
 | **`cpp`** | In-browser clang/lld | Compiles generated C++ sources to wasm and executes the module in a worker. |
 | **`ui`** | User Interface & Worker Host | Solid.js web app, black UI theme, palette and diagram split view, Rsbuild dev server, Cloudflare Workers static assets (`wrangler.json`, not Pages), browser Worker hosting (`run.worker.ts`). |
 
@@ -111,8 +109,8 @@ graph TD
         CompilerFacade --> Builder
     end
 
-    subgraph RuntimePackage["Runtime"]
-        Runtime["runtime"]
+    subgraph RuntimePackage["Core runtime"]
+        Runtime["core/src/runtime"]
         Session["WasmSession"]
         ThreadMod["Thread & WorkerClient"]
         Buffers["SlidingScopeBuffer"]
@@ -146,7 +144,7 @@ graph TD
     end
 
     UI --> Core
-    UI --> Runtime
+    Core --> Runtime
     Core --> Base
     Runtime --> Cpp
     CompilerFacade -->|"ICppCompiler"| Cpp
@@ -444,15 +442,14 @@ npm install
 Compile all workspaces and generate TypeScript declaration files:
 
 ```bash
-# Build core, runtime, cpp, and ui
+# Build core, cpp, and ui
 npm run build --workspaces
 ```
 
 Or build specific workspaces:
 
 ```bash
-npm run build --workspace=core     # Typechecks model and C++ builder
-npm run build --workspace=runtime  # Typechecks wasm session and sliding buffers
+npm run build --workspace=core     # Typechecks model, C++ builder, wasm session, and sliding buffers
 npm run build --workspace=cpp      # Typechecks in-browser clang/lld
 npm run build --workspace=ui       # Bundles Solid.js UI via Rsbuild
 ```

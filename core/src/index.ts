@@ -11,4 +11,5 @@ export {
   coreSchemaCatalog,
   schemaAssetFiles,
 } from "./schemaAssets";
+export { SlidingBuffer, SlidingScopeBuffer, SlidingScopeBufferF64 } from "./runtime/index";
 

@@ -21,7 +21,6 @@
     "@solidjs/web": "^2.0.0-rc.9",
     "core": "*",
     "cpp": "*",
-    "runtime": "*",
     "solid-js": "^2.0.0-rc.9"
   },
   "devDependencies": {
