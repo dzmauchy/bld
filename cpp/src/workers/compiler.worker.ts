@@ -7,8 +7,8 @@ import { RemoteEmscriptenModule } from "../remoteEmscripten.ts";
 import { attachWorker } from "./host.ts";
 
 const release = new LlvmProjectRelease();
-const clangWasmUrl = release.assetUrl("clang.wasm");
-const lldWasmUrl = release.assetUrl("lld.wasm");
+const clangWasmUrl = release.assetUrl("clang.wasm.gz");
+const lldWasmUrl = release.assetUrl("lld.wasm.gz");
 const sysrootUrl = release.assetUrl("sysroot.tgz");
 
 export class CompilerWorkerSession {

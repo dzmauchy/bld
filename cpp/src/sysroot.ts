@@ -1,5 +1,6 @@
 import { unpackTar } from "modern-tar";
 import type { VirtualFileSystem } from "./filesystem.ts";
+import { GzipDecoder } from "./gzip.ts";
 import type { SysrootInstallKind } from "./messages.ts";
 
 const HEADER_NAME = /\.(h|hh|hpp|hxx|inc|def)$/;
@@ -57,9 +58,7 @@ export class SysrootInstaller {
 async function inflateGzip(
   archive: ArrayBuffer | Uint8Array | ReadableStream<Uint8Array>,
 ): Promise<Uint8Array> {
-  const input = asByteStream(archive);
-  const decompressor = new DecompressionStream("gzip") as unknown as ReadableWritablePair<Uint8Array, Uint8Array>;
-  return new Uint8Array(await new Response(input.pipeThrough(decompressor)).arrayBuffer());
+  return new GzipDecoder().inflate(archive);
 }
 
 async function readBytes(
@@ -67,13 +66,6 @@ async function readBytes(
 ): Promise<Uint8Array> {
   if (archive instanceof ReadableStream) return new Uint8Array(await new Response(archive).arrayBuffer());
   return copyBytes(archive);
-}
-
-function asByteStream(
-  archive: ArrayBuffer | Uint8Array | ReadableStream<Uint8Array>,
-): ReadableStream<Uint8Array> {
-  if (archive instanceof ReadableStream) return archive;
-  return new Blob([copyBytes(archive)]).stream();
 }
 
 function copyBytes(archive: ArrayBuffer | Uint8Array): Uint8Array<ArrayBuffer> {

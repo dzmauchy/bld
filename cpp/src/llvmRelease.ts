@@ -6,7 +6,7 @@ export class LlvmProjectRelease {
   static readonly owner = "dzmauchy";
   static readonly repo = "llvm-project";
   static readonly tag = "clang-lld-wasm-latest";
-  static readonly files = Object.freeze(["clang.js", "clang.wasm", "lld.js", "lld.wasm", "sysroot.tgz"] as const);
+  static readonly files = Object.freeze(["clang.js", "clang.wasm.gz", "lld.js", "lld.wasm.gz", "sysroot.tgz"] as const);
 
   releasePageUrl(): string {
     return `https://github.com/${LlvmProjectRelease.owner}/${LlvmProjectRelease.repo}/releases/tag/${LlvmProjectRelease.tag}`;

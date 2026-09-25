@@ -1,5 +1,5 @@
 const releasePrefix = "https://github.com/dzmauchy/llvm-project/releases/download/clang-lld-wasm-latest/";
-const releaseFiles = new Set(["clang.js", "clang.wasm", "lld.js", "lld.wasm", "sysroot.tgz"]);
+const releaseFiles = new Set(["clang.js", "clang.wasm.gz", "lld.js", "lld.wasm.gz", "sysroot.tgz"]);
 
 self.addEventListener("install", (event) => {
   event.waitUntil(self.skipWaiting());

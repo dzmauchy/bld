@@ -31,4 +31,27 @@ describe("remote emscripten module", () => {
       globalThis.fetch = original;
     }
   });
+
+  test("decompresses a gzip wasm asset before compiling it", async () => {
+    const gzip = await new Response(
+      new Blob([wasmMagic]).stream().pipeThrough(new CompressionStream("gzip")),
+    ).arrayBuffer();
+    const original = globalThis.fetch;
+    globalThis.fetch = (async (input: RequestInfo | URL) => {
+      const url = String(input);
+      if (url.endsWith(".js")) {
+        return new Response(
+          "export default async function createModule(options) { options.instantiateWasm({}, () => {}); return { FS: {}, callMain() { return 0; } }; }",
+          { status: 200 },
+        );
+      }
+      return new Response(gzip, { status: 200 });
+    }) as typeof fetch;
+    try {
+      const remote = new RemoteEmscriptenModule("https://example.test/clang.js", "https://example.test/clang.wasm.gz");
+      await remote.createFactory()();
+    } finally {
+      globalThis.fetch = original;
+    }
+  });
 });

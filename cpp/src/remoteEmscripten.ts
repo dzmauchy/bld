@@ -1,4 +1,5 @@
 import type { EmscriptenModuleFactory, EmscriptenModuleOptions } from "./emscripten.ts";
+import { GzipDecoder } from "./gzip.ts";
 
 /**
  * Loads an Emscripten JS glue module and its wasm from remote URLs.
@@ -51,8 +52,18 @@ export class RemoteEmscriptenModule {
   }
 
   private async loadCompiled(): Promise<WebAssembly.Module> {
-    const bytes = await this.fetchBytes(this.wasmUrl);
+    const bytes = await this.fetchWasmBytes(this.wasmUrl);
     return WebAssembly.compile(bytes);
+  }
+
+  private async fetchWasmBytes(url: string): Promise<Uint8Array<ArrayBuffer>> {
+    const response = await fetch(url);
+    if (!response.ok) {
+      throw new Error(`failed to fetch ${url}: ${response.status} ${response.statusText}`);
+    }
+    if (!url.endsWith(".gz")) return new Uint8Array(await response.arrayBuffer());
+    if (!response.body) throw new Error(`failed to fetch ${url}: empty body`);
+    return new GzipDecoder().inflate(response.body);
   }
 
   private async fetchBytes(url: string): Promise<Uint8Array<ArrayBuffer>> {

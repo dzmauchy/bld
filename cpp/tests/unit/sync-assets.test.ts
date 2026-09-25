@@ -12,14 +12,14 @@ describe("llvm-project release assets", () => {
     expect(release.releasePageUrl()).toBe(
       "https://github.com/dzmauchy/llvm-project/releases/tag/clang-lld-wasm-latest",
     );
-    expect(release.assetUrl("clang.wasm")).toBe(
-      "https://github.com/dzmauchy/llvm-project/releases/download/clang-lld-wasm-latest/clang.wasm",
+    expect(release.assetUrl("clang.wasm.gz")).toBe(
+      "https://github.com/dzmauchy/llvm-project/releases/download/clang-lld-wasm-latest/clang.wasm.gz",
     );
     expect(release.assetUrl("clang.js")).toBe(
       "https://github.com/dzmauchy/llvm-project/releases/download/clang-lld-wasm-latest/clang.js",
     );
-    expect(release.assetUrl("lld.wasm")).toBe(
-      "https://github.com/dzmauchy/llvm-project/releases/download/clang-lld-wasm-latest/lld.wasm",
+    expect(release.assetUrl("lld.wasm.gz")).toBe(
+      "https://github.com/dzmauchy/llvm-project/releases/download/clang-lld-wasm-latest/lld.wasm.gz",
     );
     expect(release.assetUrl("lld.js")).toBe(
       "https://github.com/dzmauchy/llvm-project/releases/download/clang-lld-wasm-latest/lld.js",
@@ -28,8 +28,11 @@ describe("llvm-project release assets", () => {
       "https://github.com/dzmauchy/llvm-project/releases/download/clang-lld-wasm-latest/sysroot.tgz",
     );
     expect(release.contentType("sysroot.tgz")).toBe("application/gzip");
+    expect(release.contentType("clang.wasm.gz")).toBe("application/gzip");
+    expect(release.isToolchainAsset(release.assetUrl("clang.wasm.gz"))).toBe(true);
     expect(release.isToolchainAsset(release.assetUrl("sysroot.tgz"))).toBe(true);
     expect(release.isToolchainAsset("https://example.com/clang.wasm")).toBe(false);
+    expect(release.isToolchainAsset(release.assetUrl("clang.wasm"))).toBe(false);
   });
 
   test("does not keep vendored clang, lld, or sysroot files", () => {

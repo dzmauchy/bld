@@ -6,7 +6,7 @@ import { describe, expect, test } from "@rstest/core";
 const here = dirname(fileURLToPath(import.meta.url));
 const serviceWorker = join(here, "../../public/llvm-toolchain-sw.js");
 const devProxy = join(here, "../../../ui/scripts/llvmToolchainProxyMiddleware.ts");
-const releaseFiles = ["clang.js", "clang.wasm", "lld.js", "lld.wasm", "sysroot.tgz"];
+const releaseFiles = ["clang.js", "clang.wasm.gz", "lld.js", "lld.wasm.gz", "sysroot.tgz"];
 
 describe("llvm-project toolchain assets", () => {
   test("service worker and dev proxy relay the release files, including the sysroot", () => {

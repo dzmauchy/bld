@@ -27,6 +27,7 @@ export { WasmLinker } from "./linker.ts";
 export { EmscriptenTool } from "./emscripten.ts";
 export { ObjectFile } from "./object-file.ts";
 export { RpcClient } from "./rpc.ts";
+export { GzipDecoder } from "./gzip.ts";
 export { SysrootInstaller, shouldInstallSysrootEntry, tarPathToMemfs } from "./sysroot.ts";
 export { Thread, EventTargetWorkerThread, wrapEventTargetWorker } from "./thread.ts";
 export { ToolchainServiceWorker } from "./toolchainServiceWorker.ts";

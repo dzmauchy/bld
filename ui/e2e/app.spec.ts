@@ -113,8 +113,8 @@ test("client bundle parses headers with in-browser clang, not a separate C++ par
   expect(scripts).toContain("dump-ast");
   expect(scripts).toContain("clang-lld-wasm-latest");
   expect(scripts).toContain("releases/download/");
-  expect(scripts).toContain("clang.wasm");
-  expect(scripts).toContain("lld.wasm");
+  expect(scripts).toContain("clang.wasm.gz");
+  expect(scripts).toContain("lld.wasm.gz");
   expect(scripts).toContain("sysroot.tgz");
   expect(collect(distDir, ".wasm")).toEqual([]);
 });
