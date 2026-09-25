@@ -4,7 +4,7 @@
 import { TypeSystem, type TypeCatalogEntry } from "../types";
 import { loadAsset, resolveUrl } from "./appAssets";
 import type { RawBlockCatalogEntry } from "./blockDefinition";
-import { ClangAstDumper } from "./clangAstDumper";
+import { ClangAstDumper } from "cpp";
 import { CompilationModel } from "./compiler";
 import { CppBlockCatalog } from "./cppBlockCatalog";
 import { HeaderCatalog } from "./headerCatalog";

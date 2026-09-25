@@ -3,8 +3,10 @@
  * Library headers are sent to the in-browser clang worker; comments are read
  * from the dumped AST, not scanned out of the header text.
  */
-import { ClangAstDumper, ClangDumpResult } from "core";
-import { WorkerCppWasmCompiler, wrapEventTargetWorker } from "cpp";
+import { createCompilerWorker } from "./browser/api.ts";
+import { ClangAstDumper, ClangDumpResult } from "./clangAstDumper.ts";
+import { WorkerCppWasmCompiler } from "./compiler.ts";
+import { wrapEventTargetWorker } from "./thread.ts";
 
 export interface AstDumpClient {
   dumpAst(
@@ -36,8 +38,4 @@ export class BrowserClangAstDumper extends ClangAstDumper {
       (dump) => new ClangDumpResult(dump.ok, dump.ast, dump.stdout, dump.stderr),
     );
   }
-}
-
-function createCompilerWorker(): Worker {
-  return new Worker(new URL("../../../cpp/src/workers/compiler.worker.ts", import.meta.url), { type: "module" });
 }

@@ -1,13 +1,6 @@
 import { describe, expect, test } from "@rstest/core";
-import {
-  ClangComment,
-  ClangSourceComments,
-  Diagram,
-  HeaderCatalog,
-  JsonComment,
-  Library,
-  isMainFileNode,
-} from "../../../src/model/index.js";
+import { ClangComment, ClangSourceComments, JsonComment, isMainFileNode } from "cpp";
+import { Diagram, HeaderCatalog, Library } from "../../../src/model/index.js";
 
 describe("AST JSON comments", () => {
   test("parses block and line comments with markers", () => {

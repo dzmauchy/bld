@@ -5,7 +5,7 @@
  * recover C++ types, detect incompatibilities, and read JSON comments.
  * No custom unification or port-type algebra, and no separate C++ parser.
  */
-import { ClangAstDumper, type ClangDumpResult } from "./clangAstDumper";
+import { ClangAstDumper, type ClangDumpResult } from "./clangAstDumper.ts";
 
 export type ClangAstLoc = {
   offset?: number;
@@ -274,29 +274,6 @@ export class ClangApplyShape {
     if (downstream) return downstream.qualType;
     if (this.returnsVector) return this.apply.returnType.qualType;
     throw new Error("C++ apply signature has no stream type");
-  }
-}
-
-export class InferredPortType {
-  constructor(
-    readonly clangType: ClangQualType,
-    readonly isVector: boolean,
-    readonly vectorLength?: number,
-  ) {}
-
-  get qualType(): string {
-    const raw = this.clangType.qualType;
-    if (raw === "auto" || raw.startsWith("decltype")) return this.clangType.canonical;
-    return raw;
-  }
-
-  get desugaredQualType(): string {
-    return this.clangType.canonical;
-  }
-
-  withVectorLength(length: number | undefined): InferredPortType {
-    const vectorLength = length !== undefined && length > 0 ? length : this.vectorLength;
-    return new InferredPortType(this.clangType, this.isVector || (vectorLength !== undefined && vectorLength > 1), vectorLength);
   }
 }
 

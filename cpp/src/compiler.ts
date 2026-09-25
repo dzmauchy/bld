@@ -3,12 +3,17 @@ import { WasmLinker } from "./linker.ts";
 import { RpcClient } from "./rpc.ts";
 import type { Thread } from "./thread.ts";
 
+/** Compiles C++ sources to wasm. Callers pass files; the compiler does not know the diagram model. */
+export interface ICppCompiler {
+  compile(files: Map<string, string>): Promise<Uint8Array>;
+}
+
 /**
  * Compiles a Map of C++ sources/headers to a wasm module by running clang
  * then wasm-ld. Instantiated inside the single compiler worker with tools
  * backed by clang, lld, and the sysroot archive from the llvm-project release.
  */
-export class CppWasmCompiler {
+export class CppWasmCompiler implements ICppCompiler {
   constructor(
     private readonly clang: ClangFrontend,
     private readonly linker: WasmLinker,
@@ -53,7 +58,7 @@ export class CppWasmCompiler {
 /**
  * Main-thread handle to exactly one clang/lld worker that runs {@link CppWasmCompiler}.
  */
-export class WorkerCppWasmCompiler {
+export class WorkerCppWasmCompiler implements ICppCompiler {
   private readonly client: RpcClient;
   private ready: Promise<void> | undefined;
 

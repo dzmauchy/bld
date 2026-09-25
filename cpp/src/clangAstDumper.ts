@@ -42,7 +42,7 @@ export abstract class ClangAstDumper {
   static defaultDumper(): ClangAstDumper {
     if (!this.registered) {
       throw new Error(
-        "No ClangAstDumper registered. In Node, import HostClangAstDumper to run clang++ -fsyntax-only -Xclang -ast-dump=json",
+        "No ClangAstDumper registered. In Node, import cpp/hostClangAstDumper.ts to run clang++ -fsyntax-only -Xclang -ast-dump=json",
       );
     }
     return this.registered;

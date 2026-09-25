@@ -4,13 +4,13 @@
  * Emits C++ sources for a diagram that instantiate the base library.
  * Constructor argument types and apply wiring come from clang++ AST dumps.
  */
+import { CppTypeNames, cppIdent, type ICppCompiler } from "cpp";
 import type { Diagram } from "./diagram";
 import type { DiagramBlock } from "./diagramBlock";
 import type { Connection } from "./connection";
 import {
   BlockPortTopology,
   CppBlockCatalog,
-  CppTypeNames,
   defaultCppBlockCatalog,
 } from "./cppBlockCatalog";
 
@@ -18,9 +18,7 @@ export abstract class DiagramSourceBuilder {
   abstract build(diagram: Diagram): Map<string, string>;
 }
 
-export interface ICppCompiler {
-  compile(files: Map<string, string>): Promise<Uint8Array>;
-}
+export type { ICppCompiler };
 
 type PlannedBlock = {
   block: DiagramBlock;
@@ -245,11 +243,6 @@ export class CppDiagramBuilder extends DiagramSourceBuilder {
       return Math.max(max, connection.to.vectorIndex);
     }, -1);
   }
-}
-
-export function cppIdent(id: string): string {
-  const cleaned = id.replace(/[^A-Za-z0-9_]/g, "_");
-  return /^[A-Za-z_]/.test(cleaned) ? cleaned : `b_${cleaned}`;
 }
 
 function arrayConf(conf: Record<string, unknown>, key: string, fallback: unknown): number[] {

@@ -10,13 +10,13 @@
  */
 import type { RawBlockCatalogEntry, RawConfigPropertyCatalogEntry, RawPortCatalogEntry } from "./blockDefinition";
 import {
+  ClangAstDumper,
   ClangComment,
   ClangSourceComments,
   JsonComment,
   isMainFileNode,
   type ClangAstJson,
-} from "./clangAst";
-import { ClangAstDumper } from "./clangAstDumper";
+} from "cpp";
 import type { TypeCatalogEntry } from "../types";
 
 export class HeaderCatalog {
