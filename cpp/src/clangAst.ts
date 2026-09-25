@@ -239,6 +239,10 @@ export class ClangTranslationUnit {
   varType(name: string): ClangQualType | undefined {
     return this.variables.get(name);
   }
+
+  instantiatedMethod(classSpelling: string, methodName: string): ClangFunction | undefined {
+    return this.record(classKey(classSpelling))?.method(methodName);
+  }
 }
 
 export class ClangApplyShape {
@@ -375,8 +379,9 @@ function walk(
   const name = node.name;
   const nextNs = kind === "NamespaceDecl" && name ? [...namespace, name] : namespace;
 
-  if (kind === "CXXRecordDecl" && name && node.inner) {
-    const qualified = [...nextNs, name].join(".");
+  if ((kind === "CXXRecordDecl" || kind === "ClassTemplateSpecializationDecl") && name && node.inner) {
+    const args = kind === "ClassTemplateSpecializationDecl" ? templateArgumentSuffix(node) : "";
+    const qualified = classKey([...nextNs, `${name}${args}`].join("."));
     const bases = (node.bases ?? []).map((base) => baseRecordName(base)).filter(Boolean);
     const constructors: ClangFunction[] = [];
     const methods: ClangFunction[] = [];
@@ -390,7 +395,7 @@ function walk(
     if (!records.has(qualified) || methods.length > 0 || constructors.length > 0) {
       records.set(qualified, new ClangRecord(name, qualified, bases, constructors, methods));
     }
-    for (const child of node.inner) walk(child, [...nextNs, name], records, variables);
+    for (const child of node.inner) walk(child, [...nextNs, `${name}${args}`], records, variables);
     return;
   }
 
@@ -433,18 +438,20 @@ export type ResolvedApply = {
 };
 
 export class MemberPointerType {
-  static parse(qualType: string): { returnType: ClangQualType; parameters: ClangQualType[] } | undefined {
+  static parse(qualType: string): { className: string; returnType: ClangQualType; parameters: ClangQualType[] } | undefined {
     const marker = qualType.indexOf("::*)");
     if (marker < 0) return undefined;
     const open = qualType.lastIndexOf("(", marker);
     if (open < 0) return undefined;
+    const className = qualType.slice(open + 1, marker).trim();
     const returnType = qualType.slice(0, open).trim();
     const rest = qualType.slice(marker + "::*)".length);
     const paramsOpen = rest.indexOf("(");
     const paramsClose = rest.lastIndexOf(")");
-    if (paramsOpen < 0 || paramsClose < paramsOpen) return undefined;
+    if (!className || paramsOpen < 0 || paramsClose < paramsOpen) return undefined;
     const inside = rest.slice(paramsOpen + 1, paramsClose);
     return {
+      className,
       returnType: new ClangQualType(returnType),
       parameters: splitParams(inside).map((param) => new ClangQualType(param)),
     };
@@ -485,11 +492,11 @@ export class ApplySignatureProbe {
     }
     const parsed = MemberPointerType.parse(applySpelling);
     if (!parsed) throw new Error(`Cannot read apply() type of ${cppClass}: ${applySpelling}`);
-    const apply = namedFunction("apply", parsed.returnType, parsed.parameters, names);
+    const apply = signatureFromDeclaration(unit, parsed, "apply", names);
     const pinType = unit.varType(`${ident}_pin`);
     const pinSpelling = pinType ? memberPointerSpelling(pinType) : undefined;
     const pinParsed = pinSpelling ? MemberPointerType.parse(pinSpelling) : undefined;
-    const connectPin = pinParsed ? namedFunction("connectPin", pinParsed.returnType, pinParsed.parameters, pinNames) : undefined;
+    const connectPin = pinParsed ? signatureFromDeclaration(unit, pinParsed, "connectPin", pinNames) : undefined;
     return connectPin ? { apply, connectPin } : { apply };
   }
 }
@@ -509,6 +516,42 @@ function namedFunction(
 ): ClangFunction {
   const names = parameters.map((_, index) => source?.parameterNames[index] || `arg${index}`);
   return new ClangFunction(name, returnType, parameters, names);
+}
+
+// Clang 22 prints a probed member pointer with alias templates canonicalized
+// (`Vectorized` as `Array`, `u8` as `unsigned char`). The instantiated method
+// declaration still uses the spellings written in the header.
+function signatureFromDeclaration(
+  unit: ClangTranslationUnit,
+  parsed: { className: string; returnType: ClangQualType; parameters: ClangQualType[] },
+  name: string,
+  source: ClangFunction | undefined,
+): ClangFunction {
+  const declared = unit.instantiatedMethod(parsed.className, name);
+  if (declared && !/^auto\b/.test(declared.returnType.qualType)) return adoptParameterNames(declared, source);
+  return namedFunction(name, parsed.returnType, parsed.parameters, source);
+}
+
+function adoptParameterNames(declared: ClangFunction, source: ClangFunction | undefined): ClangFunction {
+  const parameterNames = declared.parameterNames.map((parameterName, index) => {
+    return parameterName || source?.parameterNames[index] || `arg${index}`;
+  });
+  const renamed = parameterNames.some((parameterName, index) => parameterName !== declared.parameterNames[index]);
+  return renamed ? new ClangFunction(declared.name, declared.returnType, declared.parameters, parameterNames) : declared;
+}
+
+function classKey(spelling: string): string {
+  return spelling.replace(/::/g, ".");
+}
+
+function templateArgumentSuffix(node: ClangAstJson): string {
+  const parts: string[] = [];
+  for (const child of node.inner ?? []) {
+    if (child.kind !== "TemplateArgument") continue;
+    const spelling = child.type?.qualType;
+    if (spelling) parts.push(spelling);
+  }
+  return parts.length > 0 ? `<${parts.join(", ")}>` : "";
 }
 
 function probeIdent(cppClass: string): string {
