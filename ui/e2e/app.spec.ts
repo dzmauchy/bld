@@ -29,6 +29,17 @@ const baseBlocks = [
   "sum_f32",
   "product_f32",
   "scope_f32",
+  "const_f64",
+  "sin_gen_f64",
+  "cos_gen_f64",
+  "rand_gen_f64",
+  "pulse_gen_f64",
+  "gpio_in_f64",
+  "sin_f64",
+  "cos_f64",
+  "sum_f64",
+  "product_f64",
+  "scope_f64",
 ];
 
 test("shows the bld icon splash until 100 ms after the parsed workspace is shown", async ({ page }) => {
