@@ -9,13 +9,23 @@ export default defineConfig({
   },
   html: {
     template: "./src/browser/index.html",
+    scriptLoading: "module",
   },
   output: {
+    module: true,
+    overrideBrowserslist: ["chrome >= 135", "edge >= 135", "firefox >= 135", "safari >= 18.4"],
     distPath: {
       root: "dist/web",
     },
     dataUriLimit: {
       wasm: 0,
+    },
+  },
+  tools: {
+    swc: {
+      jsc: {
+        target: "esnext",
+      },
     },
   },
   server: {
