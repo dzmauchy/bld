@@ -45,6 +45,8 @@ describe("CppDiagramBuilder", () => {
     expect([...files.keys()].filter((name) => name.endsWith(".cpp"))).toEqual(["diagram.cpp"]);
     expect(files.get("diagram.cpp")).toContain("#include <browser/host.hpp>");
     expect(files.get("diagram.cpp")).toContain("void mount()");
+    expect(files.get("diagram.cpp")).toContain("bld_keep_lastPin = &lastPin");
+    expect(files.get("diagram.cpp")).toContain("bld_keep_start = &start");
     expect(files.get("diagram.cpp")).not.toContain("start(");
   });
 

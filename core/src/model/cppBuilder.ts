@@ -69,6 +69,8 @@ export class CppDiagramBuilder extends DiagramSourceBuilder {
     }
     lines.push("}");
     lines.push("");
+    lines.push(...new WasmHostExportBlock().emit());
+    lines.push("");
     return lines.join("\n");
   }
 
@@ -243,6 +245,50 @@ export class CppDiagramBuilder extends DiagramSourceBuilder {
       return Math.max(max, connection.to.vectorIndex);
     }, -1);
   }
+}
+
+/** Forces an out-of-line copy of one `extern "C"` host function so wasm-ld exports it. */
+class HostSymbolAnchor {
+  constructor(private readonly symbol: string) {}
+
+  emit(): string {
+    return `__attribute__((used)) auto bld_keep_${this.symbol} = &${this.symbol};`;
+  }
+}
+
+/**
+ * The browser host API is header-only and inline. `--export-all` only exports
+ * symbols that survive linking, and an inline function is dropped unless its
+ * address is taken from a live global.
+ */
+class WasmHostExportBlock {
+  private readonly anchors: readonly HostSymbolAnchor[];
+
+  constructor(symbols: readonly string[] = WasmHostExportBlock.symbols) {
+    this.anchors = symbols.map((symbol) => new HostSymbolAnchor(symbol));
+  }
+
+  emit(): string[] {
+    return ["extern \"C\" {", ...this.anchors.map((anchor) => anchor.emit()), "}"];
+  }
+
+  private static readonly symbols = [
+    "start",
+    "tick",
+    "tickThenObserve",
+    "close",
+    "setNow",
+    "setRandom",
+    "emitGpio",
+    "emitGpioIn",
+    "lastPin",
+    "hasPin",
+    "pinWriteCount",
+    "activeIntervalCount",
+    "intervalPeriodAt",
+    "activeGpioListenerCount",
+    "clearPins",
+  ];
 }
 
 function arrayConf(conf: Record<string, unknown>, key: string, fallback: unknown): number[] {
