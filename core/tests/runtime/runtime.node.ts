@@ -6,7 +6,7 @@ import {
   Thread,
   WasmRuntime,
   type HostMessageHandler,
-} from "../../src/runtime/runtime.ts";
+} from "core/runtime/runtime.ts";
 
 export class NodeWorkerThread extends Thread {
   constructor(private readonly worker: Worker) {
