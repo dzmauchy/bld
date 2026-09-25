@@ -5,5 +5,11 @@
     "outDir": "./dist",
     "types": ["node"]
   },
-  "include": ["./src"]
+  "include": ["./src"],
+  "exclude": [
+    "src/runtime/messages.ts",
+    "src/runtime/run.ts",
+    "src/runtime/runtime.ts",
+    "src/runtime/workerHost.ts"
+  ]
 }

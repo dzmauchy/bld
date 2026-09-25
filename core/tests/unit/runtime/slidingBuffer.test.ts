@@ -1,5 +1,5 @@
 import { describe, expect, test } from "@rstest/core";
-import { SlidingScopeBuffer, SlidingScopeBufferF64 } from "runtime";
+import { SlidingScopeBuffer, SlidingScopeBufferF64 } from "../../../src/runtime/index.ts";
 
 describe("SlidingScopeBuffer", () => {
   test("stores values with a single write pointer", () => {
