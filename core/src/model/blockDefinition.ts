@@ -83,6 +83,10 @@ export interface RawBlockCatalogEntry {
 }
 
 export class BlockDefinition {
+  private readonly configProperties: Map<string, ConfigPropertyDefinition>;
+
+  get config(): ReadonlyMap<string, ConfigPropertyDefinition> { return this.configProperties; }
+
   constructor(
     readonly id: string,
     readonly title: string,
@@ -92,9 +96,15 @@ export class BlockDefinition {
     readonly category: string,
     readonly inputs: ReadonlyMap<string, PortDefinition>,
     readonly outputs: ReadonlyMap<string, PortDefinition>,
-    readonly config: ReadonlyMap<string, ConfigPropertyDefinition>,
+    config: ReadonlyMap<string, ConfigPropertyDefinition>,
     readonly cppClass: string = "",
-  ) {}
+  ) {
+    this.configProperties = new Map(config);
+  }
+
+  registerConfig(property: ConfigPropertyDefinition): void {
+    this.configProperties.set(property.id, property);
+  }
 
   getInput(id: string): PortDefinition | undefined {
     return this.inputs.get(id);
@@ -106,8 +116,7 @@ export class BlockDefinition {
 
   getPort(id: string, direction?: "input" | "output"): PortDefinition | undefined {
     if (direction) {
-      return (direction === "input" ? this.inputs : this.outputs).get(id) ??
-        (direction === "input" ? this.outputs : this.inputs).get(id);
+      return (direction === "input" ? this.inputs : this.outputs).get(id);
     }
     return this.inputs.get(id) ?? this.outputs.get(id);
   }

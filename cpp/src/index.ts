@@ -11,14 +11,10 @@ export { ClangAstDumper, ClangDumpResult } from "./clangAstDumper.ts";
 export { BrowserClangAstDumper } from "./browserClangAstDumper.ts";
 export { CppTypeNames, cppIdent } from "./cppLiterals.ts";
 export {
-  ClangApplyShape,
   ClangComment,
-  ClangFunction,
   ClangQualType,
-  ClangRecord,
   ClangSourceComments,
   ClangTranslationUnit,
-  ClangTypeCatalog,
   JsonComment,
   isMainFileNode,
 } from "./clangAst.ts";

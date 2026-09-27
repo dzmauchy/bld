@@ -8,12 +8,12 @@ const serviceWorker = join(here, "../../public/llvm-toolchain-sw.js");
 const devProxy = join(here, "../../../ui/scripts/llvmToolchainProxyMiddleware.ts");
 const releaseFiles = ["clang.js", "clang.wasm", "lld.js", "lld.wasm", "sysroot.tgz"];
 
-describe("llvm-project toolchain assets", () => {
+describe("clang-wasm toolchain assets", () => {
   test("service worker and dev proxy relay the release files, including the sysroot", () => {
     const source = readFileSync(serviceWorker, "utf8");
     const proxy = readFileSync(devProxy, "utf8");
     for (const text of [source, proxy]) {
-      expect(text).toContain("https://github.com/dzmauchy/llvm-project/releases/download/clang-lld-wasm-latest/");
+      expect(text).toContain("https://github.com/dzmauchy/clang-wasm/releases/download/clang-23.1.2/");
       for (const name of releaseFiles) expect(text).toContain(name);
     }
     expect(source).toContain("/llvm-toolchain-proxy");

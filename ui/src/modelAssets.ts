@@ -1,3 +1,4 @@
+import browserHost from "core/model/browserHost.ts?raw";
 import appAssets from "core/model/appAssets.ts?raw";
 import blockDefinition from "core/model/blockDefinition.ts?raw";
 import compiler from "core/model/compiler.ts?raw";
@@ -8,7 +9,7 @@ import cppBuilder from "core/model/cppBuilder.ts?raw";
 import diagram from "core/model/diagram.ts?raw";
 import diagramBlock from "core/model/diagramBlock.ts?raw";
 import endpoint from "core/model/endpoint.ts?raw";
-import headerCatalog from "core/model/headerCatalog.ts?raw";
+import metadataCatalog from "core/model/metadataCatalog.ts?raw";
 import index from "core/model/index.ts?raw";
 import inferredPortType from "core/model/inferredPortType.ts?raw";
 import library from "core/model/library.ts?raw";
@@ -18,6 +19,7 @@ import { modelAssetFiles } from "core";
 
 export const modelAssets = {
   "appAssets.ts": appAssets,
+  "browserHost.ts": browserHost,
   "blockDefinition.ts": blockDefinition,
   "compiler.ts": compiler,
   "compilerContext.ts": compilerContext,
@@ -27,7 +29,7 @@ export const modelAssets = {
   "diagram.ts": diagram,
   "diagramBlock.ts": diagramBlock,
   "endpoint.ts": endpoint,
-  "headerCatalog.ts": headerCatalog,
+  "metadataCatalog.ts": metadataCatalog,
   "index.ts": index,
   "inferredPortType.ts": inferredPortType,
   "library.ts": library,

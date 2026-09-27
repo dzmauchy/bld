@@ -6,26 +6,26 @@ import { LlvmProjectRelease } from "../../src/llvmRelease.ts";
 
 const here = dirname(fileURLToPath(import.meta.url));
 
-describe("llvm-project release assets", () => {
-  test("points clang, lld, and the sysroot at the llvm-project release", () => {
+describe("clang-wasm release assets", () => {
+  test("points clang, lld, and the sysroot at the clang-wasm release", () => {
     const release = new LlvmProjectRelease();
     expect(release.releasePageUrl()).toBe(
-      "https://github.com/dzmauchy/llvm-project/releases/tag/clang-lld-wasm-latest",
+      "https://github.com/dzmauchy/clang-wasm/releases/tag/clang-23.1.2",
     );
     expect(release.assetUrl("clang.wasm")).toBe(
-      "https://github.com/dzmauchy/llvm-project/releases/download/clang-lld-wasm-latest/clang.wasm",
+      "https://github.com/dzmauchy/clang-wasm/releases/download/clang-23.1.2/clang.wasm",
     );
     expect(release.assetUrl("clang.js")).toBe(
-      "https://github.com/dzmauchy/llvm-project/releases/download/clang-lld-wasm-latest/clang.js",
+      "https://github.com/dzmauchy/clang-wasm/releases/download/clang-23.1.2/clang.js",
     );
     expect(release.assetUrl("lld.wasm")).toBe(
-      "https://github.com/dzmauchy/llvm-project/releases/download/clang-lld-wasm-latest/lld.wasm",
+      "https://github.com/dzmauchy/clang-wasm/releases/download/clang-23.1.2/lld.wasm",
     );
     expect(release.assetUrl("lld.js")).toBe(
-      "https://github.com/dzmauchy/llvm-project/releases/download/clang-lld-wasm-latest/lld.js",
+      "https://github.com/dzmauchy/clang-wasm/releases/download/clang-23.1.2/lld.js",
     );
     expect(release.assetUrl("sysroot.tgz")).toBe(
-      "https://github.com/dzmauchy/llvm-project/releases/download/clang-lld-wasm-latest/sysroot.tgz",
+      "https://github.com/dzmauchy/clang-wasm/releases/download/clang-23.1.2/sysroot.tgz",
     );
     expect(release.contentType("sysroot.tgz")).toBe("application/gzip");
     expect(release.isToolchainAsset(release.assetUrl("sysroot.tgz"))).toBe(true);

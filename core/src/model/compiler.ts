@@ -3,14 +3,13 @@
  */
 import type { Diagram } from "./diagram";
 import { normalizeAssetPath } from "./appAssets";
-import type { ICppCompiler } from "cpp";
-import { CppDiagramBuilder } from "./cppBuilder";
+import { ClangAstDumper, type ICppCompiler } from "cpp";
+import { CppDiagramBuilder, type DiagramDiagnostic } from "./cppBuilder";
 import { defaultCppBlockCatalog } from "./cppBlockCatalog";
 
 export type { ICppCompiler };
 export { CppDiagramBuilder } from "./cppBuilder";
 export {
-  BlockPortTopology,
   CppBlockCatalog,
   defaultCppBlockCatalog,
 } from "./cppBlockCatalog";
@@ -115,11 +114,7 @@ export class CompilationModel {
   addFile(name: string, content: string): void {
     const clean = normalizeAssetPath(name);
     this.files.set(clean, content);
-    const slash = clean.lastIndexOf("/");
-    if (slash !== -1) {
-      const base = clean.slice(slash + 1);
-      if (!this.files.has(base)) this.files.set(base, content);
-    }
+
   }
 
   addFiles(files: Record<string, string>): void {
@@ -151,7 +146,7 @@ export class DiagramCompiler extends CompilationModel {
   }
 
   emitFiles(diagram: Diagram): Map<string, string> {
-    return new CppDiagramBuilder(this.getFiles()).build(diagram);
+    return new CppDiagramBuilder({ ...ClangAstDumper.libraryFiles, ...this.getFiles() }).build(diagram);
   }
 
   emitText(diagram: Diagram): string {
@@ -165,7 +160,10 @@ export class DiagramCompiler extends CompilationModel {
     if (!this.cppCompiler) {
       throw new Error("C++ compiler backend is required");
     }
-    return this.cppCompiler.compile(this.emitFiles(diagram));
+    const builder = new CppDiagramBuilder({ ...ClangAstDumper.libraryFiles, ...this.getFiles() });
+    const analysis = await builder.analyze(diagram);
+    if (!analysis.ok) throw new DiagramCompilationError(analysis.diagnostics);
+    return this.cppCompiler.compile(builder.build(diagram));
   }
 
   async run<TSession extends WasmSessionLike = WasmSessionLike>(
@@ -195,3 +193,9 @@ export const defaultBlockEmitters = {
     return defaultCppBlockCatalog.has(ref);
   },
 };
+
+export class DiagramCompilationError extends Error {
+  constructor(readonly diagnostics: DiagramDiagnostic[]) {
+    super(diagnostics.filter((d) => d.severity === "error").map((d) => d.message).join("\n"));
+  }
+}

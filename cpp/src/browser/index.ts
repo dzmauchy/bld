@@ -25,9 +25,12 @@ async function runtime(): Promise<BrowserCppRuntime> {
 }
 
 const api: CppPageApi = {
+  async dumpAst(files, mainFile) {
+    return (await runtime()).compiler.dumpAst(new Map(Object.entries(files)), mainFile);
+  },
   async warmup() {
     setStatus("warming toolchain");
-    appendLog("loading clang/lld from the llvm-project release");
+    appendLog("loading clang/lld from the clang-wasm release");
     const active = await runtime();
     await active.warmup();
     setStatus("ready");

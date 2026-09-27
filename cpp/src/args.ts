@@ -7,7 +7,7 @@ export type ClangCompileOptions = {
 export class ClangArgumentBuilder {
   constructor(private readonly options: ClangCompileOptions = {
     resourceDir: "/sysroot/lib/clang/23",
-    std: "c++20",
+    std: "c++23",
     optimize: "2",
   }) {}
 
@@ -26,6 +26,8 @@ export class ClangArgumentBuilder {
       "-fno-threadsafe-statics",
       `-std=${this.options.std}`,
       "-fno-color-diagnostics",
+      "-fmessage-length=0",
+      "-ferror-limit=0",
       "-fparse-all-comments",
       "-I/work",
       "-fsyntax-only",
@@ -46,6 +48,8 @@ export class ClangArgumentBuilder {
       "-fno-threadsafe-statics",
       `-std=${this.options.std}`,
       "-fno-color-diagnostics",
+      "-fmessage-length=0",
+      "-ferror-limit=0",
       "-fparse-all-comments",
       "-I/work",
       "-fsyntax-only",
@@ -67,6 +71,8 @@ export class ClangArgumentBuilder {
       `-std=${this.options.std}`,
       `-O${this.options.optimize}`,
       "-fno-color-diagnostics",
+      "-fmessage-length=0",
+      "-ferror-limit=0",
       "-I/work",
       "-c",
       sourcePath,

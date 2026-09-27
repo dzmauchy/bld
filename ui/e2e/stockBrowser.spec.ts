@@ -11,7 +11,7 @@ test("loads the base palette in a stock browser", async ({ page }) => {
   await expect.poll(async () => {
     const failure = page.locator("[data-library-status=error]");
     if (await failure.count()) return `error:${await failure.innerText()}`;
-    if (await page.locator("[data-block-id=const_f32]").count()) return "ready";
+    if (await page.locator("[data-block-id=ConstF32]").count()) return "ready";
     return "pending";
   }).toBe("ready");
 
@@ -20,7 +20,7 @@ test("loads the base palette in a stock browser", async ({ page }) => {
   const diagram = page.locator("[data-region=diagram]");
   await expect(palette).toBeVisible();
   await expect(diagram).toBeVisible();
-  await palette.locator("[data-block-id=const_f32]").click();
-  await expect(diagram.locator("[data-block-ref=const_f32]")).toHaveCount(1);
+  await palette.locator("[data-block-id=ConstF32]").click();
+  await expect(diagram.locator("[data-block-ref=ConstF32]")).toHaveCount(1);
   expect(errors.join("\n")).not.toMatch(/invalid heap type/i);
 });

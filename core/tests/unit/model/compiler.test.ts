@@ -21,19 +21,20 @@ beforeAll(async () => {
   const lib = await Library.load("base.json");
   palette = lib.palette;
   libraryFiles = lib.compilationModel.getFiles();
+  await createTestDiagram().analyze();
 });
 
 function createTestDiagram(): Diagram {
   const diagram = new Diagram("test_diag", "Test Diagram", palette);
-  const scope = diagram.addBlock("scope_f32", { x: 10, y: 10 }, "scope_0", {
+  const scope = diagram.addBlock("ScopeF32", { x: 10, y: 10 }, "scope_0", {
     precision: 10,
   });
-  const constant = diagram.addBlock("const_f32", { x: 100, y: 10 }, "const_0", {
+  const constant = diagram.addBlock("ConstF32", { x: 100, y: 10 }, "const_0", {
     v: 3.14,
   });
   diagram.connect(
-    new PortEndpoint(constant.id, "input", "v", 0),
-    new PortEndpoint(scope.id, "output", "sink", 0),
+    new PortEndpoint(scope.id, "output", "channels", 0),
+    new PortEndpoint(constant.id, "input", "downstream", 0),
   );
   return diagram;
 }
@@ -46,7 +47,7 @@ describe("DiagramCompiler C++ generation", () => {
 
     const diagram = createTestDiagram();
     const cpp = compiler.emitText(diagram);
-    expect(cpp).toContain("#include <base.hpp>");
+    expect(cpp).toContain("#include <base/f32_blocks.hpp>");
     expect(cpp).toContain("push::f32::sinks::ScopeF32");
     expect(cpp).toContain("push::f32::sources::ConstF32");
     expect(cpp).toContain("void mount()");
@@ -92,7 +93,7 @@ describe("DiagramCompiler C++ generation", () => {
     const files = captured[0];
     expect(files?.get("diagram.cpp")).toContain("void mount()");
     expect(files?.get("diagram.cpp")).toContain("#include \"wasm_host.hpp\"");
-    expect(files?.get("base.hpp")).toContain("class ScopeF32");
+    expect(files?.get("base/f32_blocks.hpp")).toContain("class ScopeF32");
     expect(files?.get("wasm_host.hpp")).toContain("void start()");
     expect(files?.get("wasm_host.cpp")).toBeUndefined();
   });

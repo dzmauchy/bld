@@ -1,7 +1,6 @@
 /**
  * Browser host for `clang++ -fsyntax-only -Xclang -ast-dump=json`.
- * Library headers are sent to the in-browser clang worker; comments are read
- * from the dumped AST, not scanned out of the header text.
+ * Generated diagram sources and library headers are sent to the clang worker.
  */
 import { createCompilerWorker } from "./browser/api.ts";
 import { ClangAstDumper, ClangDumpResult } from "./clangAstDumper.ts";

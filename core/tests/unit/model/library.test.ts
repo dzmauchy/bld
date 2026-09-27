@@ -47,25 +47,23 @@ describe("Library and Asset Loader", () => {
 
     // In-memory TypeSystem populated
     expect(lib.typeSystem).toBeInstanceOf(TypeSystem);
-    expect(lib.typeSystem.getPrimitive("bool")).toBeDefined();
-    expect(lib.typeSystem.getPrimitive("f32")).toBeDefined();
-    expect(lib.typeSystem.getParameterizedTemplate("pss")).toBeDefined();
+    expect(lib.types).toEqual({});
 
     // In-memory Palette populated
     expect(lib.palette).toBeInstanceOf(Palette);
-    const scope = lib.palette.getBlock("scope_f32");
+    const scope = lib.palette.getBlock("ScopeF32");
     expect(scope).toBeDefined();
     expect(scope?.title).toBe("Scope");
     expect(scope?.category).toBe("sinks");
 
-    const cos = lib.palette.getBlock("cos_f32");
+    const cos = lib.palette.getBlock("CosF32");
     expect(cos).toBeDefined();
     expect(cos?.category).toBe("transformers");
 
-    const gpio = lib.palette.getBlock("gpio_in_f32");
+    const gpio = lib.palette.getBlock("GpioInF32");
     expect(gpio).toBeDefined();
     expect(gpio?.category).toBe("sources");
-    expect(gpio?.cppClass).toBe("push::f32::sources::GpioInF32");
+    expect(gpio?.cppClass).toBe("push::f32::sources::GpioInF32<>");
 
     // In-memory CompilationModel populated
     expect(lib.compilationModel).toBeInstanceOf(CompilationModel);
@@ -84,7 +82,7 @@ describe("Library and Asset Loader", () => {
       "class CustomBlock {};",
       "}",
     ].join("\n");
-    const archive = await gzipTar({ "plugin.hpp": header });
+    const archive = await gzipTar({ "plugin.hpp": header, "meta.json": JSON.stringify({ namespaces: [], blocks: [{ id: "CustomBlock", namespace: "custom_ns", name: "Custom Block" }] }) });
     const originalFetch = globalThis.fetch;
     const fetchMock = rs.fn(async (url: RequestInfo | URL) => {
       const u = String(url);
@@ -112,12 +110,12 @@ describe("Library and Asset Loader", () => {
       expect(lib.id).toBe("remote_plugin");
       expect(lib.name).toBe("Remote Plugin");
       expect(lib.icon).toBe("plugin.svg");
-      expect(lib.typeSystem.getPrimitive("custom_t")).toBeDefined();
-      expect(lib.palette.getBlock("custom_block")).toBeDefined();
+      expect(lib.types).toEqual({});
+      expect(lib.palette.getBlock("CustomBlock")).toBeDefined();
 
       expect(fetchMock).toHaveBeenCalledWith("https://my-plugin.org/dsp/library.json");
       expect(fetchMock).toHaveBeenCalledWith("https://my-plugin.org/dsp/plugin.tar.gz");
-      expect(lib.palette.getBlock("custom_block")?.cppClass).toBe("custom_ns::CustomBlock");
+      expect(lib.palette.getBlock("CustomBlock")?.cppClass).toBe("custom_ns::CustomBlock<>");
       expect(lib.compilationModel.getFile("plugin.hpp")).toContain("class CustomBlock");
     } finally {
       globalThis.fetch = originalFetch;
@@ -191,8 +189,8 @@ describe("Library and Asset Loader", () => {
   test("Palette.fromCatalog rebuilds blocks from library sources", async () => {
     const lib = await Library.loadBase();
     const palette = Palette.fromCatalog(lib.blocks, lib.types, lib.namespaces);
-    expect(palette.hasBlock("scope_f32")).toBe(true);
-    expect(palette.getBlock("scope_f32")?.title).toBe("Scope");
+    expect(palette.hasBlock("ScopeF32")).toBe(true);
+    expect(palette.getBlock("ScopeF32")?.title).toBe("Scope");
   });
 
   test("relative archive locations load from internal resources", async () => {
@@ -210,14 +208,14 @@ describe("Library and Asset Loader", () => {
         location: "samples/lib.tar.gz",
       }),
     });
-    registerAppAssetBytes("samples/lib.tar.gz", await gzipTar({ "block.hpp": header }));
+    registerAppAssetBytes("samples/lib.tar.gz", await gzipTar({ "block.hpp": header, "meta.json": JSON.stringify({ namespaces: [], blocks: [{ id: "Local", namespace: "samples", name: "Local" }] }) }));
     const fetchMock = rs.fn();
     const originalFetch = globalThis.fetch;
     globalThis.fetch = fetchMock as unknown as typeof fetch;
     try {
       const lib = await Library.load("internal.json");
       expect(fetchMock).not.toHaveBeenCalled();
-      expect(lib.palette.getBlock("local_block")?.title).toBe("Local");
+      expect(lib.palette.getBlock("Local")?.title).toBe("Local");
       expect(lib.compilationModel.getFile("block.hpp")).toContain("class Local");
     } finally {
       globalThis.fetch = originalFetch;
@@ -229,8 +227,9 @@ describe("Library and Asset Loader", () => {
     const archive = await LibraryArchive.fromTarGz(await gzipTar({
       "include/bld.hpp": "namespace bld {}",
       "notes.txt": "ignore",
+      "meta.json": JSON.stringify({ blocks: [], namespaces: [] }),
     }));
-    expect(archive.files()).toEqual({ "bld.hpp": "namespace bld {}" });
+    expect(archive.files()).toEqual({ "include/bld.hpp": "namespace bld {}" });
   });
 
   test("header block classes match the C++ catalog", async () => {

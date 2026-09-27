@@ -1,6 +1,6 @@
 import { describe, expect, test } from "@rstest/core";
 import { ClangComment, ClangSourceComments, JsonComment, isMainFileNode } from "cpp";
-import { Diagram, HeaderCatalog, Library } from "../../../src/model/index.js";
+import { Diagram, Library } from "../../../src/model/index.js";
 
 describe("AST JSON comments", () => {
   test("parses block and line comments with markers", () => {
@@ -70,35 +70,6 @@ describe("AST source offsets", () => {
       false,
     );
     expect(isMainFileNode({ kind: "NamespaceDecl", loc: { offset: 10, file: "/usr/include/stdc.h" } }, "custom.hpp")).toBe(false);
-  });
-});
-
-describe("HeaderCatalog from clang AST", () => {
-  test("reads types, namespaces, blocks, ports, and config from comments", async () => {
-    const source = [
-      '/*{"kind":"type","id":"custom_t","name":"Custom"}*/',
-      "using custom_t = int;",
-      '/*{"kind":"namespace","name":"Custom NS"}*/',
-      "namespace custom_ns {",
-      '/*{"kind":"block","id":"custom_block","ns":["custom_ns"],"title":"Custom","description":"desc"}*/',
-      "class CustomBlock {",
-      " public:",
-      "  explicit CustomBlock(",
-      "      unsigned blockId,",
-      '      /*{"kind":"conf","id":"gain","type":{"raw":"u32"},"control":{"type":"slider","default":3}}*/',
-      "      unsigned gain = 3) {}",
-      '  /*{"kind":"input","vector":true,"type":{"raw":"custom_t"}}*/',
-      "  using v = int*;",
-      "};",
-      "}",
-      "",
-    ].join("\n");
-    const catalog = await HeaderCatalog.parse(new Map([["custom.hpp", source]]), ["custom.hpp"]);
-    expect(catalog.types.custom_t?.name).toBe("Custom");
-    expect(catalog.namespaces.custom_ns).toMatchObject({ name: "Custom NS" });
-    expect(catalog.blocks.custom_block).toMatchObject({ title: "Custom", cpp: "custom_ns::CustomBlock" });
-    expect(catalog.blocks.custom_block?.inputs?.v?.vector).toBe(true);
-    expect(catalog.blocks.custom_block?.conf?.gain?.control).toMatchObject({ type: "slider", default: 3 });
   });
 });
 

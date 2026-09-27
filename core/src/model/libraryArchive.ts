@@ -12,7 +12,7 @@ const HEADER_NAME = /\.(?:h|hh|hpp|hxx)$/i;
 export class LibraryArchive {
   private static readonly cached = new Map<string, Promise<LibraryArchive>>();
 
-  private constructor(private readonly headerFiles: ReadonlyMap<string, string>) {}
+  private constructor(private readonly headerFiles: ReadonlyMap<string, string>, readonly metadata: unknown) {}
 
   static async fetch(location: string): Promise<LibraryArchive> {
     const cached = LibraryArchive.cached.get(location);
@@ -29,15 +29,18 @@ export class LibraryArchive {
     const encoded = copyBytes(bytes);
     const entries = await unpackTar(new Blob([encoded]).stream().pipeThrough(new DecompressionStream("gzip")));
     const files = new Map<string, string>();
+    let metadata: unknown;
     const decoder = new TextDecoder();
     for (const entry of entries) {
       if (!entry.data) continue;
       const name = headerFileName(entry.header.name);
+      if (name === "meta.json") metadata = JSON.parse(decoder.decode(entry.data));
       if (!name || !HEADER_NAME.test(name)) continue;
       files.set(name, decoder.decode(entry.data));
     }
     if (files.size === 0) throw new Error("Library archive does not contain header files");
-    return new LibraryArchive(files);
+    if (!metadata) throw new Error("Library archive is missing meta.json");
+    return new LibraryArchive(files, metadata);
   }
 
   files(): Record<string, string> {
@@ -66,15 +69,18 @@ function archiveUrls(location: string): string[] {
   const urls = [location];
   if (!URL.canParse(location)) return urls;
   const name = new URL(location).pathname.split("/").pop();
-  if (name && name !== location) urls.push(name);
+  if (name && name !== location) {
+    if (typeof window !== "undefined") urls.unshift(name);
+    else urls.push(name);
+  }
   return urls;
 }
 
 function headerFileName(name: string): string {
   const cleaned = name.replaceAll("\\", "/").replace(/^\.\/+/, "");
   if (cleaned.endsWith("/")) return "";
-  const slash = cleaned.lastIndexOf("/");
-  return slash === -1 ? cleaned : cleaned.slice(slash + 1);
+  if (cleaned.split("/").some((part) => part === "..") || cleaned.startsWith("/")) throw new Error("Invalid archive path");
+  return cleaned;
 }
 
 function copyBytes(bytes: Uint8Array | ArrayBuffer): Uint8Array<ArrayBuffer> {

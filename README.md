@@ -52,7 +52,7 @@ The project features a **client-side only** architecture:
 - **C++ Diagram Builder**: Generates C++ that instantiates `push::f32` blocks from the base library and delegates wasm compilation to the `cpp` workspace.
 - **Web Worker Thread Isolation**: All runtime execution runs off the main thread with non-blocking RPC communication and streaming pin updates.
 - **Sliding Scope Buffers**: High-rate signal capture in the browser uses a `Float32Array`/`Float64Array` ring with a single write pointer.
-- **Auto-descriptive header library**: Blocks, types, namespaces, ports, and config are JSON comments on the header-only C++ base library. Core reads them from `clang++ -fsyntax-only -Xclang -ast-dump=json -fparse-all-comments`.
+- **Release metadata**: `meta.json` in the base archive lists every block, namespace, and port. Loading the palette does not invoke Clang.
 - **Clang type checks**: Port types and connection compatibility come from `clang++` AST dumps. Configuration properties that match their defaults are omitted from the diagram comment.
 - **Production-Ready UI Stack**: Built on Solid.js, Web Awesome, dark mode by default, and bundled with Rsbuild.
 
@@ -73,7 +73,7 @@ bld/
 
 | Package | Purpose | Key Responsibilities |
 |---|---|---|
-| **`core`** | Domain model, C++ builder, and wasm session | `Library` points at a tar.gz URL, `LibraryArchive` unpacks it with modern-tar, `HeaderCatalog` parses JSON comments, `Diagram` is a `mount()` entry point, `CppDiagramBuilder` and `DiagramCompiler` delegate wasm compilation to `cpp`. Worker RPC (`WasmRuntime`, `WasmSession`), host env bindings, and sliding scope buffers live in `core/src/runtime`. |
+| **`core`** | Domain model, C++ builder, and wasm session | `Library` points at a tar.gz URL, `LibraryArchive` unpacks it with modern-tar, `MetadataCatalog` reads `meta.json`, `Diagram` is a `mount()` entry point, `CppDiagramBuilder` and `DiagramCompiler` delegate wasm compilation to `cpp`. Worker RPC (`WasmRuntime`, `WasmSession`), host env bindings, and sliding scope buffers live in `core/src/runtime`. |
 | **`cpp`** | In-browser clang/lld | Compiles generated C++ sources to wasm and executes the module in a worker. |
 | **`ui`** | User Interface & Worker Host | Solid.js web app, black UI theme, palette and diagram split view, Rsbuild dev server, Cloudflare Workers static assets (`wrangler.json`, not Pages), browser Worker hosting (`run.worker.ts`). |
 
@@ -320,103 +320,39 @@ classDiagram
 
 ## Type System
 
-Declared type metadata lives in JSON comments on the base headers. Connection checks and port shapes come from `clang++ -fsyntax-only -Xclang -ast-dump=json`:
+`CppDiagramBuilder.analyze()` assembles C++23 with `auto` variables for each input and output field, then asks Clang for its JSON AST. A first pass discovers constructor types and defaults; a second pass checks the connected program with the chosen configuration. The same builder produces the sources for wasm compilation.
 
-```mermaid
-classDiagram
-    direction TB
-    class DataType {
-        <<abstract>>
-        +raw: string*
-        +name: string*
-        +toString()* string
-        +equals(other: DataType)* boolean
-    }
-    class PrimitiveType {
-        +raw: string
-        +name: string
-        +compatibleWith: ReadonlySet~string~
-        +isArgCompatibleWith(sourceRaw) boolean
-    }
-    class ParameterizedType {
-        +raw: string
-        +name: string
-        +args: ReadonlyMap~string, DataType~
-        +getArg(paramName) DataType
-    }
-    DataType <|-- PrimitiveType
-    DataType <|-- ParameterizedType
-
-    class TypeSystem {
-        -primitives: Map~string, PrimitiveType~
-        +parse(descriptor) DataType
-        +fromCatalog(catalog) TypeSystem
-    }
-    class ClangTypeCatalog {
-        +shapeFor(cppClass) BlockShape
-        +dumpProbe(source) ClangDump
-    }
-
-    TypeSystem --> DataType
-    ClangTypeCatalog --> DataType
+```ts
+const result = await diagram.analyze();
+const ports = result.toJSON().ports;
+// { blockId, direction, portId, type, canonicalType, vector, vectorLength }
+const errors = result.diagnostics.filter(d => d.severity === "error");
+// Connection errors include blockId, inputId, outputId, connectionId, from, to.
 ```
 
-- **Primitive types**: Scalars declared in `bld.hpp`, such as `f32`, `i32`, and `bool`.
-- **Parameterized types**: Stream and collection templates declared in the headers, such as `pss` and `array`.
-- **Port types**: QualTypes from clang++ dumps decide whether a connection type-checks and how `apply` is emitted.
+Use `canConnect()` for immediate structural checks (endpoints, direction, duplicates, and cycles). Use `await canConnectAsync()` to check a proposed connection with Clang without changing the diagram. `DiagramCompiler.compile()` performs analysis and throws `DiagramCompilationError` with structured diagnostics if it fails. Synchronous inference is available for host Clang tests; browser clients use the asynchronous API.
 
----
+Constructor configuration definitions and defaults become available after analysis. Run analysis before emitting configured sources directly with `builder.build()`. `compile()` handles this automatically. Default configuration values are omitted from JSON after the definitions have been discovered.
 
 ## Standard Block Library (`base`)
 
-The standard library includes fundamental building blocks for digital signal processing, simulation, and hardware interfacing:
+The [base v0.1.0 archive](https://github.com/dzmauchy/bld-base/releases/download/v0.1.0/base-0.1.0.tar.gz) contains 22 blocks in `push::f32` and `push::f64`. References use the exact metadata IDs, such as `ConstF32`, `ScopeF32`, and `ScopeF64`. Header directory paths are preserved.
 
-| Block Reference | Category | Inputs | Outputs | Description |
-|---|---|---|---|---|
-| `const_f32` | Source | None | `v` (`pss<f32>`) | Emits a constant floating-point value. |
-| `sin_gen_f32` | Source | None | `v` (`pss<f32>`) | Periodic harmonic sine wave generator over time. |
-| `cos_gen_f32` | Source | None | `v` (`pss<f32>`) | Periodic harmonic cosine wave generator over time. |
-| `rand_gen_f32` | Source | None | `v` (`pss<f32>`) | Pseudo-random uniform noise generator. |
-| `pulse_gen_f32` | Source | None | `v` (`pss<f32>`) | Square wave pulse generator with configurable period and duty cycle. |
-| `gpio_in_f32` | Source | Hardware Pin | `pin` (`pss<f32>`) | Multi-pin digital GPIO input with reactive push notification. |
-| `sin_f32` | Transformer | `v` (`pss<f32>`) | `sin` (`pss<f32>`) | Unary sine function applied to incoming push values. |
-| `cos_f32` | Transformer | `v` (`pss<f32>`) | `cos` (`pss<f32>`) | Unary cosine function applied to incoming push values. |
-| `sum_f32` | Transformer | `v` (vector `pss<f32>`) | `s` (`pss<f32>`) | Multi-channel vector summation. |
-| `product_f32` | Transformer | `v` (vector `pss<f32>`) | `p` (`pss<f32>`) | Multi-channel vector multiplication. |
-| `scope_f32` | Sink | `sink` (vector `pss<f32>`) | None | Sliding circular buffer oscilloscope for real-time visualization. |
+| Block family | Input fields | Output fields |
+|---|---|---|
+| Const, SinGen, CosGen, RandGen, PulseGen | `downstream` | none |
+| GpioIn | `pins` | none |
+| Sin, Cos | `downstream` | `consumer` |
+| Sum, Product | `downstream`, `channelCount` | `channels` |
+| Scope | `channelCount` | `channels` |
 
----
+Connections pass consumer handles from output fields to input fields. For example, `ScopeF32.channels[0]` connects to `ConstF32.downstream`. Signals subsequently flow from the constant to the scope. Inferred types come from the C++ fields, including both numeric precisions.
 
 ## Diagram File
 
-A diagram is a C++ entry point. Consecutive `//` comments hold one JSON object that records blocks and connections, and `mount()` constructs and wires the blocks. The host `start()` calls `mount()` and then each block's `onStart`. `mount()` does not start the diagram. Arrays in `mount()` are filled with `arrayFrom`.
+Diagrams support JSON import/export and a C++ `mount()` entry point with an attached JSON comment. See [`core/assets/diagram_demo.cpp`](core/assets/diagram_demo.cpp). The application supplies the browser HAL adapter; the release archive supplies the block headers and metadata.
 
-Libraries are a JSON manifest. `location` is the URL of a tar.gz archive, unpacked with modern-tar. The base library location is the [bld-base](https://github.com/dzmauchy/bld-base) release artifact. The only schema is `core/assets/schemas/library.schema.json`.
-
-```cpp
-#include <base.hpp>
-#include "wasm_host.hpp"
-
-using push::f32::F32;
-
-// {"id":"signal_generator_demo",
-// "title":"Signal Generator to Scope",
-// "blocks":{"scope_0":{"ref":"scope_f32","x":280,"y":100},
-// "cos_gen_0":{"ref":"cos_gen_f32","x":40,"y":100,"conf":{"precision":11}}},
-// "connections":{"cos_gen_0__scope_0":{
-// "from":{"block":"cos_gen_0","port":{"type":"input","id":"v","vector_index":0}},
-// "to":{"block":"scope_0","port":{"type":"output","id":"sink","vector_index":0}}}}}
-extern "C" void mount() {
-  auto* scope_0 = new push::f32::sinks::ScopeF32(0u, 60u, 10u);
-  auto* cos_gen_0 = new push::f32::sources::CosGenF32(1u, 11u, 1.f, 1.f, 0.f);
-  auto scope_0_in = scope_0->apply(static_cast<u8>(1));
-  Pss<F32>* cos_gen_0_dn_items[1] = {scope_0_in[0]};
-  auto cos_gen_0_dn = arrayFrom(cos_gen_0_dn_items, 1u);
-  cos_gen_0->apply(static_cast<VectorizedInput<Pss<F32>>&&>(cos_gen_0_dn));
-}
-```
-
-Block configuration properties set to their default values are omitted from the JSON comment.
+Both AST analysis and wasm compilation use `-std=c++23`. Compiler assets (`clang.js`, `clang.wasm`, `lld.js`, `lld.wasm`, `sysroot.tgz`) come from [clang-23.1.2](https://github.com/dzmauchy/clang-wasm/releases/tag/clang-23.1.2). Compilation and runtime execution run in browser workers. The same-origin asset relay only delivers release files.
 
 ---
 
@@ -494,7 +430,7 @@ The repository follows a clean, three-layer test layout:
 
 - **Unit Tests**: Verify isolated models (`Diagram`, `CppDiagramBuilder`, `CppBlockCatalog`, `TypeSystem`, `SlidingScopeBuffer`).
 - **Integration Tests**: Verify generated `mount()` matches header block refs and native `push::f32` class names.
-- **E2E Tests**: Node generation tests in `core/e2e`, and in-browser clang/lld compile+run tests in `cpp/e2e/diagram.spec.ts` covering scopes and GPIO.
+- **E2E Tests**: Clang integration tests in `core/tests/integration`, and in-browser clang/lld compile+run tests in `cpp/e2e/diagram.spec.ts` covering scopes and GPIO.
 
 ---
 

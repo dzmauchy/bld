@@ -18,17 +18,17 @@ function collect(dir: string, suffix: string): string[] {
 }
 
 const baseBlocks = [
-  "const_f32",
-  "sin_gen_f32",
-  "cos_gen_f32",
-  "rand_gen_f32",
-  "pulse_gen_f32",
-  "gpio_in_f32",
-  "sin_f32",
-  "cos_f32",
-  "sum_f32",
-  "product_f32",
-  "scope_f32",
+  "ConstF32",
+  "SinGenF32",
+  "CosGenF32",
+  "RandGenF32",
+  "PulseGenF32",
+  "GpioInF32",
+  "SinF32",
+  "CosF32",
+  "SumF32",
+  "ProductF32",
+  "ScopeF32",
 ];
 
 test("shows the bld icon splash until 100 ms after the parsed workspace is shown", async ({ page }) => {
@@ -89,21 +89,21 @@ test("splits a black workspace into a palette and a diagram", async ({ page }) =
   expect(await diagram.evaluate((element) => getComputedStyle(element).backgroundColor)).toBe("rgb(0, 0, 0)");
   expect(await page.evaluate(() => getComputedStyle(document.body).backgroundColor)).toBe("rgb(0, 0, 0)");
 
-  await expect(palette.locator("[data-block-id]")).toHaveCount(baseBlocks.length);
+  await expect(palette.locator("[data-block-id]")).toHaveCount(baseBlocks.length * 2);
   for (const id of baseBlocks) {
     await expect(palette.locator(`[data-block-id="${id}"]`)).toHaveCount(1);
   }
 
-  await palette.locator("[data-block-id=scope_f32]").click();
-  await expect(diagram.locator("[data-block-ref=scope_f32]")).toHaveCount(1);
-  await expect(diagram.locator("[data-block-ref=scope_f32]")).toContainText("Scope");
+  await palette.locator("[data-block-id=ScopeF32]").click();
+  await expect(diagram.locator("[data-block-ref=ScopeF32]")).toHaveCount(1);
+  await expect(diagram.locator("[data-block-ref=ScopeF32]")).toContainText("Scope");
 });
 
 test("copies all JSON schemas into ui/dist/schemas", () => {
   expect(readdirSync(distSchemas).sort()).toEqual(CoreSchemaCatalog.shared.publishedFiles());
 });
 
-test("client bundle parses headers with in-browser clang, not a separate C++ parser", () => {
+test("client bundle uses release metadata and the pinned compiler", () => {
   const scripts = collect(distDir, ".js")
     .map((path) => readFileSync(path, "utf8"))
     .join("\n");
@@ -111,7 +111,7 @@ test("client bundle parses headers with in-browser clang, not a separate C++ par
   expect(scripts).not.toContain("TreeSitter");
   expect(scripts).not.toContain("HeaderCommentCatalog");
   expect(scripts).toContain("dump-ast");
-  expect(scripts).toContain("clang-lld-wasm-latest");
+  expect(scripts).toContain("clang-23.1.2");
   expect(scripts).toContain("releases/download/");
   expect(scripts).toContain("clang.wasm");
   expect(scripts).toContain("lld.wasm");

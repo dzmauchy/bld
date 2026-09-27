@@ -1,4 +1,4 @@
-/** Claims the page so compiler-worker fetches of the llvm-project release succeed. */
+/** Claims the page so compiler-worker fetches of the clang-wasm release succeed. */
 export class ToolchainServiceWorker {
   static readonly script = "/llvm-toolchain-sw.js";
 

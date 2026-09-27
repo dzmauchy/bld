@@ -27,6 +27,9 @@ export class DefaultWasmBindings {
       host_sendPinF32: (blockId: number, pin: number, value: number) => {
         this.host.sendPinF32?.(blockId, pin, value);
       },
+      host_sendPinF64: (blockId: number, pin: number, value: number) => {
+        this.host.sendPinF32?.(blockId, pin, value);
+      },
       abort: () => {
         throw new Error("env.abort");
       },

@@ -10,8 +10,12 @@ describe("TypeSystem & DataTypes", () => {
   let ts: TypeSystem;
 
   beforeAll(async () => {
-    const lib = await Library.load("base.json");
-    ts = lib.typeSystem;
+    ts = TypeSystem.fromCatalog({
+      bool: { name: "Boolean", as_arg_compatible_with: ["i8", "f32"] },
+      f32: { name: "Float", as_arg_compatible_with: ["i32"] },
+      pss: { name: "Stream", params: { T: { name: "Value" } } },
+      array: { name: "Array", params: { T: { name: "Value" } } },
+    });
   });
 
   test("creates and compares PrimitiveTypes", () => {

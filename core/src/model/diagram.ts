@@ -4,18 +4,16 @@
 import {
   ClangAstDumper,
   ClangComment,
-  ClangTranslationUnit,
-  CppTypeNames,
-  cppIdent,
   isMainFileNode,
   type ClangAstJson,
-  type ClangTypeCatalog,
 } from "cpp";
+import { browserHost } from "./browserHost";
+import { CppDiagramBuilder, type DiagramAnalysis } from "./cppBuilder";
 import { TypeSystem } from "../types";
 import { BlockDefinition } from "./blockDefinition";
 import { DiagramCompiler, type WasmRuntimeLike, type WasmSessionLike, type CompileOptionsLike } from "./compiler";
 import { Connection, type RawConnectionJson } from "./connection";
-import { CppBlockCatalog, defaultCppBlockCatalog, type BlockPortTopology } from "./cppBlockCatalog";
+import { CppBlockCatalog, defaultCppBlockCatalog } from "./cppBlockCatalog";
 import { InferredPortType } from "./inferredPortType";
 import { DiagramBlock, type RawBlockJson } from "./diagramBlock";
 import { PortEndpoint } from "./endpoint";
@@ -77,6 +75,8 @@ export interface IDiagram {
   readonly typeSystem: TypeSystem;
   inferPortType(blockId: string, portId: string, direction?: "input" | "output"): InferredPortType;
   inferPortTypes(): DiagramPortTypes;
+  analyze(dumper?: ClangAstDumper): Promise<DiagramAnalysis>;
+  canConnectAsync(from: PortEndpoint, to: PortEndpoint): Promise<{ ok: boolean; reason?: string; diagnostics?: DiagramAnalysis["diagnostics"] }>;
   addBlock(
     refOrDef: string | BlockDefinition,
     position: { x: number; y: number },
@@ -101,7 +101,6 @@ export class Diagram implements IDiagram {
   private readonly blocks = new Map<string, DiagramBlock>();
   private readonly connections = new Map<string, Connection>();
   private readonly nextBlockSeq = new Map<string, number>();
-  private inferredPortTypes: DiagramPortTypes | undefined;
 
   constructor(
     public id: string,
@@ -112,10 +111,6 @@ export class Diagram implements IDiagram {
 
   get typeSystem(): TypeSystem {
     return this.palette.typeSystem;
-  }
-
-  private get clangTypes(): ClangTypeCatalog {
-    return this.catalog.clangTypeCatalog;
   }
 
   // --- Block Operations ---
@@ -145,7 +140,6 @@ export class Diagram implements IDiagram {
 
     const block = new DiagramBlock(blockId, def, position.x, position.y, conf);
     this.blocks.set(blockId, block);
-    this.inferredPortTypes = undefined;
     return block;
   }
 
@@ -154,7 +148,6 @@ export class Diagram implements IDiagram {
     for (const [connId, conn] of this.connections) {
       if (conn.connectsBlock(blockId)) this.connections.delete(connId);
     }
-    this.inferredPortTypes = undefined;
     return true;
   }
 
@@ -195,13 +188,16 @@ export class Diagram implements IDiagram {
       if (conn.matches(from, to)) return { ok: false, reason: "Connection already exists" };
     }
 
-    const dump = this.clangTypes.dumpProbe(this.emitConnectionProbe(from, to));
-    if (dump.ok) return { ok: true };
-    if (dump.hasTypeError) {
-      const first = dump.diagnostics.split("\n").find((line) => /error:/.test(line));
-      return { ok: false, reason: first?.replace(/^.*error: /, "") ?? dump.diagnostics };
-    }
-    throw new Error(`clang++ failed while checking connection\n${dump.diagnostics}`);
+    if (from.portType !== "output" || to.portType !== "input") return { ok: false, reason: "Connections run from outputs to inputs" };
+    if (!Number.isInteger(from.vectorIndex) || !Number.isInteger(to.vectorIndex)) return { ok: false, reason: "Vector index must be an integer" };
+    const reaches = (id: string, seen = new Set<string>()): boolean => {
+      if (id === from.blockId) return true;
+      if (seen.has(id)) return false;
+      seen.add(id);
+      return this.getConnections().filter((c) => c.from.blockId === id).some((c) => reaches(c.to.blockId, seen));
+    };
+    if (reaches(to.blockId)) return { ok: false, reason: "Connection creates a cycle" };
+    return { ok: true };
   }
 
   inferPortType(blockId: string, portId: string, direction?: "input" | "output"): InferredPortType {
@@ -216,199 +212,23 @@ export class Diagram implements IDiagram {
   }
 
   inferPortTypes(): DiagramPortTypes {
-    if (this.inferredPortTypes) return this.inferredPortTypes;
-    const dump = this.clangTypes.dumpProbe(this.emitInferProbe());
-    if (!dump.ok || dump.ast === undefined) {
-      throw new Error(`clang++ AST dump failed while inferring port types\n${dump.diagnostics}`);
-    }
-    const unit = ClangTranslationUnit.parse(dump.ast);
-    const types = new DiagramPortTypes();
-    for (const block of this.getBlocks()) {
-      const conf = block.getAllConf();
-      for (const port of [...block.getInputPorts(), ...block.getOutputPorts()]) {
-        const varName = portVarName(block.id, port.direction, port.id);
-        const clangType = unit.varType(varName);
-        if (!clangType) throw new Error(`clang AST is missing ${varName}`);
-        let vectorLength: number | undefined;
-        if (port.lengthBindConfId) {
-          const bound = conf[port.lengthBindConfId];
-          if (Array.isArray(bound)) vectorLength = bound.length;
-        }
-        types.set(
-          block.id,
-          port.direction,
-          port.id,
-          new InferredPortType(clangType, Boolean(port.vector || clangType.isVectorized), vectorLength),
-        );
-      }
-    }
-
-    for (const connection of this.getConnections()) {
-      this.expandVectorLength(types, connection.from.blockId, connection.from.portType, connection.from.portId, connection.from.vectorIndex);
-      this.expandVectorLength(types, connection.to.blockId, connection.to.portType, connection.to.portId, connection.to.vectorIndex);
-    }
-    this.inferredPortTypes = types;
-    return types;
+    const result = new CppDiagramBuilder().analyzeSync(this);
+    if (!result.ok) throw new Error(result.diagnostics.map((d) => d.message).join("\n"));
+    return result.types;
   }
 
-  private emitInferProbe(): string {
-    const lines = ['#include "base.hpp"', "", "void infer_ports() {"];
-    this.getBlocks().forEach((block, index) => {
-      const topology = this.catalog.topology(block.ref, block.getAllConf());
-      const ident = cppIdent(block.id);
-      lines.push(...this.emitProbeConstruct(ident, block, topology, index).map((line) => `  ${line}`));
-      lines.push(...this.emitProbePortVars(ident, block, topology).map((line) => `  ${line}`));
-    });
-    lines.push("}");
-    lines.push("");
-    return lines.join("\n");
+  async analyze(dumper = ClangAstDumper.defaultDumper()): Promise<DiagramAnalysis> {
+    const result = await new CppDiagramBuilder().analyze(this, dumper);
+    return result;
   }
 
-  private emitConnectionProbe(from: PortEndpoint, to: PortEndpoint): string {
-    const fromBlock = this.getBlock(from.blockId);
-    const toBlock = this.getBlock(to.blockId);
-    if (!fromBlock || !toBlock) throw new Error("missing block");
-    const fromTop = this.catalog.topology(fromBlock.ref, fromBlock.getAllConf());
-    const toTop = this.catalog.topology(toBlock.ref, toBlock.getAllConf());
-    const fromIdent = cppIdent(fromBlock.id);
-    const toIdent = cppIdent(toBlock.id);
-    const lines = ['#include "base.hpp"', "", "void check_connection() {"];
-    lines.push(...this.emitProbeConstruct(fromIdent, fromBlock, fromTop, 0).map((line) => `  ${line}`));
-    lines.push(...this.emitProbeConstruct(toIdent, toBlock, toTop, 1).map((line) => `  ${line}`));
-    lines.push(...this.emitProbeApply(toIdent, toTop, "to_in").map((line) => `  ${line}`));
-    const toConsumer = toTop.returnsScalarConsumer() ? "to_in" : `to_in[${to.vectorIndex}]`;
-    const stream = fromTop.streamCppType();
-    lines.push(`  auto from_dn = ${stream}{};`);
-    lines.push(`  from_dn.push_back(${toConsumer});`);
-    if (fromTop.registersHostPins()) {
-      lines.push(`  ${fromIdent}->connectPin(static_cast<u8>(${from.vectorIndex}), static_cast<${stream}&&>(from_dn));`);
-      lines.push(`  ${fromIdent}->apply();`);
-    } else if (fromTop.exposesConsumerBank()) {
-      lines.push(`  auto from_in = ${fromIdent}->apply(static_cast<u8>(1));`);
-      lines.push(`  from_in[${from.vectorIndex}] = ${toConsumer};`);
-    } else if (fromTop.returnsIndexedConsumers() && !fromTop.exposesConsumerBank()) {
-      lines.push(`  auto from_in = ${fromIdent}->apply(static_cast<${stream}&&>(from_dn), static_cast<u8>(1));`);
-    } else if (fromTop.returnsScalarConsumer()) {
-      lines.push(`  auto from_in = ${fromIdent}->apply(static_cast<${stream}&&>(from_dn));`);
-    } else {
-      lines.push(`  ${fromIdent}->apply(static_cast<${stream}&&>(from_dn));`);
-    }
-    lines.push("}");
-    lines.push("");
-    return lines.join("\n");
-  }
-
-  private emitProbeConstruct(
-    ident: string,
-    block: DiagramBlock,
-    topology: BlockPortTopology,
-    numericId: number,
-  ): string[] {
-    const conf = block.getAllConf();
-    const args: string[] = [`${Math.trunc(numericId)}u`];
-    const prefix: string[] = [];
-    const ctorParams = topology.constructorParameters().slice(1);
-    const confProps = [...block.definition.config.values()];
-    ctorParams.forEach((param, index) => {
-      const prop = confProps[index];
-      if (!prop) return;
-      if (CppTypeNames.isArrayQualType(param.qualType)) {
-        const arr = `${ident}_${prop.id}`;
-        const values = arrayValues(conf, prop.id, prop.defaultValue);
-        prefix.push(`auto ${arr} = ${param.qualType}{};`);
-        for (const value of values) prefix.push(`${arr}.push_back(${value});`);
-        args.push(`static_cast<${param.qualType}&&>(${arr})`);
-      } else {
-        args.push(CppTypeNames.literalFromClang(param.qualType, conf[prop.id] ?? prop.defaultValue ?? 0));
-      }
-    });
-    return [...prefix, `auto* ${ident} = new ${block.definition.cppClass}(${args.join(", ")});`];
-  }
-
-  private emitProbePortVars(
-    ident: string,
-    block: DiagramBlock,
-    topology: BlockPortTopology,
-  ): string[] {
-    const stream = topology.streamCppType();
-    const dn = `${ident}_dn`;
-    const lines: string[] = [`auto ${dn} = ${stream}{};`];
-    const bind = (direction: "input" | "output", portId: string, expr: string) => {
-      lines.push(`auto ${portVarName(block.id, direction, portId)} = ${expr};`);
-    };
-
-    if (topology.exposesConsumerBank()) {
-      lines.push(`auto ${ident}_in = ${ident}->apply(static_cast<u8>(1));`);
-      for (const port of block.getOutputPorts()) bind("output", port.id, `${ident}_in`);
-      return lines;
-    }
-
-    if (topology.registersHostPins()) {
-      lines.push(`${ident}->connectPin(static_cast<u8>(0), static_cast<${stream}&&>(${dn}));`);
-      lines.push(`${ident}->apply();`);
-      for (const port of block.getInputPorts()) bind("input", port.id, dn);
-      return lines;
-    }
-
-    if (topology.returnsScalarConsumer()) {
-      lines.push(`auto ${ident}_in = ${ident}->apply(static_cast<${stream}&&>(${dn}));`);
-      for (const port of block.getInputPorts()) bind("input", port.id, `${ident}_in`);
-      for (const port of block.getOutputPorts()) bind("output", port.id, `${dn}[0]`);
-      return lines;
-    }
-
-    if (topology.returnsIndexedConsumers()) {
-      lines.push(`auto ${ident}_in = ${ident}->apply(static_cast<${stream}&&>(${dn}), static_cast<u8>(1));`);
-      for (const port of block.getInputPorts()) bind("input", port.id, `${ident}_in`);
-      for (const port of block.getOutputPorts()) bind("output", port.id, dn);
-      return lines;
-    }
-
-    lines.push(`${ident}->apply(static_cast<${stream}&&>(${dn}));`);
-    for (const port of block.getInputPorts()) bind("input", port.id, dn);
-    return lines;
-  }
-
-  private emitProbeApply(
-    ident: string,
-    topology: BlockPortTopology,
-    resultIdent: string,
-  ): string[] {
-    const stream = topology.streamCppType();
-    const dn = `${ident}_dn`;
-    if (topology.exposesConsumerBank()) {
-      return [`auto ${resultIdent} = ${ident}->apply(static_cast<u8>(1));`];
-    }
-    if (topology.registersHostPins()) {
-      return [
-        `auto ${dn} = ${stream}{};`,
-        `${ident}->connectPin(static_cast<u8>(0), static_cast<${stream}&&>(${dn}));`,
-        `${ident}->apply();`,
-        `auto ${resultIdent} = ${dn};`,
-      ];
-    }
-    if (topology.returnsScalarConsumer()) {
-      return [`auto ${dn} = ${stream}{};`, `auto ${resultIdent} = ${ident}->apply(static_cast<${stream}&&>(${dn}));`];
-    }
-    if (topology.returnsIndexedConsumers()) {
-      return [
-        `auto ${dn} = ${stream}{};`,
-        `auto ${resultIdent} = ${ident}->apply(static_cast<${stream}&&>(${dn}), static_cast<u8>(1));`,
-      ];
-    }
-    return [`auto ${dn} = ${stream}{};`, `${ident}->apply(static_cast<${stream}&&>(${dn}));`, `auto ${resultIdent} = ${dn};`];
-  }
-
-  private expandVectorLength(
-    types: DiagramPortTypes,
-    blockId: string,
-    direction: "input" | "output",
-    portId: string,
-    vectorIndex: number,
-  ): void {
-    const current = types.get(blockId, direction, portId);
-    if (!current) return;
-    types.set(blockId, direction, portId, current.withVectorLength(Math.max(current.vectorLength ?? 0, vectorIndex + 1)));
+  async canConnectAsync(from: PortEndpoint, to: PortEndpoint): Promise<{ ok: boolean; reason?: string; diagnostics?: DiagramAnalysis["diagnostics"] }> {
+    const check = this.canConnect(from, to);
+    if (!check.ok) return check;
+    const candidate = Diagram.fromJSON(this.toJSON(), this.palette);
+    candidate.connect(from, to);
+    const result = await candidate.analyze();
+    return { ok: result.ok, diagnostics: result.diagnostics, ...(result.ok ? {} : { reason: result.diagnostics.filter((d) => d.severity === "error").map((d) => d.message).join("\n") }) };
   }
 
   connect(from: PortEndpoint, to: PortEndpoint, id?: string): Connection {
@@ -426,13 +246,11 @@ export class Diagram implements IDiagram {
 
     const conn = new Connection(connId, from, to);
     this.connections.set(connId, conn);
-    this.inferredPortTypes = undefined;
     return conn;
   }
 
   disconnect(connectionId: string): boolean {
     const removed = this.connections.delete(connectionId);
-    if (removed) this.inferredPortTypes = undefined;
     return removed;
   }
 
@@ -465,6 +283,7 @@ export class Diagram implements IDiagram {
   ): Promise<Diagram> {
     const dumper = ClangAstDumper.defaultDumper();
     const files = new Map<string, string>(Object.entries(ClangAstDumper.libraryFiles));
+    files.set("wasm_host.hpp", browserHost);
     files.set("diagram.cpp", source);
     const dump = await dumper.dumpAsync(files, "diagram.cpp");
     if (dump.ast === undefined) {
@@ -570,15 +389,4 @@ function readDiagramMeta(ast: ClangAstJson, mount: ClangAstJson): Record<string,
 
 function isDiagramMeta(value: Record<string, unknown>): boolean {
   return Boolean(value.blocks && typeof value.blocks === "object" && value.connections && typeof value.connections === "object");
-}
-
-function portVarName(blockId: string, direction: "input" | "output", portId: string): string {
-  return `port_${cppIdent(blockId)}_${direction}_${cppIdent(portId)}`;
-}
-
-function arrayValues(conf: Record<string, unknown>, key: string, fallback: unknown): number[] {
-  const raw = conf[key];
-  if (Array.isArray(raw) && raw.length > 0) return raw.map((entry) => Number(entry));
-  if (Array.isArray(fallback) && fallback.length > 0) return fallback.map((entry) => Number(entry));
-  return [0];
 }

@@ -6,8 +6,10 @@
   "license": "AGPL-3.0-only",
   "scripts": {
     "dev": "rsbuild",
-    "prebuild": "node scripts/fetch-base-release.mjs",
-    "predev": "node scripts/fetch-base-release.mjs",
+    "assets": "node scripts/fetch-base-release.mjs",
+    "prebuild": "npm run assets",
+    "predev": "npm run assets",
+    "pretest": "npm run assets",
     "build": "tsc -b && tsc -b tsconfig.test.json && rsbuild build",
     "preview": "rsbuild preview",
     "test": "tsc -b && tsc -b tsconfig.test.json && rstest tests && playwright test",
@@ -20,6 +22,7 @@
     "@joint/router-avoid": "^4.3.3",
     "@solidjs/web": "^2.0.0-rc.9",
     "core": "*",
+    "modern-tar": "^0.8.5",
     "cpp": "*",
     "solid-js": "^2.0.0-rc.9"
   },

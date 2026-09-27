@@ -12,6 +12,6 @@ export * from "./diagram";
 export * from "./compiler";
 export * from "./cppBuilder";
 export * from "./cppBlockCatalog";
-export * from "./headerCatalog";
+export * from "./metadataCatalog";
 export * from "./library";
 export * from "./libraryArchive";

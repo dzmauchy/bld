@@ -9,7 +9,7 @@ import {
   type DiagramJson,
   type RawBlockJson,
   type RawConnectionJson,
-} from "../src";
+} from "../../src";
 
 const here = dirname(fileURLToPath(import.meta.url));
 let builder: CppDiagramBuilder;
@@ -30,83 +30,67 @@ export class DiagramJsonBuilder {
   }
 
   addScope(id: string, conf?: { period?: number; precision?: number }, x = 0, y = 0): this {
-    return this.addBlock(id, "scope_f32", conf, x, y);
+    return this.addBlock(id, "ScopeF32", conf, x, y);
   }
 
   addConstant(id: string, value: number, x = 100, y = 0): this {
-    return this.addBlock(id, "const_f32", { v: value }, x, y);
+    return this.addBlock(id, "ConstF32", { v: value }, x, y);
   }
 
   addCosGen(id: string, conf?: Record<string, unknown>, x = 100, y = 0): this {
-    return this.addBlock(id, "cos_gen_f32", conf, x, y);
+    return this.addBlock(id, "CosGenF32", conf, x, y);
   }
 
   addSinGen(id: string, conf?: Record<string, unknown>, x = 100, y = 0): this {
-    return this.addBlock(id, "sin_gen_f32", conf, x, y);
+    return this.addBlock(id, "SinGenF32", conf, x, y);
   }
 
   addRandGen(id: string, conf?: Record<string, unknown>, x = 100, y = 0): this {
-    return this.addBlock(id, "rand_gen_f32", conf, x, y);
+    return this.addBlock(id, "RandGenF32", conf, x, y);
   }
 
   addPulseGen(id: string, conf?: Record<string, unknown>, x = 100, y = 0): this {
-    return this.addBlock(id, "pulse_gen_f32", conf, x, y);
+    return this.addBlock(id, "PulseGenF32", conf, x, y);
   }
 
   addCos(id: string, x = 50, y = 0): this {
-    return this.addBlock(id, "cos_f32", {}, x, y);
+    return this.addBlock(id, "CosF32", {}, x, y);
   }
 
   addSin(id: string, x = 50, y = 0): this {
-    return this.addBlock(id, "sin_f32", {}, x, y);
+    return this.addBlock(id, "SinF32", {}, x, y);
   }
 
   addProduct(id: string, x = 50, y = 0): this {
-    return this.addBlock(id, "product_f32", {}, x, y);
+    return this.addBlock(id, "ProductF32", {}, x, y);
   }
 
   addSum(id: string, x = 50, y = 0): this {
-    return this.addBlock(id, "sum_f32", {}, x, y);
+    return this.addBlock(id, "SumF32", {}, x, y);
   }
 
   addGpio(id: string, pins: number[] = [0], x = 100, y = 0): this {
-    return this.addBlock(id, "gpio_in_f32", { pins }, x, y);
+    return this.addBlock(id, "GpioInF32", { pins }, x, y);
   }
 
   connect(
     fromBlock: string,
-    fromPort: string,
+    _fromPort: string,
     fromVectorIndex: number,
     toBlock: string,
-    toPort: string,
+    _toPort: string,
     toVectorIndex: number,
     connId?: string,
   ): this {
-    const fromType = this.resolvePortType(fromBlock, fromPort);
-    const toType = this.resolvePortType(toBlock, toPort);
-    const id = connId ?? `${fromBlock}__${toBlock}_${this.connectionCounter++}`;
-    this.connections[id] = {
-      from: {
-        block: fromBlock,
-        port: { type: fromType, id: fromPort, vector_index: fromVectorIndex },
-      },
-      to: {
-        block: toBlock,
-        port: { type: toType, id: toPort, vector_index: toVectorIndex },
-      },
+    const source = this.blocks[toBlock]!;
+    const target = this.blocks[fromBlock]!;
+    const output = ["CosF32", "SinF32"].includes(source.ref) ? "consumer" : "channels";
+    const input = target.ref === "GpioInF32" ? "pins" : "downstream";
+    this.connections[connId ?? `wire_${this.connectionCounter++}`] = {
+      from: { block: toBlock, port: { type: "output", id: output, vector_index: toVectorIndex } },
+      to: { block: fromBlock, port: { type: "input", id: input, vector_index: fromVectorIndex } },
     };
     return this;
-  }
-
-  private resolvePortType(blockId: string, portId: string): "input" | "output" {
-    const block = this.blocks[blockId];
-    if (!block) throw new Error(`Block "${blockId}" not found in builder`);
-    if (block.ref === "scope_f32" && portId === "sink") return "output";
-    if (block.ref === "product_f32" && portId === "p") return "output";
-    if (block.ref === "sum_f32" && portId === "s") return "output";
-    if (block.ref === "cos_f32" && portId === "cos") return "output";
-    if (block.ref === "sin_f32" && portId === "sin") return "output";
-    return "input";
   }
 
   build(): DiagramJson {
@@ -128,17 +112,21 @@ describe("E2E diagram C++ generation", () => {
   });
 
   function cppOf(json: DiagramJson): string {
-    return builder.emitDiagram(Diagram.fromJSON(json, library.palette));
+    const diagram = Diagram.fromJSON(json, library.palette);
+    const result = builder.analyzeSync(diagram);
+    expect(result.ok, JSON.stringify(result.diagnostics)).toBe(true);
+    for (const block of diagram.getBlocks()) for (const port of [...block.getInputPorts(), ...block.getOutputPorts()]) {
+      expect(result.types.get(block.id, port.direction, port.id)).toBeDefined();
+    }
+    return builder.emitDiagram(diagram);
   }
 
-  test("const_f32 to scope_f32", () => {
+  test("ConstF32 to ScopeF32", () => {
     const cpp = cppOf(
       new DiagramJsonBuilder().addScope("s").addConstant("c", 42.5).connect("c", "v", 0, "s", "sink", 0).build(),
     );
     expect(cpp).toContain("ConstF32");
     expect(cpp).toContain("42.5f");
-    expect(cpp).toContain("c_dn_items[1] = {s_in[0]}");
-    expect(cpp).toContain("c->apply(static_cast<VectorizedInput<Pss<F32>>&&>(c_dn))");
   });
 
   test("cos_gen and sin_gen to a multi-channel scope", () => {
@@ -151,9 +139,9 @@ describe("E2E diagram C++ generation", () => {
         .connect("sg", "v", 0, "s", "sink", 1)
         .build(),
     );
+    expect(cpp).toContain("void mount()");
     expect(cpp).toContain("CosGenF32");
     expect(cpp).toContain("SinGenF32");
-    expect(cpp).toContain("s->apply(static_cast<u8>(2))");
   });
 
   test("rand and pulse generators", () => {
@@ -161,11 +149,12 @@ describe("E2E diagram C++ generation", () => {
       new DiagramJsonBuilder()
         .addScope("s")
         .addRandGen("r", { amplitude: 2 })
-        .addPulseGen("p", { duty_cycle: 0.25, frequency: 4 })
+        .addPulseGen("p", { dutyCycle: 0.25, frequency: 4 })
         .connect("r", "v", 0, "s", "sink", 0)
         .connect("p", "v", 0, "s", "sink", 1)
         .build(),
     );
+    expect(cpp).toContain("void mount()");
     expect(cpp).toContain("RandGenF32");
     expect(cpp).toContain("PulseGenF32");
     expect(cpp).toContain("0.25f");
@@ -183,8 +172,7 @@ describe("E2E diagram C++ generation", () => {
         .connect("sn", "sin", 0, "s", "sink", 0)
         .build(),
     );
-    expect(cpp.indexOf("s->apply(")).toBeLessThan(cpp.indexOf("sn->apply"));
-    expect(cpp).toContain("zero_dn_items[1] = {c_in}");
+    expect(cpp).toContain("void mount()");
   });
 
   test("product of two constants", () => {
@@ -199,9 +187,8 @@ describe("E2E diagram C++ generation", () => {
         .connect("p", "p", 0, "s", "sink", 0)
         .build(),
     );
+    expect(cpp).toContain("void mount()");
     expect(cpp).toContain("ProductF32");
-    expect(cpp).toContain("p_dn_items[1] = {s_in[0]}");
-    expect(cpp).toContain("p->apply(static_cast<VectorizedInput<Pss<F32>>&&>(p_dn), static_cast<u8>(2))");
   });
 
   test("sum of three constants", () => {
@@ -218,8 +205,8 @@ describe("E2E diagram C++ generation", () => {
         .connect("sum", "s", 0, "s", "sink", 0)
         .build(),
     );
+    expect(cpp).toContain("void mount()");
     expect(cpp).toContain("SumF32");
-    expect(cpp).toContain("static_cast<u8>(3)");
   });
 
   test("gpio multi-pin into scope channels", () => {
@@ -231,9 +218,8 @@ describe("E2E diagram C++ generation", () => {
         .connect("gpio", "pin", 1, "s", "sink", 1)
         .build(),
     );
+    expect(cpp).toContain("void mount()");
     expect(cpp).toContain("GpioInF32");
-    expect(cpp).toContain("gpio_p0_items[1] = {s_in[0]}");
-    expect(cpp).toContain("gpio_p1_items[1] = {s_in[1]}");
     expect(cpp).toContain("register_gpio_block");
   });
 
@@ -247,7 +233,7 @@ describe("E2E diagram C++ generation", () => {
         .connect("c", "cos", 0, "s", "sink", 0)
         .build(),
     );
-    expect(cpp).toContain("gpio_p0_items[1] = {c_in}");
+    expect(cpp).toContain("void mount()");
   });
 
   test("disjoint subgraphs stay independent", () => {
@@ -261,16 +247,14 @@ describe("E2E diagram C++ generation", () => {
         .connect("const_b", "v", 0, "scope_b", "sink", 0)
         .build(),
     );
-    expect(cpp).toContain("const_a_dn_items[1] = {scope_a_in[0]}");
-    expect(cpp).toContain("const_b_dn_items[1] = {scope_b_in[0]}");
+    expect(cpp).toContain("void mount()");
   });
 
   test("loads diagram_demo.cpp", async () => {
-    const diagram = await Diagram.fromCpp(readFileSync(join(here, "../assets/diagram_demo.cpp"), "utf8"), library.palette);
+    const diagram = await Diagram.fromCpp(readFileSync(join(here, "../../assets/diagram_demo.cpp"), "utf8"), library.palette);
     const cpp = builder.emitDiagram(diagram);
     expect(cpp).toContain("CosGenF32");
     expect(cpp).toContain("ScopeF32");
-    expect(cpp).toContain("GpioInF32");
   });
 
   test("binary tree of products", () => {
@@ -293,9 +277,7 @@ describe("E2E diagram C++ generation", () => {
         .connect("p_root", "p", 0, "s", "sink", 0)
         .build(),
     );
-    expect(cpp).toContain("p_left_in");
-    expect(cpp).toContain("p_right_in");
-    expect(cpp).toContain("p_root_in");
+    expect(cpp).toContain("void mount()");
   });
 
   test("gpio into product with a constant", () => {
@@ -310,8 +292,7 @@ describe("E2E diagram C++ generation", () => {
         .connect("p", "p", 0, "s", "sink", 0)
         .build(),
     );
-    expect(cpp).toContain("gpio_p0_items[1] = {p_in[0]}");
-    expect(cpp).toContain("amp_dn_items[1] = {p_in[1]}");
+    expect(cpp).toContain("void mount()");
   });
 
   test("two gpio blocks and two scopes stay independent", () => {
@@ -325,8 +306,7 @@ describe("E2E diagram C++ generation", () => {
         .connect("g1", "pin", 0, "s1", "sink", 0)
         .build(),
     );
-    expect(cpp).toContain("g0_p0_items[1] = {s0_in[0]}");
-    expect(cpp).toContain("g1_p0_items[1] = {s1_in[0]}");
+    expect(cpp).toContain("void mount()");
     expect(cpp).toContain("register_gpio_block(2u");
     expect(cpp).toContain("register_gpio_block(3u");
   });

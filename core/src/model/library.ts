@@ -7,7 +7,7 @@ import type { RawBlockCatalogEntry } from "./blockDefinition";
 import { ClangAstDumper } from "cpp";
 import { CompilationModel } from "./compiler";
 import { CppBlockCatalog } from "./cppBlockCatalog";
-import { HeaderCatalog } from "./headerCatalog";
+import { MetadataCatalog } from "./metadataCatalog";
 import { LibraryArchive } from "./libraryArchive";
 import { Palette } from "./palette";
 
@@ -90,7 +90,7 @@ export class Library {
       Library.base = lib;
       CppBlockCatalog.bindPalette(lib.palette);
       const files = compilationModel.getFiles();
-      if (files["base.hpp"]) ClangAstDumper.bindLibraryFiles(files);
+      ClangAstDumper.bindLibraryFiles(files);
     }
     return lib;
   }
@@ -103,9 +103,9 @@ export class Library {
     const archive = await LibraryArchive.fetch(resolveUrl(manifest.location, baseUrl));
     const files = archive.files();
     const compilationModel = new CompilationModel(files);
-    const catalog = await HeaderCatalog.parse(files, Object.keys(files));
+    const catalog = new MetadataCatalog(archive.metadata);
     return Library.fromManifest(manifest, {
-      types: catalog.types,
+      types: {},
       namespaces: catalog.namespaces,
       blocks: catalog.blocks,
       compilationModel,

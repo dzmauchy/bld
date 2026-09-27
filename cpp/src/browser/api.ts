@@ -3,6 +3,7 @@ import { WasmExecutor } from "../executor.ts";
 import { wrapEventTargetWorker } from "../thread.ts";
 
 export type CppPageApi = {
+  dumpAst(files: Record<string, string>, mainFile: string): Promise<{ ok: boolean; ast: unknown; stdout: string; stderr: string }>;
   warmup(): Promise<void>;
   compile(files: Record<string, string>): Promise<number>;
   compileOnly(files: Record<string, string>): Promise<number>;

@@ -1,11 +1,11 @@
 /**
- * In-browser clang/lld binaries published by llvm-project.
- * https://github.com/dzmauchy/llvm-project/releases/tag/clang-lld-wasm-latest
+ * In-browser clang/lld binaries published by clang-wasm.
+ * https://github.com/dzmauchy/clang-wasm/releases/tag/clang-23.1.2
  */
 export class LlvmProjectRelease {
   static readonly owner = "dzmauchy";
-  static readonly repo = "llvm-project";
-  static readonly tag = "clang-lld-wasm-latest";
+  static readonly repo = "clang-wasm";
+  static readonly tag = "clang-23.1.2";
   static readonly files = Object.freeze(["clang.js", "clang.wasm", "lld.js", "lld.wasm", "sysroot.tgz"] as const);
 
   releasePageUrl(): string {
@@ -29,7 +29,7 @@ export class LlvmProjectRelease {
   assetName(url: string): string {
     if (!URL.canParse(url)) return "";
     const parsed = new URL(url);
-    const prefix = `/dzmauchy/llvm-project/releases/download/${LlvmProjectRelease.tag}/`;
+    const prefix = `/dzmauchy/clang-wasm/releases/download/${LlvmProjectRelease.tag}/`;
     if (parsed.origin !== "https://github.com" || !parsed.pathname.startsWith(prefix)) return "";
     return parsed.pathname.slice(prefix.length);
   }

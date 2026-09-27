@@ -1,4 +1,4 @@
-const releasePrefix = "https://github.com/dzmauchy/llvm-project/releases/download/clang-lld-wasm-latest/";
+const releasePrefix = "https://github.com/dzmauchy/clang-wasm/releases/download/clang-23.1.2/";
 const releaseFiles = new Set(["clang.js", "clang.wasm", "lld.js", "lld.wasm", "sysroot.tgz"]);
 
 self.addEventListener("install", (event) => {

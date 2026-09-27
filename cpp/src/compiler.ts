@@ -11,7 +11,7 @@ export interface ICppCompiler {
 /**
  * Compiles a Map of C++ sources/headers to a wasm module by running clang
  * then wasm-ld. Instantiated inside the single compiler worker with tools
- * backed by clang, lld, and the sysroot archive from the llvm-project release.
+ * backed by clang, lld, and the sysroot archive from the clang-wasm release.
  */
 export class CppWasmCompiler implements ICppCompiler {
   constructor(
