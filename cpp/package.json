@@ -26,6 +26,8 @@
     "preview": "rsbuild build && rsbuild preview --port 3002",
     "test": "tsc -b && tsc -b tsconfig.test.json && rstest tests && playwright test",
     "test:unit": "tsc -b && tsc -b tsconfig.test.json && rstest tests/unit",
+    "test:manual": "playwright test e2e/diagramProfile.manual.spec.ts",
+    "test:profile": "playwright test e2e/diagramProfile.manual.spec.ts",
     "clean": "tsc -b --clean"
   }
 }

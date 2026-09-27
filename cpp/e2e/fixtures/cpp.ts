@@ -23,16 +23,36 @@ export class CppSession {
     });
   }
 
+  private _warmupDurationMs = 0;
+
+  get warmupDurationMs(): number {
+    return this._warmupDurationMs;
+  }
+
   async warmup(baseURL: string): Promise<void> {
+    const start = performance.now();
     await this.page.goto(baseURL);
     await expect(this.page.locator("#status")).toHaveText("module-ready");
     await this.page.evaluate(() => window.cpp.warmup());
     await expect(this.page.locator("#status")).toHaveText("ready");
     expect(this.workers).toHaveLength(2);
+    this._warmupDurationMs = performance.now() - start;
   }
 
   async compile(files: Map<string, string>): Promise<void> {
     await this.page.evaluate((files) => window.cpp.compile(files), Object.fromEntries(files));
+  }
+
+  async compileOnly(files: Map<string, string>): Promise<number> {
+    return this.page.evaluate((files) => window.cpp.compileOnly(files), Object.fromEntries(files));
+  }
+
+  async instantiateLast(): Promise<number> {
+    return this.page.evaluate(() => window.cpp.instantiateLast());
+  }
+
+  get browserPage(): Page {
+    return this.page;
   }
 
   invoke(name: string, args: number[] = []): Promise<number> {

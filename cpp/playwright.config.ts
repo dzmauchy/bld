@@ -9,6 +9,7 @@ delete process.env.NO_COLOR;
 export default defineConfig({
   testDir: "./e2e",
   testMatch: /.*\.spec\.ts/,
+  testIgnore: (process.env.MANUAL || process.argv.some((arg) => arg.includes("manual"))) ? [] : ["**/*.manual.spec.ts"],
   fullyParallel: false,
   workers: 1,
   forbidOnly: !!process.env.CI,
