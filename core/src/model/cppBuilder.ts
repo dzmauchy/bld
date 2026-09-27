@@ -27,6 +27,25 @@ export interface DiagramDiagnostic {
 
 export class DiagramAnalysis {
   constructor(readonly ok: boolean, readonly types: DiagramPortTypes, readonly diagnostics: DiagramDiagnostic[]) {}
+
+  assignTo(diagram: Diagram): void {
+    for (const block of diagram.getBlocks()) {
+      for (const port of [...block.getInputPorts(), ...block.getOutputPorts()]) {
+        const diagnostics = this.diagnostics.filter((diagnostic) => {
+          if (diagnostic.from || diagnostic.to) {
+            return [diagnostic.from, diagnostic.to].some((endpoint) =>
+              endpoint?.block === block.id && endpoint.port.type === port.direction && endpoint.port.id === port.id,
+            );
+          }
+          if (diagnostic.blockId !== block.id) return false;
+          if (!diagnostic.inputId && !diagnostic.outputId) return true;
+          return (port.direction === "input" ? diagnostic.inputId : diagnostic.outputId) === port.id;
+        });
+        port.assignAnalysis(this.types.get(block.id, port.direction, port.id), diagnostics);
+      }
+    }
+  }
+
   toJSON() {
     return { ok: this.ok, diagnostics: this.diagnostics, ports: this.types.entries().map(({ inferred, ...port }) => ({
       ...port, type: inferred.qualType, canonicalType: inferred.desugaredQualType,
@@ -117,20 +136,22 @@ export class CppDiagramBuilder extends DiagramSourceBuilder {
   }
 
   async analyze(diagram: Diagram, dumper = ClangAstDumper.defaultDumper()): Promise<DiagramAnalysis> {
-    diagram = Diagram.fromJSON(structuredClone(diagram.toJSON()), diagram.palette);
-    const probe = await dumper.dumpAsync(this.probeFiles(diagram), "diagram.cpp");
-    if (!probe.ok) return this.result(diagram, probe);
-    const invalid = this.prepareAnalysis(diagram, probe);
-    if (invalid) return invalid;
-    return this.result(diagram, await dumper.dumpAsync(this.build(diagram), "diagram.cpp"));
+    const snapshot = Diagram.fromJSON(structuredClone(diagram.toJSON()), diagram.palette);
+    const probe = await dumper.dumpAsync(this.probeFiles(snapshot), "diagram.cpp");
+    const analysis = !probe.ok ? this.result(snapshot, probe)
+      : this.prepareAnalysis(snapshot, probe)
+        ?? this.result(snapshot, await dumper.dumpAsync(this.build(snapshot), "diagram.cpp"));
+    analysis.assignTo(diagram);
+    return analysis;
   }
 
   analyzeSync(diagram: Diagram, dumper = ClangAstDumper.defaultDumper()): DiagramAnalysis {
     const probe = dumper.dump(this.probeFiles(diagram), "diagram.cpp");
-    if (!probe.ok) return this.result(diagram, probe);
-    const invalid = this.prepareAnalysis(diagram, probe);
-    if (invalid) return invalid;
-    return this.result(diagram, dumper.dump(this.build(diagram), "diagram.cpp"));
+    const analysis = !probe.ok ? this.result(diagram, probe)
+      : this.prepareAnalysis(diagram, probe)
+        ?? this.result(diagram, dumper.dump(this.build(diagram), "diagram.cpp"));
+    analysis.assignTo(diagram);
+    return analysis;
   }
 
   private prepareAnalysis(diagram: Diagram, probe: ClangDumpResult): DiagramAnalysis | undefined {

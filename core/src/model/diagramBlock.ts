@@ -1,7 +1,9 @@
 /**
  * @title Diagram Block
  */
-import type { BlockDefinition, PortDefinition } from "./blockDefinition";
+import { PortDefinition, type BlockDefinition } from "./blockDefinition";
+import type { DiagramDiagnostic } from "./cppBuilder";
+import type { InferredPortType } from "./inferredPortType";
 
 export interface RawBlockJson {
   ref: string;
@@ -21,8 +23,37 @@ export abstract class DiagramElement {
   abstract toJSON(): unknown;
 }
 
+/** Analysis belongs to a block instance, rather than its shared palette definition. */
+export class DiagramBlockPort extends PortDefinition {
+  private resolvedType: InferredPortType | undefined;
+  private messages: readonly DiagramDiagnostic[] = [];
+
+  constructor(definition: PortDefinition) {
+    super(definition.id, definition.direction, definition.type, definition.vector, definition.concept);
+  }
+
+  get inferredType(): InferredPortType | undefined {
+    return this.resolvedType;
+  }
+
+  get diagnostics(): readonly DiagramDiagnostic[] {
+    return this.messages;
+  }
+
+  get hasError(): boolean {
+    return this.messages.some((diagnostic) => diagnostic.severity === "error");
+  }
+
+  assignAnalysis(type: InferredPortType | undefined, diagnostics: readonly DiagramDiagnostic[]): void {
+    this.resolvedType = type;
+    this.messages = [...diagnostics];
+  }
+}
+
 export class DiagramBlock extends DiagramElement {
   private readonly confValues: Map<string, unknown>;
+  private readonly inputPorts: DiagramBlockPort[];
+  private readonly outputPorts: DiagramBlockPort[];
 
   constructor(
     id: string,
@@ -33,6 +64,8 @@ export class DiagramBlock extends DiagramElement {
   ) {
     super(id);
     this.confValues = new Map(Object.entries(initialConf));
+    this.inputPorts = [...definition.inputs.values()].map((port) => new DiagramBlockPort(port));
+    this.outputPorts = [...definition.outputs.values()].map((port) => new DiagramBlockPort(port));
   }
 
   get x(): number {
@@ -79,12 +112,12 @@ export class DiagramBlock extends DiagramElement {
     return nonDefault;
   }
 
-  getInputPorts(): PortDefinition[] {
-    return this.definition.inputs.values().toArray();
+  getInputPorts(): DiagramBlockPort[] {
+    return [...this.inputPorts];
   }
 
-  getOutputPorts(): PortDefinition[] {
-    return this.definition.outputs.values().toArray();
+  getOutputPorts(): DiagramBlockPort[] {
+    return [...this.outputPorts];
   }
 
   override toJSON(): RawBlockJson {
