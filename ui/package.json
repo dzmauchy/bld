@@ -15,7 +15,7 @@
     "test": "tsc -b && tsc -b tsconfig.test.json && rstest tests && playwright test",
     "test:unit": "tsc -b && tsc -b tsconfig.test.json && rstest tests/unit",
     "clean": "tsc -b --clean",
-    "deploy": "node scripts/brotliWasmAssets.mjs && wrangler deploy --config ../wrangler.json"
+    "deploy": "wrangler deploy --config ../wrangler.json"
   },
   "dependencies": {
     "@awesome.me/webawesome": "^3.14.0",
