@@ -41,7 +41,7 @@ describe("toolchain argument builders", () => {
     expect(args).toContain("--no-entry");
     expect(args).toContain("--export-all");
     expect(args).toContain("/work/add.o");
-    expect(args).toContain("/sysroot/lib/wasm32-emscripten/crt1_reactor.o");
+    expect(args).toContain("/sysroot/lib/target/crt1_reactor.o");
     expect(args).toContain("-lc++-noexcept");
     expect(args).toContain("-lstandalonewasm");
     expect(args.at(-2)).toBe("-o");

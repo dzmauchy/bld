@@ -16,7 +16,7 @@ export function shouldInstallSysrootEntry(name: string, kind: SysrootInstallKind
   if (kind === "headers") {
     return normalized.includes("/include/") || HEADER_NAME.test(normalized);
   }
-  return normalized.includes("/lib/") && LIBRARY_NAME.test(normalized);
+  return normalized.includes("/target/") && LIBRARY_NAME.test(normalized);
 }
 
 export class SysrootInstaller {

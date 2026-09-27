@@ -50,7 +50,7 @@ export class ClangArgumentBuilder {
 
 export class LldArgumentBuilder {
   build(objectPaths: string[], outputPath: string): string[] {
-    const lib = "/sysroot/lib/wasm32-emscripten";
+    const lib = "/sysroot/lib/target";
     return [
       "-flavor",
       "wasm",
