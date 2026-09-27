@@ -85,3 +85,76 @@ describe("clang frontend and wasm linker", () => {
     expect(wasm).toEqual(new Uint8Array([0, 97, 115, 109]));
   });
 });
+
+describe("precompiled header lifecycle", () => {
+  test("restores cached PCH bytes and headers into every fresh AST and compile filesystem", async () => {
+    const runs: string[][] = [];
+    let builds = 0;
+    const clang = new ClangFrontend(async (options) => {
+      const fs = new MemoryFileSystem();
+      return {
+        FS: emscriptenApi(fs),
+        callMain(args) {
+          runs.push(args);
+          const include = args.indexOf("-include-pch");
+          if (args.includes("c++-header")) {
+            builds += 1;
+            expect(fs.exists("/work/value.hpp")).toBe(true);
+            fs.writeTree(args.at(-1)!, new Uint8Array([builds]));
+          } else {
+            expect(include).toBeGreaterThan(-1);
+            expect(fs.readFile(args[include + 1]!)).toEqual(new Uint8Array([builds]));
+            expect(fs.exists("/work/value.hpp")).toBe(true);
+            if (args.includes("-c")) fs.writeTree(args.at(-1)!, new Uint8Array([42]));
+            else options?.print?.('{"kind":"TranslationUnitDecl"}');
+          }
+          return 0;
+        },
+      };
+    }, "clang.wasm");
+    await clang.boot();
+    const files = new Map([
+      ["value.hpp", "#pragma once\nconstexpr int value = 1;"],
+      ["main.cpp", "int answer() { return value; }"],
+    ]);
+    await clang.precompileHeaders(files);
+    expect(builds).toBe(1);
+    expect((await clang.dumpAst(files, "main.cpp")).ok).toBe(true);
+    expect((await clang.emitAst(files, "main.cpp")).ok).toBe(true);
+    files.set("other.cpp", "int other() { return value + 1; }");
+    expect(await clang.compile(files)).toHaveLength(2);
+    expect(builds).toBe(1);
+    files.set("value.hpp", "#pragma once\nconstexpr int value = 2;");
+    await clang.compile(files);
+    expect(builds).toBe(2);
+    expect(runs.filter((args) => args.includes("-include-pch"))).toHaveLength(6);
+  });
+
+  test("retries failed PCH generation and restores the cache after an aborted compilation", async () => {
+    let pchAttempts = 0;
+    let compileAttempts = 0;
+    const clang = new ClangFrontend(async () => {
+      const fs = new MemoryFileSystem();
+      return {
+        FS: emscriptenApi(fs),
+        callMain(args) {
+          if (args.includes("c++-header")) {
+            if (++pchAttempts === 1) return 1;
+            fs.writeTree(args.at(-1)!, new Uint8Array([7]));
+          } else {
+            expect(fs.readFile(args[args.indexOf("-include-pch") + 1]!)).toEqual(new Uint8Array([7]));
+            if (++compileAttempts === 1) throw new Error("Aborted");
+            fs.writeTree(args.at(-1)!, new Uint8Array([42]));
+          }
+          return 0;
+        },
+      };
+    }, "clang.wasm");
+    await clang.boot();
+    const files = new Map([["value.hpp", "#pragma once"], ["main.cpp", "int answer;"]]);
+    await expect(clang.precompileHeaders(files)).rejects.toThrow("exited with 1");
+    expect((await clang.compile(files))[0]?.bytes).toEqual(new Uint8Array([42]));
+    expect(pchAttempts).toBe(2);
+    expect(compileAttempts).toBe(2);
+  });
+});

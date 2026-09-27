@@ -150,3 +150,22 @@ test("a subsequent job cannot include a header from a previous job", async () =>
   });
   expect(message).toMatch(/old.h.*file not found/);
 });
+
+test("PCH-backed ASTs omit header declarations and changed headers rebuild correctly", async () => {
+  const result = await page.evaluate(async () => {
+    const header = "#pragma once\nstruct HeaderOnly { int value; };\nconstexpr int value = 41;";
+    const files = { "value.hpp": header, "main.cpp": 'extern "C" int answer() { auto port = value; return port; }' };
+    await window.cpp.precompileHeaders(files);
+    const dump = await window.cpp.dumpAst(files, "main.cpp");
+    const ast = dump.ast as { inner?: { name?: string }[] };
+    const first = await window.cpp.compileAndInvoke(files, "answer", []);
+    const second = await window.cpp.compileAndInvoke({ ...files, "value.hpp": header.replace("41", "42") }, "answer", []);
+    const third = await window.cpp.compileAndInvoke({ "main.cpp": 'extern "C" int answer() { return 43; }' }, "answer", []);
+    return { ok: dump.ok, ast: JSON.stringify(dump.ast), names: ast.inner?.map((node) => node.name), first, second, third };
+  });
+  expect(result.ok).toBe(true);
+  expect(result.ast).toContain('"name":"answer"');
+  expect(result.names).not.toContain("HeaderOnly");
+  expect(result.names).not.toContain("value");
+  expect([result.first, result.second, result.third]).toEqual([41, 42, 43]);
+});

@@ -41,6 +41,11 @@ export class CppWasmCompiler implements ICppCompiler {
     await this.linker.installSysroot(archive, "libraries");
   }
 
+  /** Precompile shared headers once; source changes reuse the cached PCH. */
+  async precompileHeaders(files: Map<string, string>): Promise<void> {
+    await this.clang.precompileHeaders(files);
+  }
+
   async compile(files: Map<string, string>): Promise<Uint8Array> {
     const objects = await this.clang.compile(files);
     return this.linker.link(objects);
@@ -86,6 +91,12 @@ export class WorkerCppWasmCompiler implements ICppCompiler {
       throw error;
     });
     await this.ready;
+  }
+
+  /** Precompile shared headers once; source changes reuse the cached PCH. */
+  async precompileHeaders(files: Map<string, string>): Promise<void> {
+    await this.warmup();
+    await this.client.request({ type: "precompile-headers", files: Object.fromEntries(files) });
   }
 
   async compile(files: Map<string, string>): Promise<Uint8Array> {

@@ -15,69 +15,35 @@ export class ClangArgumentBuilder {
     return new ClangArgumentBuilder({ ...this.options, resourceDir });
   }
 
-  syntaxOnlyAstDump(sourcePath: string): string[] {
+  syntaxOnlyAstDump(sourcePath: string, pchPath?: string): string[] {
+    return [...this.common(pchPath), "-fsyntax-only", "-Xclang", "-ast-dump=json", sourcePath];
+  }
+
+  emitAst(sourcePath: string, pchPath?: string): string[] {
+    return [...this.common(pchPath), "-fsyntax-only", "-Xclang", "-ast-dump", sourcePath];
+  }
+
+  precompile(headerPath: string, pchPath: string): string[] {
     return [
-      "--target=wasm32-unknown-emscripten",
-      "--sysroot=/sysroot",
-      "-resource-dir",
-      this.options.resourceDir,
-      "-fno-exceptions",
-      "-fno-rtti",
-      "-fno-threadsafe-statics",
-      `-std=${this.options.std}`,
-      "-fno-color-diagnostics",
-      "-fmessage-length=0",
-      "-ferror-limit=0",
-      "-fparse-all-comments",
-      "-I/work",
-      "-fsyntax-only",
-      "-Xclang",
-      "-ast-dump=json",
-      sourcePath,
+      ...this.common(), "-Xclang", "-fno-pch-timestamp",
+      "-x", "c++-header", headerPath, "-o", pchPath,
     ];
   }
 
-  emitAst(sourcePath: string): string[] {
-    return [
-      "--target=wasm32-unknown-emscripten",
-      "--sysroot=/sysroot",
-      "-resource-dir",
-      this.options.resourceDir,
-      "-fno-exceptions",
-      "-fno-rtti",
-      "-fno-threadsafe-statics",
-      `-std=${this.options.std}`,
-      "-fno-color-diagnostics",
-      "-fmessage-length=0",
-      "-ferror-limit=0",
-      "-fparse-all-comments",
-      "-I/work",
-      "-fsyntax-only",
-      "-Xclang",
-      "-ast-dump",
-      sourcePath,
-    ];
+  build(sourcePath: string, objectPath: string, pchPath?: string): string[] {
+    return [...this.common(pchPath), "-c", sourcePath, "-o", objectPath];
   }
 
-  build(sourcePath: string, objectPath: string): string[] {
+  private common(pchPath?: string): string[] {
     return [
       "--target=wasm32-unknown-emscripten",
       "--sysroot=/sysroot",
-      "-resource-dir",
-      this.options.resourceDir,
-      "-fno-exceptions",
-      "-fno-rtti",
-      "-fno-threadsafe-statics",
-      `-std=${this.options.std}`,
-      `-O${this.options.optimize}`,
-      "-fno-color-diagnostics",
-      "-fmessage-length=0",
-      "-ferror-limit=0",
-      "-I/work",
-      "-c",
-      sourcePath,
-      "-o",
-      objectPath,
+      "-resource-dir", this.options.resourceDir,
+      "-fno-exceptions", "-fno-rtti", "-fno-threadsafe-statics",
+      `-std=${this.options.std}`, `-O${this.options.optimize}`,
+      "-fno-color-diagnostics", "-fmessage-length=0", "-ferror-limit=0",
+      "-fparse-all-comments", "-I/work",
+      ...(pchPath ? ["-include-pch", pchPath] : []),
     ];
   }
 }

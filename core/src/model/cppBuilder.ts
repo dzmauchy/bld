@@ -88,6 +88,11 @@ export class CppDiagramBuilder extends DiagramSourceBuilder {
     const lines = [
       ...Object.keys(this.libraryFiles).filter((name) => /\.(h|hpp|hh|hxx)$/.test(name)).sort().map((name) => `#include <${name}>`),
       '#include "wasm_host.hpp"', helpers,
+      // Explicit local instantiations keep constructor metadata visible in PCH-backed ASTs.
+      ...(probe ? [...new Set(blocks.map((block) => block.definition.cppClass))].filter((cpp) => cpp.endsWith("<>")).map((cpp) => {
+        const split = cpp.lastIndexOf("::");
+        return split < 0 ? `template class ${cpp};` : `namespace ${cpp.slice(0, split)} { template class ${cpp.slice(split + 2)}; }`;
+      }) : []),
       ...JSON.stringify(diagram.toJSON(), null, 2).split("\n").map((line) => `// ${line}`),
       'extern "C" void mount() {',
     ];

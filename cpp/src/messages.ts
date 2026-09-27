@@ -53,7 +53,13 @@ export type CompilerEmitAstRequest = {
   mainFile: string;
 };
 
-export type CompilerRequest = CompilerInitRequest | CompilerCompileRequest | CompilerDumpAstRequest | CompilerEmitAstRequest;
+export type CompilerPrecompileHeadersRequest = {
+  type: "precompile-headers";
+  id: number;
+  files: Record<string, string>;
+};
+
+export type CompilerRequest = CompilerPrecompileHeadersRequest | CompilerInitRequest | CompilerCompileRequest | CompilerDumpAstRequest | CompilerEmitAstRequest;
 
 export type ExecutorInstantiateRequest = {
   type: "instantiate";

@@ -39,7 +39,7 @@ test("AST clients share the compiler runtime and can reuse the shared API after 
     await dumper.dumpAsync(files, "main.cpp");
     expect(runtime.workerCreateCount).toBe(2);
     expect(RecordingWorker.instances).toHaveLength(2);
-    expect(RecordingWorker.instances[0]?.requests).toEqual(["init", "dump-ast", "dump-ast"]);
+    expect(RecordingWorker.instances[0]?.requests).toEqual(["init", "precompile-headers", "dump-ast", "precompile-headers", "dump-ast"]);
 
     await runtime.close();
     expect(RecordingWorker.instances.every((worker) => worker.terminated)).toBe(true);
@@ -50,7 +50,7 @@ test("AST clients share the compiler runtime and can reuse the shared API after 
     await dumper.dumpAsync(files, "main.cpp");
     expect(runtime.workerCreateCount).toBe(1);
     expect(RecordingWorker.instances).toHaveLength(3);
-    expect(RecordingWorker.instances[2]?.requests).toEqual(["init", "dump-ast"]);
+    expect(RecordingWorker.instances[2]?.requests).toEqual(["init", "precompile-headers", "dump-ast"]);
   } finally {
     await runtime.close();
     if (previousWorker) Object.defineProperty(globalThis, "Worker", previousWorker);

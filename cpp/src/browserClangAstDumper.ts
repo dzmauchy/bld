@@ -21,7 +21,11 @@ export class BrowserClangAstDumper extends ClangAstDumper {
 
   static shared(): BrowserClangAstDumper {
     this.instance ??= new BrowserClangAstDumper({
-      dumpAst: (files, mainFile) => BrowserCppRuntime.shared().compiler.dumpAst(files, mainFile),
+      async dumpAst(files, mainFile) {
+        const compiler = BrowserCppRuntime.shared().compiler;
+        await compiler.precompileHeaders(files);
+        return compiler.dumpAst(files, mainFile);
+      },
     });
     return this.instance;
   }

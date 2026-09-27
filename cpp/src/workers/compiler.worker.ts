@@ -22,6 +22,10 @@ export class CompilerWorkerSession {
     await this.compiler.initialize();
   }
 
+  async precompileHeaders(files: Record<string, string>): Promise<void> {
+    await this.compiler.precompileHeaders(new Map(Object.entries(files)));
+  }
+
   async compile(files: Record<string, string>): Promise<Uint8Array> {
     return this.compiler.compile(new Map(Object.entries(files)));
   }
@@ -45,6 +49,10 @@ attachWorker(async (data): Promise<WorkerResponse> => {
   if (!isCompilerRequest(data)) throw new Error("invalid compiler worker message");
   if (data.type === "init") {
     await session.init();
+    return { id: data.id, type: "ok" };
+  }
+  if (data.type === "precompile-headers") {
+    await session.precompileHeaders(data.files);
     return { id: data.id, type: "ok" };
   }
   if (data.type === "compile") {

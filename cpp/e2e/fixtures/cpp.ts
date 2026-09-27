@@ -39,6 +39,10 @@ export class CppSession {
     this._warmupDurationMs = performance.now() - start;
   }
 
+  async precompileHeaders(files: Map<string, string>): Promise<void> {
+    await this.page.evaluate((files) => window.cpp.precompileHeaders(files), Object.fromEntries(files));
+  }
+
   async compile(files: Map<string, string>): Promise<void> {
     await this.page.evaluate((files) => window.cpp.compile(files), Object.fromEntries(files));
   }
