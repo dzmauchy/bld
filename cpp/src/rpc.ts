@@ -27,6 +27,7 @@ function collectTransferables(value: unknown, into: Transferable[]): void {
 
 export class RpcClient {
   private nextId = 1;
+  private failure: Error | undefined;
   private readonly pending = new Map<number, {
     resolve: (value: WorkerResponse) => void;
     reject: (error: Error) => void;
@@ -41,22 +42,27 @@ export class RpcClient {
       pending.resolve(message);
     });
     this.thread.onError((error) => {
-      for (const [, pending] of this.pending) pending.reject(error);
-      this.pending.clear();
+      this.fail(error);
     });
   }
 
   async request(payload: Record<string, unknown>, transfer = false): Promise<WorkerOk> {
+    if (this.failure) throw this.failure;
     const id = this.nextId++;
     const { promise, resolve, reject } = Promise.withResolvers<WorkerResponse>();
     this.pending.set(id, { resolve, reject });
     const message = { ...payload, id };
-    if (transfer) {
-      const buffers: Transferable[] = [];
-      collectTransferables(message, buffers);
-      this.thread.postMessage(message, buffers);
-    } else {
-      this.thread.postMessage(message);
+    try {
+      if (transfer) {
+        const buffers: Transferable[] = [];
+        collectTransferables(message, buffers);
+        this.thread.postMessage(message, buffers);
+      } else {
+        this.thread.postMessage(message);
+      }
+    } catch (error) {
+      this.pending.delete(id);
+      reject(error instanceof Error ? error : new Error(String(error)));
     }
     const response = await promise;
     if (response.type === "error") {
@@ -66,7 +72,14 @@ export class RpcClient {
   }
 
   terminate(): Promise<unknown> {
+    this.fail(new Error("worker is closed"));
     return this.thread.terminate();
+  }
+
+  private fail(error: Error): void {
+    this.failure = error;
+    for (const pending of this.pending.values()) pending.reject(error);
+    this.pending.clear();
   }
 }
 

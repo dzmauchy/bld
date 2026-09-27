@@ -115,3 +115,38 @@ test("surfaces clang diagnostics for invalid C++", async () => {
   expect(message).toMatch(/error:|exited with/i);
   expect(await page.evaluate(() => window.cpp.workerCreateCount())).toBe(2);
 });
+
+test("queues AST and compile requests and reuses workers after diagnostics", async () => {
+  const result = await page.evaluate(async () => {
+    const jobs = await Promise.allSettled([
+      window.cpp.dumpAst({ "main.cpp": "int first;" }, "main.cpp"),
+      window.cpp.compileOnly({ "main.cpp": "invalid c++ {" }),
+      window.cpp.dumpAst({ "main.cpp": "int second;" }, "main.cpp"),
+      window.cpp.compileOnly({ "main.cpp": 'extern "C" int answer() { return 42; }' }),
+    ]);
+    await window.cpp.instantiateLast();
+    return {
+      jobs: jobs.map((job) => job.status),
+      asts: [jobs[0], jobs[2]].map((job) => job?.status === "fulfilled" ? job.value : undefined),
+      answer: await window.cpp.invoke("answer", []),
+      workers: window.cpp.workerCreateCount(),
+    };
+  });
+  expect(result.jobs).toEqual(["fulfilled", "rejected", "fulfilled", "fulfilled"]);
+  expect(result.asts).toEqual([expect.objectContaining({ ok: true }), expect.objectContaining({ ok: true })]);
+  expect(result.answer).toBe(42);
+  expect(result.workers).toBe(2);
+});
+
+test("a subsequent job cannot include a header from a previous job", async () => {
+  const message = await page.evaluate(async () => {
+    await window.cpp.compileOnly({ "old.h": "int old;", "main.cpp": '#include "old.h"' });
+    try {
+      await window.cpp.compileOnly({ "main.cpp": '#include "old.h"' });
+      return "";
+    } catch (error) {
+      return error instanceof Error ? error.message : String(error);
+    }
+  });
+  expect(message).toMatch(/old.h.*file not found/);
+});

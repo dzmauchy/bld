@@ -27,9 +27,26 @@ async function dispatch(
   }
 }
 
+/** Serializes requests that share a tool runtime and its mutable filesystem. */
+export class WorkerMessageDispatcher {
+  private pending: Promise<void> = Promise.resolve();
+
+  constructor(
+    private readonly handler: WorkerMessageHandler,
+    private readonly post: (result: WorkerResponse) => void,
+  ) {}
+
+  dispatch(data: unknown): Promise<void> {
+    const result = this.pending.then(() => dispatch(data, this.handler, this.post));
+    this.pending = result.catch(() => {});
+    return result;
+  }
+}
+
 export function attachWorker(handler: WorkerMessageHandler): void {
   const scope = globalThis as unknown as BrowserWorkerScope;
+  const dispatcher = new WorkerMessageDispatcher(handler, (result) => scope.postMessage(result));
   scope.onmessage = (event) => {
-    void dispatch(event.data, handler, (result) => scope.postMessage(result));
+    void dispatcher.dispatch(event.data);
   };
 }

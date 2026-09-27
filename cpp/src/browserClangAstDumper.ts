@@ -2,10 +2,8 @@
  * Browser host for `clang++ -fsyntax-only -Xclang -ast-dump=json`.
  * Generated diagram sources and library headers are sent to the clang worker.
  */
-import { createCompilerWorker } from "./browser/api.ts";
+import { BrowserCppRuntime } from "./browser/api.ts";
 import { ClangAstDumper, ClangDumpResult } from "./clangAstDumper.ts";
-import { WorkerCppWasmCompiler } from "./compiler.ts";
-import { wrapEventTargetWorker } from "./thread.ts";
 
 export interface AstDumpClient {
   dumpAst(
@@ -22,9 +20,9 @@ export class BrowserClangAstDumper extends ClangAstDumper {
   }
 
   static shared(): BrowserClangAstDumper {
-    this.instance ??= new BrowserClangAstDumper(
-      new WorkerCppWasmCompiler(wrapEventTargetWorker(createCompilerWorker())),
-    );
+    this.instance ??= new BrowserClangAstDumper({
+      dumpAst: (files, mainFile) => BrowserCppRuntime.shared().compiler.dumpAst(files, mainFile),
+    });
     return this.instance;
   }
 

@@ -14,6 +14,8 @@ export interface ICppCompiler {
  * backed by clang, lld, and the sysroot archive from the clang-wasm release.
  */
 export class CppWasmCompiler implements ICppCompiler {
+  private ready: Promise<void> | undefined;
+
   constructor(
     private readonly clang: ClangFrontend,
     private readonly linker: WasmLinker,
@@ -21,7 +23,19 @@ export class CppWasmCompiler implements ICppCompiler {
   ) {}
 
   async initialize(): Promise<void> {
-    await Promise.all([this.clang.boot(), this.linker.boot()]);
+    this.ready ??= this.boot().catch((error: unknown) => {
+      this.ready = undefined;
+      throw error;
+    });
+    await this.ready;
+  }
+
+  private async boot(): Promise<void> {
+    // Let both boots finish before a failed initialization can be retried.
+    const boots = await Promise.allSettled([this.clang.boot(), this.linker.boot()]);
+    for (const boot of boots) {
+      if (boot.status === "rejected") throw boot.reason;
+    }
     const archive = await this.fetchSysroot();
     await this.clang.installSysroot(archive, "headers");
     await this.linker.installSysroot(archive, "libraries");
@@ -67,7 +81,10 @@ export class WorkerCppWasmCompiler implements ICppCompiler {
   }
 
   async warmup(): Promise<void> {
-    this.ready ??= this.init();
+    this.ready ??= this.init().catch((error: unknown) => {
+      this.ready = undefined;
+      throw error;
+    });
     await this.ready;
   }
 

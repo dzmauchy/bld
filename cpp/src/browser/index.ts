@@ -1,13 +1,16 @@
 import { ToolchainServiceWorker } from "../toolchainServiceWorker.ts";
-import { createBrowserCppRuntime, type CppPageApi } from "./api.ts";
-import type { BrowserCppRuntime } from "./api.ts";
+import { BrowserCppRuntime, type CppPageApi } from "./api.ts";
 import type { ExecutedWasm } from "../executor.ts";
 
 export type { CppPageApi };
 
 const status = document.querySelector("#status");
 const log = document.querySelector("#log");
-const runtimeReady = new ToolchainServiceWorker().claim().then(() => createBrowserCppRuntime());
+let activeRuntime: BrowserCppRuntime | undefined;
+const runtimeReady = new ToolchainServiceWorker().claim().then(() => {
+  activeRuntime = BrowserCppRuntime.shared();
+  return activeRuntime;
+});
 let session: ExecutedWasm | undefined;
 let lastWasm: Uint8Array | undefined;
 
@@ -66,8 +69,13 @@ const api: CppPageApi = {
     await api.compile(files);
     return api.invoke(name, args);
   },
+  async close() {
+    session = undefined;
+    lastWasm = undefined;
+    await (await runtime()).close();
+  },
   workerCreateCount() {
-    return 2;
+    return activeRuntime?.workerCreateCount ?? 0;
   },
 };
 

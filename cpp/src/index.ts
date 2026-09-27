@@ -28,3 +28,4 @@ export { Thread, EventTargetWorkerThread, wrapEventTargetWorker } from "./thread
 export { ToolchainServiceWorker } from "./toolchainServiceWorker.ts";
 export { DefaultWasmBindings } from "./bindings.ts";
 export type { HostEnvCallbacks } from "./bindings.ts";
+export { BrowserCppRuntime, createBrowserCppRuntime } from "./browser/api.ts";
