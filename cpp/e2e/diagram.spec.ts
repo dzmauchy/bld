@@ -9,7 +9,7 @@ import {
   Library,
   PortEndpoint,
   registerAppAssets,
-} from "../../core/src/index.ts";
+} from "core";
 import "../src/hostClangAstDumper.ts";
 
 const here = dirname(fileURLToPath(import.meta.url));
