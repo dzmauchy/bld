@@ -28,6 +28,7 @@ export class ClangFrontend extends EmscriptenTool {
         const sources = [...files.keys()].filter((name) => isCppSource(name));
         if (sources.length === 0) throw new Error("no C or C++ source files to compile");
 
+        this.resetSharedSources();
         const objects: ObjectFile[] = [];
         for (const source of sources) {
           if (objects.length > 0) await this.recycle();
@@ -52,6 +53,7 @@ export class ClangFrontend extends EmscriptenTool {
   async dumpAst(files: Map<string, string>, mainFile: string): Promise<{ ok: boolean; ast: unknown; stdout: string; stderr: string }> {
     try {
       return await this.runJob(async () => {
+        this.resetSharedSources();
         const pch = await this.prepareFiles(files);
         const captured = this.runMainCapture(this.args.syntaxOnlyAstDump(workPath(mainFile), pch));
         let ast: unknown;
@@ -75,6 +77,7 @@ export class ClangFrontend extends EmscriptenTool {
   async emitAst(files: Map<string, string>, mainFile: string): Promise<{ ok: boolean; astText: string; stdout: string; stderr: string }> {
     try {
       return await this.runJob(async () => {
+        this.resetSharedSources();
         const pch = await this.prepareFiles(files);
         const captured = this.runMainCapture(this.args.emitAst(workPath(mainFile), pch));
         return { ok: captured.code === 0, astText: captured.stdout, stdout: captured.stdout, stderr: captured.stderr };
@@ -95,16 +98,29 @@ export class ClangFrontend extends EmscriptenTool {
     }
   }
 
+  get preservesSharedHeaders(): boolean {
+    return this.workMount !== undefined && this.usePrecompiledHeaders && this.headers !== undefined && !this.headers.empty;
+  }
+
+  private resetSharedSources(): void {
+    if (this.preservesSharedHeaders) this.workMount?.clearWorkFiles();
+  }
+
   private async prepareFiles(files: Map<string, string>, stripMetadata = false): Promise<string | undefined> {
     this.prepareWork();
     if (this.usePrecompiledHeaders && !this.headers?.matches(files)) {
-      this.headers = undefined;
       const headers = new PrecompiledHeaders(files);
+      if (this.workMount?.retained) {
+        this.workMount.release();
+        await this.recycle();
+      }
+      this.headers = undefined;
       if (!headers.empty) {
-        // Headers and PCH paths stay identical across disposable tool instances.
+        // Header paths stay identical. The .pch stays on the retained module.
         headers.restore(this);
         await this.runMainAsync(this.args.precompile(PrecompiledHeaders.headerPath, PrecompiledHeaders.outputPath));
-        headers.capture(PrecompiledHeaders.outputPath, this.readCopy(PrecompiledHeaders.outputPath));
+        if (this.workMount) this.retainSharedWork();
+        else headers.capture(PrecompiledHeaders.outputPath, this.readCopy(PrecompiledHeaders.outputPath));
         this.headers = headers;
         await this.recycle();
       }

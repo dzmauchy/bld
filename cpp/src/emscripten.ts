@@ -42,7 +42,7 @@ export function copyOut(bytes: Uint8Array): Uint8Array {
 
 /**
  * One reusable Emscripten clang or lld instance.
- * `/work` stays on this module until it is mounted into the next one with PROXYFS.
+ * `/work` and `/pch` stay on the retained module and are mounted into the next one with PROXYFS.
  */
 export abstract class EmscriptenTool {
   private runtime: EmscriptenRuntime | undefined;

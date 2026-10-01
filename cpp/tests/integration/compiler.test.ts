@@ -110,7 +110,9 @@ describe("clang frontend and wasm linker", () => {
     expect(second).toEqual(wasmBytes);
     expect(modules.objectReads).toEqual([]);
     expect(modules.objectWrites).toEqual([]);
-    expect(modules.mounts).toBe(3);
+    expect(modules.mounts).toBe(6);
+    expect(modules.workMounts).toBe(3);
+    expect(modules.pchMounts).toBe(3);
     const withFirstObjects = modules.filesystems.filter((fs) => fs.exists("/work/a.o"));
     const withSecondObject = modules.filesystems.filter((fs) => fs.exists("/work/c.o"));
     expect(withFirstObjects).toHaveLength(1);
@@ -127,24 +129,32 @@ class ProxyModuleFactory {
   readonly runs: string[][] = [];
   readonly objectReads: string[] = [];
   readonly objectWrites: string[] = [];
+  readonly pchReads: string[] = [];
+  readonly pchWrites: string[] = [];
   mounts = 0;
+  workMounts = 0;
+  pchMounts = 0;
+  pchBuilds = 0;
   private readonly backing = new WeakMap<EmscriptenFsApi, MemoryFileSystem>();
 
   readonly create: EmscriptenModuleFactory = async (): Promise<EmscriptenRuntime> => {
     const local = new MemoryFileSystem();
     this.filesystems.push(local);
     let host: MemoryFileSystem | undefined;
-    const resolve = (path: string): MemoryFileSystem =>
-      host && (path === "/work" || path.startsWith("/work/")) ? host : local;
+    const shared = (path: string): boolean =>
+      path === "/work" || path.startsWith("/work/") || path === "/pch" || path.startsWith("/pch/");
+    const resolve = (path: string): MemoryFileSystem => (host && shared(path) ? host : local);
     const fs: EmscriptenFsApi = {
       mkdir: (path) => resolve(path).mkdirTree(path),
       mkdirTree: (path) => resolve(path).mkdirTree(path),
       writeFile: (path, data) => {
         if (path.endsWith(".o")) this.objectWrites.push(path);
+        if (path.endsWith(".pch")) this.pchWrites.push(path);
         resolve(path).writeFile(path, data);
       },
       readFile: (path) => {
         if (path.endsWith(".o")) this.objectReads.push(path);
+        if (path.endsWith(".pch")) this.pchReads.push(path);
         return resolve(path).readFile(path);
       },
       readdir: (path) => resolve(path).list(path),
@@ -155,13 +165,15 @@ class ProxyModuleFactory {
       stat: (path) => ({ mode: resolve(path).isDirectory(path) ? 0o040000 : 0o100000 }),
       isDir: (mode) => (mode & 0o170000) === 0o040000,
       mount: (_type, opts, mountpoint) => {
-        if (mountpoint !== "/work" || opts.root !== "/work") {
+        if ((mountpoint !== "/work" && mountpoint !== "/pch") || opts.root !== mountpoint) {
           throw new Error(`unexpected PROXYFS mount ${opts.root} at ${mountpoint}`);
         }
         const backing = this.backing.get(opts.fs);
         if (!backing) throw new Error("PROXYFS host is not a compiler filesystem");
         host = backing;
         this.mounts += 1;
+        if (mountpoint === "/work") this.workMounts += 1;
+        else this.pchMounts += 1;
       },
     };
     this.backing.set(fs, local);
@@ -171,6 +183,16 @@ class ProxyModuleFactory {
       callMain: (args) => {
         this.runs.push(args);
         const output = args.at(-1) ?? "";
+        const include = args.indexOf("-include-pch");
+        if (include >= 0) {
+          const pch = args[include + 1] ?? "";
+          const stored = resolve(pch);
+          if (!stored.exists(pch)) throw new Error(`missing ${pch}`);
+          const bytes = stored.readFile(pch);
+          if (bytes.length !== 1 || bytes[0] !== this.pchBuilds) {
+            throw new Error(`stale precompiled header ${bytes[0] ?? "empty"}`);
+          }
+        }
         if (output.endsWith(".wasm")) {
           for (const path of args) {
             if (path.startsWith("/work/") && path.endsWith(".o") && !resolve(path).exists(path)) {
@@ -178,7 +200,13 @@ class ProxyModuleFactory {
             }
           }
         }
-        const bytes = output.endsWith(".wasm") ? new Uint8Array([0, 97, 115, 109, 1]) : new Uint8Array([1, 2, 3, 4]);
+        if (args.includes("c++-header")) this.pchBuilds += 1;
+        if (!output.endsWith(".o") && !output.endsWith(".wasm") && !output.endsWith(".pch")) return 0;
+        const bytes = output.endsWith(".wasm")
+          ? new Uint8Array([0, 97, 115, 109, 1])
+          : output.endsWith(".pch")
+            ? new Uint8Array([this.pchBuilds])
+            : new Uint8Array([1, 2, 3, 4]);
         resolve(output).writeTree(output, bytes);
         return 0;
       },
@@ -228,6 +256,38 @@ describe("precompiled header lifecycle", () => {
     await clang.compile(files);
     expect(builds).toBe(2);
     expect(runs.filter((args) => args.includes("-include-pch"))).toHaveLength(6);
+  });
+
+  test("keeps the precompiled header on the PROXYFS host instead of copying it", async () => {
+    const modules = new ProxyModuleFactory();
+    const workMount = new ProxyWorkMount();
+    const clang = new ClangFrontend(modules.create, "clang.wasm", new ClangArgumentBuilder(), workMount);
+    const linker = new WasmLinker(modules.create, "lld.wasm", new LldArgumentBuilder(), workMount);
+    await clang.boot();
+    await linker.boot();
+    const compiler = new CppWasmCompiler(clang, linker, "sysroot.tgz");
+    const files = new Map([
+      ["value.hpp", "#pragma once\nconstexpr int value = 1;"],
+      ["main.cpp", "int answer() { return value; }"],
+    ]);
+
+    await compiler.precompileHeaders(files);
+    expect((await compiler.dumpAst(files, "main.cpp")).ok).toBe(true);
+    expect(await compiler.compile(files)).toEqual(new Uint8Array([0, 97, 115, 109, 1]));
+    files.set("other.cpp", "int other() { return value + 1; }");
+    await compiler.compile(files);
+    expect(modules.pchBuilds).toBe(1);
+
+    files.set("value.hpp", "#pragma once\nconstexpr int value = 2;");
+    await compiler.compile(files);
+
+    expect(modules.pchBuilds).toBe(2);
+    expect(modules.pchReads).toEqual([]);
+    expect(modules.pchWrites).toEqual([]);
+    expect(modules.objectReads).toEqual([]);
+    expect(modules.objectWrites).toEqual([]);
+    expect(modules.runs.filter((args) => args.includes("c++-header"))).toHaveLength(2);
+    expect(modules.runs.filter((args) => args.includes("-include-pch")).length).toBeGreaterThan(0);
   });
 
   test("retries failed PCH generation and restores the cache after an aborted compilation", async () => {

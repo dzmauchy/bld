@@ -5,7 +5,10 @@ export interface HeaderFileStore {
   writeBytes(path: string, bytes: Uint8Array): void;
 }
 
-/** A bounded cache of the current header bundle, kept outside Emscripten's disposable FS. */
+/**
+ * The current header bundle. Without PROXYFS the `.pch` bytes are cached here;
+ * with PROXYFS the file stays on the retained clang module.
+ */
 export class PrecompiledHeaders {
   static readonly headerPath = "/pch/headers.hpp";
   static readonly outputPath = "/pch/headers.pch";
