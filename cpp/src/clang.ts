@@ -3,6 +3,7 @@ import { DiagramMetaCommentFilter } from "./commentFilter.ts";
 import { EmscriptenTool, type EmscriptenModuleFactory } from "./emscripten.ts";
 import { ObjectFile } from "./object-file.ts";
 import { PrecompiledHeaders } from "./precompiledHeaders.ts";
+import type { ProxyWorkMount } from "./proxyWorkMount.ts";
 import { isCppSource, isHeader, objectPathFor, workPath } from "./paths.ts";
 
 export class ClangFrontend extends EmscriptenTool {
@@ -15,8 +16,9 @@ export class ClangFrontend extends EmscriptenTool {
     createModule: EmscriptenModuleFactory,
     wasmUrl: string,
     args: ClangArgumentBuilder = new ClangArgumentBuilder(),
+    workMount?: ProxyWorkMount,
   ) {
-    super(createModule, "clang++", wasmUrl);
+    super(createModule, "clang++", wasmUrl, workMount);
     this.args = args;
   }
 
@@ -32,12 +34,18 @@ export class ClangFrontend extends EmscriptenTool {
           const pch = await this.prepareFiles(files, true);
           const objectPath = objectPathFor(source);
           await this.runMainAsync(this.args.build(workPath(source), objectPath, pch));
-          objects.push(new ObjectFile(objectPath, this.readCopy(objectPath)));
+          if (this.workMount) {
+            this.retainSharedWork();
+            objects.push(new ObjectFile(objectPath));
+          } else {
+            objects.push(new ObjectFile(objectPath, this.readCopy(objectPath)));
+          }
         }
         return objects;
       });
     } finally {
-      await this.recycle();
+      if (this.workMount) this.releaseDisposableRuntime();
+      else await this.recycle();
     }
   }
 

@@ -1,6 +1,7 @@
 export class ObjectFile {
   constructor(
     readonly path: string,
-    readonly bytes: Uint8Array,
+    /** Absent when the file remains on a PROXYFS-shared `/work` directory. */
+    readonly bytes?: Uint8Array,
   ) {}
 }

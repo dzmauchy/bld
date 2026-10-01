@@ -12,6 +12,7 @@ export interface ICppCompiler {
  * Compiles a Map of C++ sources/headers to a wasm module by running clang
  * then wasm-ld. Instantiated inside the single compiler worker with tools
  * backed by clang, lld, and the sysroot archive from the clang-wasm release.
+ * A shared work mount lets lld read clang's object files through PROXYFS.
  */
 export class CppWasmCompiler implements ICppCompiler {
   private ready: Promise<void> | undefined;
@@ -47,8 +48,25 @@ export class CppWasmCompiler implements ICppCompiler {
   }
 
   async compile(files: Map<string, string>): Promise<Uint8Array> {
-    const objects = await this.clang.compile(files);
-    return this.linker.link(objects);
+    if (this.clang.workMount !== this.linker.workMount) {
+      throw new Error("clang and lld must share one PROXYFS work mount");
+    }
+    try {
+      const objects = await this.clang.compile(files);
+      return await this.linker.link(objects);
+    } finally {
+      await this.releaseSharedWork();
+    }
+  }
+
+  private async releaseSharedWork(): Promise<void> {
+    const mount = this.clang.workMount;
+    if (!mount) return;
+    mount.release();
+    const recycled = await Promise.allSettled([this.clang.recycle(), this.linker.recycle()]);
+    for (const result of recycled) {
+      if (result.status === "rejected") throw result.reason;
+    }
   }
 
   async dumpAst(

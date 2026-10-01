@@ -42,6 +42,12 @@ export type EmscriptenFsApi = {
   analyzePath?(path: string): { exists: boolean };
   stat(path: string): { mode: number };
   isDir?(mode: number): boolean;
+  mount?(
+    type: object,
+    opts: { root: string; fs: EmscriptenFsApi },
+    mountpoint: string,
+  ): void;
+  unmount?(mountpoint: string): void;
 };
 
 function isNotFound(error: unknown): boolean {

@@ -1,10 +1,13 @@
 import { describe, expect, test } from "@rstest/core";
+import { ClangArgumentBuilder, LldArgumentBuilder } from "../../src/args.ts";
 import { ClangFrontend } from "../../src/clang.ts";
+import { CppWasmCompiler } from "../../src/compiler.ts";
 import type { EmscriptenModuleFactory, EmscriptenRuntime } from "../../src/emscripten.ts";
 import type { EmscriptenFsApi } from "../../src/filesystem.ts";
 import { MemoryFileSystem } from "../../src/filesystem.ts";
 import { WasmLinker } from "../../src/linker.ts";
 import { ObjectFile } from "../../src/object-file.ts";
+import { ProxyWorkMount } from "../../src/proxyWorkMount.ts";
 
 function emscriptenApi(fs: MemoryFileSystem): EmscriptenFsApi {
   return {
@@ -84,7 +87,104 @@ describe("clang frontend and wasm linker", () => {
     expect(seen).toContain("/work/scale.o");
     expect(wasm).toEqual(new Uint8Array([0, 97, 115, 109]));
   });
+
+  test("links object files through PROXYFS without copying them between clang and lld", async () => {
+    const modules = new ProxyModuleFactory();
+    const workMount = new ProxyWorkMount();
+    const wasmBytes = new Uint8Array([0, 97, 115, 109, 1]);
+    const clang = new ClangFrontend(modules.create, "clang.wasm", new ClangArgumentBuilder(), workMount);
+    const linker = new WasmLinker(modules.create, "lld.wasm", new LldArgumentBuilder(), workMount);
+    await clang.boot();
+    await linker.boot();
+    const compiler = new CppWasmCompiler(clang, linker, "sysroot.tgz");
+
+    const wasm = await compiler.compile(new Map([
+      ["a.cpp", "int a() { return 1; }"],
+      ["b.cpp", "int b() { return 2; }"],
+    ]));
+    const second = await compiler.compile(new Map([
+      ["c.cpp", "int c() { return 3; }"],
+    ]));
+
+    expect(wasm).toEqual(wasmBytes);
+    expect(second).toEqual(wasmBytes);
+    expect(modules.objectReads).toEqual([]);
+    expect(modules.objectWrites).toEqual([]);
+    expect(modules.mounts).toBe(3);
+    const withFirstObjects = modules.filesystems.filter((fs) => fs.exists("/work/a.o"));
+    const withSecondObject = modules.filesystems.filter((fs) => fs.exists("/work/c.o"));
+    expect(withFirstObjects).toHaveLength(1);
+    expect(withFirstObjects[0]?.exists("/work/b.o")).toBe(true);
+    expect(withSecondObject).toHaveLength(1);
+    expect(withSecondObject[0]).not.toBe(withFirstObjects[0]);
+    expect(withSecondObject[0]?.exists("/work/a.o")).toBe(false);
+    expect(modules.runs.filter((args) => args.includes("/work/a.o") && args.at(-1)?.endsWith(".wasm"))).toHaveLength(1);
+  });
 });
+
+class ProxyModuleFactory {
+  readonly filesystems: MemoryFileSystem[] = [];
+  readonly runs: string[][] = [];
+  readonly objectReads: string[] = [];
+  readonly objectWrites: string[] = [];
+  mounts = 0;
+  private readonly backing = new WeakMap<EmscriptenFsApi, MemoryFileSystem>();
+
+  readonly create: EmscriptenModuleFactory = async (): Promise<EmscriptenRuntime> => {
+    const local = new MemoryFileSystem();
+    this.filesystems.push(local);
+    let host: MemoryFileSystem | undefined;
+    const resolve = (path: string): MemoryFileSystem =>
+      host && (path === "/work" || path.startsWith("/work/")) ? host : local;
+    const fs: EmscriptenFsApi = {
+      mkdir: (path) => resolve(path).mkdirTree(path),
+      mkdirTree: (path) => resolve(path).mkdirTree(path),
+      writeFile: (path, data) => {
+        if (path.endsWith(".o")) this.objectWrites.push(path);
+        resolve(path).writeFile(path, data);
+      },
+      readFile: (path) => {
+        if (path.endsWith(".o")) this.objectReads.push(path);
+        return resolve(path).readFile(path);
+      },
+      readdir: (path) => resolve(path).list(path),
+      unlink: (path) => resolve(path).unlink(path),
+      rmdir: (path) => resolve(path).rmdir(path),
+      chdir: (path) => resolve(path).chdir(path),
+      analyzePath: (path) => ({ exists: resolve(path).exists(path) }),
+      stat: (path) => ({ mode: resolve(path).isDirectory(path) ? 0o040000 : 0o100000 }),
+      isDir: (mode) => (mode & 0o170000) === 0o040000,
+      mount: (_type, opts, mountpoint) => {
+        if (mountpoint !== "/work" || opts.root !== "/work") {
+          throw new Error(`unexpected PROXYFS mount ${opts.root} at ${mountpoint}`);
+        }
+        const backing = this.backing.get(opts.fs);
+        if (!backing) throw new Error("PROXYFS host is not a compiler filesystem");
+        host = backing;
+        this.mounts += 1;
+      },
+    };
+    this.backing.set(fs, local);
+    return {
+      FS: fs,
+      PROXYFS: {},
+      callMain: (args) => {
+        this.runs.push(args);
+        const output = args.at(-1) ?? "";
+        if (output.endsWith(".wasm")) {
+          for (const path of args) {
+            if (path.startsWith("/work/") && path.endsWith(".o") && !resolve(path).exists(path)) {
+              throw new Error(`missing ${path}`);
+            }
+          }
+        }
+        const bytes = output.endsWith(".wasm") ? new Uint8Array([0, 97, 115, 109, 1]) : new Uint8Array([1, 2, 3, 4]);
+        resolve(output).writeTree(output, bytes);
+        return 0;
+      },
+    };
+  };
+}
 
 describe("precompiled header lifecycle", () => {
   test("restores cached PCH bytes and headers into every fresh AST and compile filesystem", async () => {

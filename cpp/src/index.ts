@@ -21,6 +21,7 @@ export {
 export type { ClangAstJson, ClangAstLoc } from "./clangAst.ts";
 export { WasmLinker } from "./linker.ts";
 export { EmscriptenTool } from "./emscripten.ts";
+export { ProxyWorkMount } from "./proxyWorkMount.ts";
 export { ObjectFile } from "./object-file.ts";
 export { RpcClient } from "./rpc.ts";
 export { SysrootInstaller, shouldInstallSysrootEntry, tarPathToMemfs } from "./sysroot.ts";

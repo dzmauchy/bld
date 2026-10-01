@@ -1,6 +1,7 @@
 import { formatUnknownError, exitStatus, isAbortError } from "./errors.ts";
 import { EmscriptenFileSystem, type EmscriptenFsApi } from "./filesystem.ts";
 import type { SysrootInstallKind } from "./messages.ts";
+import type { ProxyWorkMount } from "./proxyWorkMount.ts";
 import { SysrootInstaller } from "./sysroot.ts";
 
 export type EmscriptenModuleOptions = {
@@ -26,6 +27,8 @@ type StdioStream = {
 
 export type EmscriptenRuntime = {
   FS: EmscriptenFsApi;
+  /** Present when the module was linked with `-lproxyfs.js` and exports `PROXYFS`. */
+  PROXYFS?: object;
   callMain: (args: string[]) => number | void;
 };
 
@@ -38,7 +41,8 @@ export function copyOut(bytes: Uint8Array): Uint8Array {
 }
 
 /**
- * One reusable Emscripten clang or lld instance with its own MEMFS.
+ * One reusable Emscripten clang or lld instance.
+ * `/work` stays on this module until it is mounted into the next one with PROXYFS.
  */
 export abstract class EmscriptenTool {
   private runtime: EmscriptenRuntime | undefined;
@@ -54,9 +58,13 @@ export abstract class EmscriptenTool {
     private readonly createModule: EmscriptenModuleFactory,
     private readonly programName: string,
     private readonly wasmUrl: string,
+    readonly workMount?: ProxyWorkMount,
   ) {}
 
   async boot(): Promise<void> {
+    if (this.runtime && this.workMount && !this.workMount.isHost(this.runtime)) {
+      this.workMount.detach(this.runtime);
+    }
     this.runtime = undefined;
     this.fs = undefined;
     this.stdout = [];
@@ -75,6 +83,7 @@ export abstract class EmscriptenTool {
     });
     this.fs = new EmscriptenFileSystem(this.runtime.FS);
     this.fs.mkdirTree("/work");
+    this.attachSharedWork();
   }
 
   async installSysroot(archive: ArrayBuffer, kind: SysrootInstallKind): Promise<string> {
@@ -138,6 +147,26 @@ export abstract class EmscriptenTool {
   }
 
   protected onSysrootInstalled(_resourceDir: string): void {}
+
+  protected retainSharedWork(): void {
+    if (this.runtime) this.workMount?.retain(this.runtime);
+  }
+
+  protected attachSharedWork(): void {
+    if (this.runtime) this.workMount?.attach(this.runtime);
+  }
+
+  /** Drops a guest module whose `/work` is only a mount of the retained host. */
+  protected releaseDisposableRuntime(): void {
+    if (!this.runtime || !this.workMount || this.workMount.isHost(this.runtime)) return;
+    this.workMount.detach(this.runtime);
+    this.runtime = undefined;
+    this.fs = undefined;
+  }
+
+  protected fileExists(path: string): boolean {
+    return this.requireFs().exists(path);
+  }
 
   protected async runJob<T>(job: () => Promise<T>): Promise<T> {
     try {

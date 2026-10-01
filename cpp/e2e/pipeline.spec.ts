@@ -68,6 +68,17 @@ test("compiles freestanding C++ and executes the wasm export", async () => {
   expect(await page.evaluate(() => window.cpp.workerCreateCount())).toBe(2);
 });
 
+test("links two translation units from separate clang runs", async () => {
+  const result = await page.evaluate(async ({ add, mul }) => {
+    const sum = await window.cpp.compileAndInvoke({ "add.cpp": add, "mul.cpp": mul }, "add", [4, 5]);
+    const product = await window.cpp.invoke("mul", [4, 5]);
+    return { sum, product, workers: window.cpp.workerCreateCount() };
+  }, { add: ADD_CPP, mul: SECOND_CPP });
+  expect(result.sum).toBe(9);
+  expect(result.product).toBe(20);
+  expect(result.workers).toBe(2);
+});
+
 test("compiles a header plus source map without creating new workers", async () => {
   const result = await page.evaluate(async ({ header, source }) => {
     const value = await window.cpp.compileAndInvoke({ "scale.h": header, "scale.cpp": source }, "scale", [7]);

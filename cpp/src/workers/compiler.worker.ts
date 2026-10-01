@@ -1,8 +1,10 @@
+import { ClangArgumentBuilder, LldArgumentBuilder } from "../args.ts";
 import { ClangFrontend } from "../clang.ts";
 import { CppWasmCompiler } from "../compiler.ts";
 import { WasmLinker } from "../linker.ts";
 import { LlvmProjectRelease } from "../llvmRelease.ts";
 import type { CompilerRequest, WorkerResponse } from "../messages.ts";
+import { ProxyWorkMount } from "../proxyWorkMount.ts";
 import { RemoteEmscriptenModule } from "../remoteEmscripten.ts";
 import { attachWorker } from "./host.ts";
 
@@ -12,11 +14,26 @@ const lldWasmUrl = release.assetUrl("lld.wasm");
 const sysrootUrl = release.assetUrl("sysroot.tgz");
 
 export class CompilerWorkerSession {
-  private readonly compiler = new CppWasmCompiler(
-    new ClangFrontend(new RemoteEmscriptenModule(release.assetUrl("clang.js"), clangWasmUrl).createFactory(), clangWasmUrl),
-    new WasmLinker(new RemoteEmscriptenModule(release.assetUrl("lld.js"), lldWasmUrl).createFactory(), lldWasmUrl),
-    sysrootUrl,
-  );
+  private readonly compiler: CppWasmCompiler;
+
+  constructor() {
+    const workMount = new ProxyWorkMount();
+    this.compiler = new CppWasmCompiler(
+      new ClangFrontend(
+        new RemoteEmscriptenModule(release.assetUrl("clang.js"), clangWasmUrl).createFactory(),
+        clangWasmUrl,
+        new ClangArgumentBuilder(),
+        workMount,
+      ),
+      new WasmLinker(
+        new RemoteEmscriptenModule(release.assetUrl("lld.js"), lldWasmUrl).createFactory(),
+        lldWasmUrl,
+        new LldArgumentBuilder(),
+        workMount,
+      ),
+      sysrootUrl,
+    );
+  }
 
   async init(): Promise<void> {
     await this.compiler.initialize();

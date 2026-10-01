@@ -1,4 +1,5 @@
 import { describe, expect, test } from "@rstest/core";
+import { ClangArgumentBuilder } from "../../src/args.ts";
 import { ClangFrontend } from "../../src/clang.ts";
 import { CppWasmCompiler, WorkerCppWasmCompiler } from "../../src/compiler.ts";
 import type { EmscriptenModuleFactory, EmscriptenRuntime } from "../../src/emscripten.ts";
@@ -6,6 +7,7 @@ import type { EmscriptenFsApi } from "../../src/filesystem.ts";
 import { MemoryFileSystem } from "../../src/filesystem.ts";
 import { WasmLinker } from "../../src/linker.ts";
 import type { WorkerResponse } from "../../src/messages.ts";
+import { ProxyWorkMount } from "../../src/proxyWorkMount.ts";
 import { Thread } from "../../src/thread.ts";
 
 function emscriptenApi(fs: MemoryFileSystem): EmscriptenFsApi {
@@ -99,6 +101,17 @@ describe("CppWasmCompiler", () => {
     expect(lld.runs).toHaveLength(1);
     expect(lld.runs[0]).toContain("/work/add.o");
     expect(lldFs.exists("/work/add.o")).toBe(true);
+  });
+
+  test("requires clang and lld to share one PROXYFS work mount", async () => {
+    const clang = new ScriptedModuleFactory(new MemoryFileSystem(), () => {});
+    const lld = new ScriptedModuleFactory(new MemoryFileSystem(), () => {});
+    const frontend = new ClangFrontend(clang.create, "clang.wasm", new ClangArgumentBuilder(), new ProxyWorkMount());
+    const linker = new WasmLinker(lld.create, "lld.wasm");
+    const compiler = new CppWasmCompiler(frontend, linker, "sysroot.tgz");
+
+    await expect(compiler.compile(new Map([["add.cpp", "int add() { return 1; }"]]))).rejects.toThrow(/PROXYFS/);
+    expect(clang.runs).toHaveLength(0);
   });
 
   test("emits JSON and text ASTs without stripping comments", async () => {
