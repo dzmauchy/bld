@@ -57,7 +57,7 @@ test("shows the bld icon splash until 100 ms after the parsed workspace is shown
 
   await page.evaluate(() => {
     const splashElement = document.querySelector("[data-splash]");
-    const watched = window as Window & { workspaceShownWhileOpen?: Promise<boolean> };
+    const watched = window as unknown as { workspaceShownWhileOpen?: Promise<boolean> };
     watched.workspaceShownWhileOpen = new Promise<boolean>((resolve, reject) => {
       const timeout = window.setTimeout(() => reject(new Error("splash closed before the parsed workspace was shown")), 30_000);
       const done = () => {
@@ -74,7 +74,7 @@ test("shows the bld icon splash until 100 ms after the parsed workspace is shown
     });
   });
   releaseArchive();
-  await page.evaluate(() => (window as Window & { workspaceShownWhileOpen: Promise<boolean> }).workspaceShownWhileOpen);
+  await page.evaluate(() => (window as unknown as { workspaceShownWhileOpen: Promise<boolean> }).workspaceShownWhileOpen);
   await expect(splash).toBeHidden();
   await expect(splash).toHaveAttribute("data-state", "closed");
 });
