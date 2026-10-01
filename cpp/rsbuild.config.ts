@@ -13,7 +13,6 @@ export default defineConfig({
   },
   output: {
     module: true,
-    overrideBrowserslist: ["chrome >= 154", "edge >= 154", "firefox >= 157", "safari >= 27"],
     distPath: {
       root: "dist/web",
     },
