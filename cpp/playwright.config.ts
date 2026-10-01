@@ -13,7 +13,8 @@ export default defineConfig({
   testMatch: /.*\.spec\.ts/,
   testIgnore: (process.env.MANUAL || process.argv.some((arg) => arg.includes("manual"))) ? [] : ["**/*.manual.spec.ts"],
   fullyParallel: false,
-  workers: 1,
+  // GitHub Actions sets CI. Keep two workers there as well.
+  workers: 2,
   forbidOnly: !!process.env.CI,
   retries: process.env.CI ? 1 : 0,
   timeout: 300_000,
