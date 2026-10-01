@@ -89,6 +89,10 @@ test("splits a black workspace into a palette and a diagram", async ({ page }) =
   await expect(diagram).toBeVisible();
   await expect(palette).toHaveAttribute("data-libraries", "base");
   await expect(palette.locator("h1")).toHaveText("Palette");
+  await expect(palette.locator(".palette-subtitle")).toHaveText("Click to place on the canvas");
+  await expect(palette.locator(".palette-ns-toggle").first()).toBeVisible();
+  await expect(palette.locator("[data-block-id=ScopeF32] .flow-node-icon svg")).toBeVisible();
+  expect(await palette.evaluate((element) => getComputedStyle(element).backgroundColor)).toBe("rgb(28, 33, 37)");
   await expect(diagram.locator("h1")).toHaveText("Diagram");
 
   const paletteBox = await palette.boundingBox();
@@ -107,6 +111,12 @@ test("splits a black workspace into a palette and a diagram", async ({ page }) =
   for (const id of baseBlocks) {
     await expect(palette.locator(`[data-block-id="${id}"]`)).toHaveCount(1);
   }
+
+  const sinks = palette.locator('[data-namespace="push::f32::sinks"] > .palette-ns-toggle');
+  await sinks.click();
+  await expect(palette.locator("[data-block-id=ScopeF32]")).toBeHidden();
+  await sinks.click();
+  await expect(palette.locator("[data-block-id=ScopeF32]")).toBeVisible();
 
   await palette.locator("[data-block-id=ScopeF32]").click();
   await expect(diagram.locator("[data-block-ref=ScopeF32]")).toHaveCount(1);
