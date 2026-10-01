@@ -45,7 +45,16 @@ export class WorkerMessageDispatcher {
 
 export function attachWorker(handler: WorkerMessageHandler): void {
   const scope = globalThis as unknown as BrowserWorkerScope;
-  const dispatcher = new WorkerMessageDispatcher(handler, (result) => scope.postMessage(result));
+  const dispatcher = new WorkerMessageDispatcher(handler, (result) => {
+    const buffers = new Set<ArrayBuffer>();
+    if (result.type === "ok") {
+      for (const file of Object.values(result.files ?? {})) {
+        if (file.buffer instanceof ArrayBuffer) buffers.add(file.buffer);
+      }
+    }
+    // Compiler results are owned copies; transferring them leaves shared files intact.
+    scope.postMessage(result, [...buffers]);
+  });
   scope.onmessage = (event) => {
     void dispatcher.dispatch(event.data);
   };

@@ -13,6 +13,7 @@ export function tarPathToMemfs(name: string): string {
 export function shouldInstallSysrootEntry(name: string, kind: SysrootInstallKind): boolean {
   const normalized = name.replaceAll("\\", "/");
   if (!normalized.startsWith("sysroot/") || normalized.endsWith("/")) return false;
+  if (kind === "all") return shouldInstallSysrootEntry(name, "headers") || shouldInstallSysrootEntry(name, "libraries");
   if (kind === "headers") {
     return normalized.includes("/include/") || HEADER_NAME.test(normalized);
   }

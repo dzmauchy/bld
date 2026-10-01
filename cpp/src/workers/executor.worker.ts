@@ -1,14 +1,13 @@
 import { DefaultWasmBindings } from "../bindings.ts";
 import type { ExecutorRequest, WorkerResponse } from "../messages.ts";
 import { attachWorker } from "./host.ts";
+import { toWasmBytes } from "../wasmBytes.ts";
 
 export class WasmExecutorSession {
   private instance: WebAssembly.Instance | null = null;
 
   async instantiate(wasm: Uint8Array): Promise<string[]> {
-    const bytes = new Uint8Array(wasm.byteLength);
-    bytes.set(wasm);
-    const module = await WebAssembly.compile(bytes);
+    const module = await WebAssembly.compile(toWasmBytes(wasm));
     let instance: WebAssembly.Instance | undefined;
     const bindings = new DefaultWasmBindings(() => {
       const memory = instance?.exports["memory"];

@@ -4,6 +4,7 @@ import { WasmLinker } from "../linker.ts";
 import { LlvmProjectRelease } from "../llvmRelease.ts";
 import type { CompilerRequest, WorkerResponse } from "../messages.ts";
 import { RemoteEmscriptenModule } from "../remoteEmscripten.ts";
+import { SharedToolchainFileSystem } from "../sharedFileSystem.ts";
 import { attachWorker } from "./host.ts";
 
 const release = new LlvmProjectRelease();
@@ -12,9 +13,10 @@ const lldWasmUrl = release.assetUrl("lld.wasm");
 const sysrootUrl = release.assetUrl("sysroot.tgz");
 
 export class CompilerWorkerSession {
+  private readonly files = new SharedToolchainFileSystem();
   private readonly compiler = new CppWasmCompiler(
-    new ClangFrontend(new RemoteEmscriptenModule(release.assetUrl("clang.js"), clangWasmUrl).createFactory(), clangWasmUrl),
-    new WasmLinker(new RemoteEmscriptenModule(release.assetUrl("lld.js"), lldWasmUrl).createFactory(), lldWasmUrl),
+    new ClangFrontend(new RemoteEmscriptenModule(release.assetUrl("clang.js"), clangWasmUrl).createFactory(), clangWasmUrl, undefined, this.files),
+    new WasmLinker(new RemoteEmscriptenModule(release.assetUrl("lld.js"), lldWasmUrl).createFactory(), lldWasmUrl, undefined, this.files),
     sysrootUrl,
   );
 

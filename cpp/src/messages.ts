@@ -1,4 +1,4 @@
-export type SysrootInstallKind = "headers" | "libraries";
+export type SysrootInstallKind = "headers" | "libraries" | "all";
 
 export type WorkerOk = {
   id: number;

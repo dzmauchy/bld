@@ -31,6 +31,7 @@ export abstract class VirtualFileSystem {
 }
 
 export type EmscriptenFsApi = {
+  mount?(type: unknown, options: { root: string; fs: unknown }, path: string): unknown;
   mkdir(path: string): void;
   mkdirTree?(path: string): void;
   writeFile(path: string, data: string | Uint8Array): void;

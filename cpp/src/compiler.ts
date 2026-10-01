@@ -37,8 +37,13 @@ export class CppWasmCompiler implements ICppCompiler {
       if (boot.status === "rejected") throw boot.reason;
     }
     const archive = await this.fetchSysroot();
-    await this.clang.installSysroot(archive, "headers");
-    await this.linker.installSysroot(archive, "libraries");
+    if (this.clang.sharedFileSystem && this.clang.sharedFileSystem === this.linker.sharedFileSystem) {
+      const resourceDir = await this.clang.installSysroot(archive, "all");
+      this.linker.useResourceDir(resourceDir);
+    } else {
+      await this.clang.installSysroot(archive, "headers");
+      await this.linker.installSysroot(archive, "libraries");
+    }
   }
 
   /** Precompile shared headers once; source changes reuse the cached PCH. */

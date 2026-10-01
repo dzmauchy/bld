@@ -169,3 +169,32 @@ test("PCH-backed ASTs omit header declarations and changed headers rebuild corre
   expect(result.names).not.toContain("value");
   expect([result.first, result.second, result.third]).toEqual([41, 42, 43]);
 });
+
+test("links multiple nested translation units across fresh clang instances", async () => {
+  const result = await page.evaluate(async () => {
+    const files = {
+      "shared/value.hpp": "#pragma once\n#include <cstdint>\nconstexpr int32_t value = 40;\nint helper();",
+      "shared/helper.cpp": '#include "shared/value.hpp"\nint helper() { return value; }',
+      "main.cpp": '#include "shared/value.hpp"\nextern "C" int answer() { return helper() + 2; }',
+    };
+    await window.cpp.precompileHeaders(files);
+    const first = await window.cpp.compileAndInvoke(files, "answer", []);
+    const second = await window.cpp.compileAndInvoke({
+      ...files,
+      "shared/value.hpp": files["shared/value.hpp"].replace("40", "41"),
+    }, "answer", []);
+    return { first, second, workers: window.cpp.workerCreateCount() };
+  });
+  expect(result).toEqual({ first: 42, second: 43, workers: 2 });
+});
+
+test("running the last compiled program again starts with fresh wasm state", async () => {
+  const result = await page.evaluate(async () => {
+    await window.cpp.compile({ "counter.cpp": 'int count = 0;\nextern "C" int bump() { return ++count; }' });
+    const first = await window.cpp.invoke("bump", []);
+    const second = await window.cpp.invoke("bump", []);
+    await window.cpp.instantiateLast();
+    return { first, second, restarted: await window.cpp.invoke("bump", []) };
+  });
+  expect(result).toEqual({ first: 1, second: 2, restarted: 1 });
+});

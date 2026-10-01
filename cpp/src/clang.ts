@@ -4,6 +4,7 @@ import { EmscriptenTool, type EmscriptenModuleFactory } from "./emscripten.ts";
 import { ObjectFile } from "./object-file.ts";
 import { PrecompiledHeaders } from "./precompiledHeaders.ts";
 import { isCppSource, isHeader, objectPathFor, workPath } from "./paths.ts";
+import type { SharedToolchainFileSystem } from "./sharedFileSystem.ts";
 
 export class ClangFrontend extends EmscriptenTool {
   private args: ClangArgumentBuilder;
@@ -15,13 +16,15 @@ export class ClangFrontend extends EmscriptenTool {
     createModule: EmscriptenModuleFactory,
     wasmUrl: string,
     args: ClangArgumentBuilder = new ClangArgumentBuilder(),
+    sharedFiles?: SharedToolchainFileSystem,
   ) {
-    super(createModule, "clang++", wasmUrl);
+    super(createModule, "clang++", wasmUrl, sharedFiles);
     this.args = args;
   }
 
   async compile(files: Map<string, string>): Promise<ObjectFile[]> {
     try {
+      this.prepareInputs(files, true);
       return await this.runJob(async () => {
         const sources = [...files.keys()].filter((name) => isCppSource(name));
         if (sources.length === 0) throw new Error("no C or C++ source files to compile");
@@ -32,7 +35,7 @@ export class ClangFrontend extends EmscriptenTool {
           const pch = await this.prepareFiles(files, true);
           const objectPath = objectPathFor(source);
           await this.runMainAsync(this.args.build(workPath(source), objectPath, pch));
-          objects.push(new ObjectFile(objectPath, this.readCopy(objectPath)));
+          objects.push(new ObjectFile(objectPath, this.sharedFileSystem ?? this.readCopy(objectPath)));
         }
         return objects;
       });
@@ -43,8 +46,10 @@ export class ClangFrontend extends EmscriptenTool {
 
   async dumpAst(files: Map<string, string>, mainFile: string): Promise<{ ok: boolean; ast: unknown; stdout: string; stderr: string }> {
     try {
+      this.prepareInputs(files);
       return await this.runJob(async () => {
         const pch = await this.prepareFiles(files);
+        await this.ensureReady();
         const captured = this.runMainCapture(this.args.syntaxOnlyAstDump(workPath(mainFile), pch));
         let ast: unknown;
         try {
@@ -66,8 +71,10 @@ export class ClangFrontend extends EmscriptenTool {
 
   async emitAst(files: Map<string, string>, mainFile: string): Promise<{ ok: boolean; astText: string; stdout: string; stderr: string }> {
     try {
+      this.prepareInputs(files);
       return await this.runJob(async () => {
         const pch = await this.prepareFiles(files);
+        await this.ensureReady();
         const captured = this.runMainCapture(this.args.emitAst(workPath(mainFile), pch));
         return { ok: captured.code === 0, astText: captured.stdout, stdout: captured.stdout, stderr: captured.stderr };
       });
@@ -81,6 +88,7 @@ export class ClangFrontend extends EmscriptenTool {
     this.usePrecompiledHeaders = true;
     if (this.headers?.matches(files)) return;
     try {
+      this.prepareInputs(files);
       await this.runJob(() => this.prepareFiles(files));
     } finally {
       await this.recycle();
@@ -88,24 +96,37 @@ export class ClangFrontend extends EmscriptenTool {
   }
 
   private async prepareFiles(files: Map<string, string>, stripMetadata = false): Promise<string | undefined> {
+    await this.ensureReady();
     this.prepareWork();
     if (this.usePrecompiledHeaders && !this.headers?.matches(files)) {
       this.headers = undefined;
+      if (this.sharedFileSystem) {
+        this.sharedFileSystem.removeTree("/pch");
+        this.sharedFileSystem.mkdirTree("/pch");
+      }
       const headers = new PrecompiledHeaders(files);
       if (!headers.empty) {
         // Headers and PCH paths stay identical across disposable tool instances.
         headers.restore(this);
         await this.runMainAsync(this.args.precompile(PrecompiledHeaders.headerPath, PrecompiledHeaders.outputPath));
-        headers.capture(PrecompiledHeaders.outputPath, this.readCopy(PrecompiledHeaders.outputPath));
+        if (!this.sharedFileSystem) headers.capture(PrecompiledHeaders.outputPath, this.readCopy(PrecompiledHeaders.outputPath));
         this.headers = headers;
         await this.recycle();
       }
     }
-    this.headers?.restore(this);
-    for (const [name, text] of files) {
-      this.writeText(workPath(name), stripMetadata && !isHeader(name) ? this.comments.apply(text) : text);
+    if (!this.sharedFileSystem) {
+      this.headers?.restore(this);
+      for (const [name, text] of files) {
+        this.writeText(workPath(name), stripMetadata && !isHeader(name) ? this.comments.apply(text) : text);
+      }
     }
     return this.headers ? PrecompiledHeaders.outputPath : undefined;
+  }
+
+  private prepareInputs(files: Map<string, string>, stripMetadata = false): void {
+    this.sharedFileSystem?.prepareInputs(new Map([...files].map(([name, text]) => [
+      name, stripMetadata && !isHeader(name) ? this.comments.apply(text) : text,
+    ])));
   }
 
   protected override onSysrootInstalled(resourceDir: string): void {

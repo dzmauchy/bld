@@ -2,6 +2,7 @@ import { formatUnknownError, exitStatus, isAbortError } from "./errors.ts";
 import { EmscriptenFileSystem, type EmscriptenFsApi } from "./filesystem.ts";
 import type { SysrootInstallKind } from "./messages.ts";
 import { SysrootInstaller } from "./sysroot.ts";
+import { SharedToolchainFileSystem } from "./sharedFileSystem.ts";
 
 export type EmscriptenModuleOptions = {
   noInitialRun?: boolean;
@@ -26,6 +27,7 @@ type StdioStream = {
 
 export type EmscriptenRuntime = {
   FS: EmscriptenFsApi;
+  PROXYFS?: unknown;
   callMain: (args: string[]) => number | void;
 };
 
@@ -38,7 +40,7 @@ export function copyOut(bytes: Uint8Array): Uint8Array {
 }
 
 /**
- * One reusable Emscripten clang or lld instance with its own MEMFS.
+ * Disposable clang/lld runtimes with an optional persistent PROXYFS owner.
  */
 export abstract class EmscriptenTool {
   private runtime: EmscriptenRuntime | undefined;
@@ -54,7 +56,12 @@ export abstract class EmscriptenTool {
     private readonly createModule: EmscriptenModuleFactory,
     private readonly programName: string,
     private readonly wasmUrl: string,
+    private readonly sharedFiles?: SharedToolchainFileSystem,
   ) {}
+
+  get sharedFileSystem(): SharedToolchainFileSystem | undefined {
+    return this.sharedFiles;
+  }
 
   async boot(): Promise<void> {
     this.runtime = undefined;
@@ -74,10 +81,25 @@ export abstract class EmscriptenTool {
       },
     });
     this.fs = new EmscriptenFileSystem(this.runtime.FS);
-    this.fs.mkdirTree("/work");
+    if (this.sharedFiles) {
+      if (!this.runtime.PROXYFS || !this.runtime.FS.mount) {
+        this.runtime = undefined;
+        this.fs = undefined;
+        throw new Error(`${this.programName} must export FS.mount and PROXYFS`);
+      }
+      for (const path of SharedToolchainFileSystem.mountPaths) {
+        this.fs.mkdirTree(path);
+        this.runtime.FS.mount(this.runtime.PROXYFS, { root: path, fs: this.sharedFiles }, path);
+      }
+    } else this.fs.mkdirTree("/work");
   }
 
   async installSysroot(archive: ArrayBuffer, kind: SysrootInstallKind): Promise<string> {
+    if (this.sharedFiles) {
+      const installed = await new SysrootInstaller(this.sharedFiles).install(archive, kind, true);
+      this.useResourceDir(installed.resourceDir);
+      return installed.resourceDir;
+    }
     this.sysrootArchive = archive;
     this.sysrootKind = kind;
     const installer = new SysrootInstaller(this.requireFs());
@@ -89,6 +111,13 @@ export abstract class EmscriptenTool {
   }
 
   async recycle(): Promise<void> {
+    if (this.sharedFiles) {
+      // Instantiate only when the next invocation needs it. No tool heap is
+      // retained by the shared owner, including after a failed invocation.
+      this.runtime = undefined;
+      this.fs = undefined;
+      return;
+    }
     await this.boot();
     await this.restoreSysroot();
   }
@@ -99,8 +128,8 @@ export abstract class EmscriptenTool {
    * compiles cannot see newly written sources.
    */
   prepareWork(): void {
+    this.fs?.chdir("/");
     const fs = this.requireFs();
-    fs.chdir("/");
     fs.mkdirTree("/work");
   }
 
@@ -113,18 +142,29 @@ export abstract class EmscriptenTool {
   }
 
   readCopy(path: string): Uint8Array {
+    if (this.sharedFiles) return this.sharedFiles.readFile(path);
     return copyOut(this.requireFs().readFile(path));
   }
 
+  useResourceDir(resourceDir: string): void {
+    this.resourceDir = resourceDir;
+    this.onSysrootInstalled(resourceDir);
+  }
+
   async runMainAsync(args: string[]): Promise<void> {
+    await this.ensureReady();
     this.executeMain(args);
+  }
+
+  protected async ensureReady(): Promise<void> {
+    if (!this.runtime) await this.boot();
   }
 
   runMainCapture(args: string[]): { code: number; stdout: string; stderr: string } {
     const runtime = this.requireRuntime();
     this.stdout = [];
     this.stderr = [];
-    this.requireFs().chdir("/");
+    this.fs!.chdir("/");
     const code = this.callMain(runtime, [...args]);
     this.flushStdio(runtime);
     return { code, stdout: this.logs.stdout, stderr: this.logs.stderr };
@@ -141,6 +181,7 @@ export abstract class EmscriptenTool {
 
   protected async runJob<T>(job: () => Promise<T>): Promise<T> {
     try {
+      await this.ensureReady();
       return await job();
     } catch (error) {
       if (!this.canRecover(error) || !this.wasmUrl) throw error;
@@ -210,7 +251,8 @@ export abstract class EmscriptenTool {
     return this.runtime;
   }
 
-  private requireFs(): EmscriptenFileSystem {
+  private requireFs(): EmscriptenFileSystem | SharedToolchainFileSystem {
+    if (this.sharedFiles) return this.sharedFiles;
     if (!this.fs) throw new Error(`${this.programName} filesystem is not initialized`);
     return this.fs;
   }

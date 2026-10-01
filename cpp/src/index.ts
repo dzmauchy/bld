@@ -3,6 +3,7 @@ export { filePayload, messageId } from "./messages.ts";
 export { ClangArgumentBuilder, LldArgumentBuilder } from "./args.ts";
 export { WasmExecutor, ExecutedWasm } from "./executor.ts";
 export { MemoryFileSystem, EmscriptenFileSystem, VirtualFileSystem } from "./filesystem.ts";
+export { SharedToolchainFileSystem } from "./sharedFileSystem.ts";
 export { isCppSource, isHeader, objectPathFor, workPath, normalizeRelativePath } from "./paths.ts";
 export { CppWasmCompiler, WorkerCppWasmCompiler } from "./compiler.ts";
 export type { ICppCompiler } from "./compiler.ts";

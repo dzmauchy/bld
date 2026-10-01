@@ -1,6 +1,7 @@
 import { attachWorker, createHostPinNotifier } from "./workerHost.ts";
 import type { RunRequest, WorkerResponse } from "./messages.ts";
 import { DefaultWasmBindings } from "cpp";
+import { toWasmBytes } from "cpp/wasmBytes.ts";
 
 export { createHostPinNotifier };
 
@@ -20,13 +21,6 @@ export function hostPinEnvBindings(): EnvBindings {
   };
 }
 
-function toBytes(wasm: Uint8Array | ArrayBuffer): Uint8Array {
-  if (wasm instanceof ArrayBuffer) return new Uint8Array(wasm);
-  const copy = new Uint8Array(wasm.byteLength);
-  copy.set(wasm);
-  return copy;
-}
-
 function callExport(instance: WebAssembly.Instance, name: string, args: number[] = []): number {
   const fn = instance.exports[name];
   if (typeof fn !== "function") return 0;
@@ -38,8 +32,7 @@ export async function instantiateWasm(
   wasm: Uint8Array | ArrayBuffer,
   env: EnvBindings = defaultEnvBindings(),
 ): Promise<WebAssembly.Instance> {
-  const bytes = toBytes(wasm);
-  const module = await WebAssembly.compile(bytes.buffer as ArrayBuffer);
+  const module = await WebAssembly.compile(toWasmBytes(wasm));
   let instance: WebAssembly.Instance | undefined;
   const bindings = new DefaultWasmBindings(
     () => {
