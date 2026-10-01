@@ -27,7 +27,7 @@ export class LibraryArchive {
 
   static async fromTarGz(bytes: Uint8Array | ArrayBuffer): Promise<LibraryArchive> {
     const encoded = copyBytes(bytes);
-    const entries = await unpackTar(new Blob([encoded]).stream().pipeThrough(new DecompressionStream("gzip")));
+    const entries = await readArchiveEntries(encoded);
     const files = new Map<string, string>();
     let metadata: unknown;
     const decoder = new TextDecoder();
@@ -62,6 +62,20 @@ export class LibraryArchive {
     }
     const message = failure instanceof Error ? failure.message : String(failure);
     throw new Error(`Failed to load library archive ${location}: ${message}`);
+  }
+}
+
+async function readArchiveEntries(encoded: Uint8Array<ArrayBuffer>): Promise<Awaited<ReturnType<typeof unpackTar>>> {
+  const blob = new Blob([encoded]);
+  try {
+    return await unpackTar(blob.stream().pipeThrough(new DecompressionStream("gzip")));
+  } catch (gzipError) {
+    // Static servers treat a .gz name as Content-Encoding and inflate the body first.
+    try {
+      return await unpackTar(blob.stream());
+    } catch {
+      throw gzipError;
+    }
   }
 }
 

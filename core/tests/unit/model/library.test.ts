@@ -232,6 +232,18 @@ describe("Library and Asset Loader", () => {
     expect(archive.files()).toEqual({ "include/bld.hpp": "namespace bld {}" });
   });
 
+  test("LibraryArchive unpacks a tar that a static server already inflated", async () => {
+    const gzip = await gzipTar({
+      "include/bld.hpp": "namespace bld {}",
+      "meta.json": JSON.stringify({ blocks: [], namespaces: [] }),
+    });
+    const tar = new Uint8Array(await new Response(
+      new Blob([gzip]).stream().pipeThrough(new DecompressionStream("gzip")),
+    ).arrayBuffer());
+    const archive = await LibraryArchive.fromTarGz(tar);
+    expect(archive.files()).toEqual({ "include/bld.hpp": "namespace bld {}" });
+  });
+
   test("header block classes match the C++ catalog", async () => {
     const lib = await Library.loadBase();
     for (const [id, raw] of Object.entries(lib.blocks)) {
