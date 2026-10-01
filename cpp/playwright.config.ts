@@ -8,6 +8,8 @@ delete process.env.NO_COLOR;
 
 export default defineConfig({
   testDir: "./e2e",
+  // GitHub Actions sets CI, and Playwright then defaults to the dot reporter.
+  reporter: "list",
   testMatch: /.*\.spec\.ts/,
   testIgnore: (process.env.MANUAL || process.argv.some((arg) => arg.includes("manual"))) ? [] : ["**/*.manual.spec.ts"],
   fullyParallel: false,
