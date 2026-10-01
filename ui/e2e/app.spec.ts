@@ -32,12 +32,14 @@ const baseBlocks = [
 ];
 
 test("shows the bld icon splash until 100 ms after the parsed workspace is shown", async ({ page }) => {
-  let releaseIcon = () => {};
-  const iconHeld = new Promise<void>((resolve) => {
-    releaseIcon = resolve;
+  let releaseArchive = () => {};
+  const archiveHeld = new Promise<void>((resolve) => {
+    releaseArchive = resolve;
   });
-  await page.route("**/icons/bld.svg", async (route) => {
-    await iconHeld;
+  // The splash closes 100 ms after the base library parses. The local archive
+  // answers immediately, so hold it until the open splash has been observed.
+  await page.route("**/base-0.1.0.tar.gz", async (route) => {
+    await archiveHeld;
     await route.continue();
   });
 
@@ -53,14 +55,26 @@ test("shows the bld icon splash until 100 ms after the parsed workspace is shown
   const animationName = await splash.locator(".splash-ring-outer").evaluate((element) => getComputedStyle(element).animationName);
   expect(animationName).toBe("splash-spin");
 
-  releaseIcon();
-  await page.waitForLoadState("load");
-  await expect(splash).toBeVisible();
-  await expect(splash).toHaveAttribute("data-state", "open");
-  await page.waitForFunction(() => {
-    const open = document.querySelector("[data-splash]")?.getAttribute("data-state") === "open";
-    return open && document.querySelectorAll("[data-block-id]").length > 0;
+  await page.evaluate(() => {
+    const splashElement = document.querySelector("[data-splash]");
+    const watched = window as unknown as { workspaceShownWhileOpen?: Promise<boolean> };
+    watched.workspaceShownWhileOpen = new Promise<boolean>((resolve, reject) => {
+      const timeout = window.setTimeout(() => reject(new Error("splash closed before the parsed workspace was shown")), 30_000);
+      const done = () => {
+        const open = splashElement?.getAttribute("data-state") === "open" && !splashElement.hasAttribute("hidden");
+        const shown = document.querySelectorAll("[data-block-id]").length > 0;
+        if (!open || !shown) return;
+        window.clearTimeout(timeout);
+        observer.disconnect();
+        resolve(true);
+      };
+      const observer = new MutationObserver(done);
+      observer.observe(document.documentElement, { attributes: true, childList: true, subtree: true });
+      done();
+    });
   });
+  releaseArchive();
+  await page.evaluate(() => (window as unknown as { workspaceShownWhileOpen: Promise<boolean> }).workspaceShownWhileOpen);
   await expect(splash).toBeHidden();
   await expect(splash).toHaveAttribute("data-state", "closed");
 });
