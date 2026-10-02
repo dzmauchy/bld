@@ -77,10 +77,11 @@ wa-split-panel::part(panel) {
   --wa-color-text-quiet: #adb5bd;
   --wa-color-text-normal: #dee2e6;
   --wa-color-brand-filled: #0d6efd;
-  --port-size: 10px;
+  --port-size: 6px;
   --port-outset: calc(var(--port-size) / 2 - 1px);
-  --port-stub: 2px;
-  --port-rail: 2px;
+  --port-stub: 1px;
+  --port-rail: 1px;
+  --palette-button-size: 3.25rem;
 }
 
 .palette-header {
@@ -185,27 +186,30 @@ wa-split-panel::part(panel) {
 
 .palette-blocks-grid {
   display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 8px 6px;
-  padding: 8px;
+  grid-template-columns: repeat(auto-fill, var(--palette-button-size));
+  justify-content: start;
+  align-items: start;
+  gap: 4px;
+  padding: 4px;
   width: 100%;
   box-sizing: border-box;
 }
 
 .region-palette .palette-item.flow-node {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
+  grid-template-columns: auto minmax(0, 1fr) auto;
   align-items: center;
-  width: 100%;
+  width: var(--palette-button-size);
   min-width: 0;
-  min-height: 4.5rem;
+  height: var(--palette-button-size);
+  min-height: 0;
   box-sizing: border-box;
   overflow: visible;
   background: #14191e;
   color: #dee2e6;
   border: 1px solid #3a424a;
-  border-radius: 8px;
-  box-shadow: 0 3px 8px rgba(0, 0, 0, 0.45);
+  border-radius: 5px;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.4);
   cursor: pointer;
   text-align: left;
   font: inherit;
@@ -245,15 +249,15 @@ wa-split-panel::part(panel) {
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  gap: 4px;
+  gap: 1px;
   min-width: 0;
-  padding: 8px 2px;
+  padding: 2px 0;
 }
 
 .region-palette .flow-node-title {
   max-width: 100%;
-  font-size: 0.68rem;
-  line-height: 1.15;
+  font-size: 0.5rem;
+  line-height: 1.05;
   text-align: center;
   color: #adb5bd;
   overflow: hidden;
@@ -265,15 +269,15 @@ wa-split-panel::part(panel) {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 28px;
-  height: 28px;
+  width: 14px;
+  height: 14px;
   color: var(--block-accent, #0d6efd);
   line-height: 0;
 }
 
 .region-palette .flow-node-icon svg {
-  width: 28px;
-  height: 28px;
+  width: 14px;
+  height: 14px;
   stroke: currentColor;
   fill: none;
   overflow: visible;
@@ -283,9 +287,9 @@ wa-split-panel::part(panel) {
   display: flex;
   flex-direction: column;
   justify-content: center;
-  gap: 4px;
+  gap: 1px;
   min-width: 0;
-  padding: 6px 0;
+  padding: 2px 0;
 }
 
 .region-palette .flow-node-port-col.is-in {
@@ -324,7 +328,7 @@ wa-split-panel::part(panel) {
   width: var(--port-size);
   height: var(--port-size);
   border-radius: 50%;
-  border: 2px solid var(--block-accent, #0d6efd);
+  border: 1px solid var(--block-accent, #0d6efd);
   background: #14171a;
 }
 

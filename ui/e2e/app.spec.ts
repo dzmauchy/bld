@@ -92,6 +92,10 @@ test("splits a black workspace into a palette and a diagram", async ({ page }) =
   await expect(palette.locator(".palette-subtitle")).toHaveText("Click to place on the canvas");
   await expect(palette.locator(".palette-ns-toggle").first()).toBeVisible();
   await expect(palette.locator("[data-block-id=ScopeF32] .flow-node-icon svg")).toBeVisible();
+  const blockButton = await palette.locator("[data-block-id=ConstF32]").boundingBox();
+  expect(blockButton).toBeTruthy();
+  expect(blockButton!.width).toBeLessThan(60);
+  expect(blockButton!.height).toBeLessThan(60);
   expect(await palette.evaluate((element) => getComputedStyle(element).backgroundColor)).toBe("rgb(28, 33, 37)");
   await expect(diagram.locator("h1")).toHaveText("Diagram");
 
