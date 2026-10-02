@@ -1,0 +1,8 @@
+---
+description: Use always the same model for subagents as the model for the prompt
+alwaysApply: true
+---
+
+Use always the same model for subagents as the model for the prompt.
+
+This rule is mandatory on every turn. It overrides all workflows' settings.

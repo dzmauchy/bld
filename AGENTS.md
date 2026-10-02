@@ -61,4 +61,6 @@ Technology stack:
 
 # Agent permissions
 
-- The agent has full permissions to perform any actions needed to achieve the user's objectives without requiring explicit confirmation.
+- The agent has full permission to perform any actions needed to achieve 
+  the user's goals without requiring explicit confirmation except
+  preparing a video presentation without the user's consent.
