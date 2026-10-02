@@ -35,9 +35,15 @@ Technology stack:
   using a sliding buffer (Float32Array or Float64Array) with one 
   pointer
 
+# Agent instructions
+
+- Do not use Cursor's presentation unless the user gives clear instructions about it
+- Use e2e tests with screenshots and screencasts to keep evidence and investigate the issues
+- Always use the Cursor model the user specified in the initial prompt
+
 # Testing
 
-- Do not launch a video test unless the prompt clearly mentions doing that
+- Use e2e tests with screenshots and screencasts to keep evidence and investigate the issues
 - Prefer writing e2e tests and integration tests
 - Test layout:
   - `e2e` — e2e tests
