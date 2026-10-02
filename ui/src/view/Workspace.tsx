@@ -1,5 +1,5 @@
 import { Diagram, Palette, TypeSystem, type BlockDefinition, type DiagramBlock, type Library } from "core";
-import { createSignal, For, onMount, type Accessor } from "solid-js";
+import { createSignal, For, type Accessor } from "solid-js";
 import { PaletteColumn } from "./palette/paletteColumnWidth.js";
 import { PalettePanel } from "./palette/PalettePanel.js";
 
@@ -11,10 +11,6 @@ interface SplitPanelElement extends HTMLElement {
 export function Workspace(props: { libraries: readonly Library[] }) {
   const diagram = new Diagram("diagram", "Diagram", combinedPalette(props.libraries));
   const [blocks, setBlocks] = createSignal<DiagramBlock[]>([]);
-  let panel: HTMLElement | undefined;
-  onMount(() => {
-    if (panel) new PaletteColumn(panel).fit();
-  });
 
   const place = (definition: BlockDefinition) => {
     const count = blocks().length;
@@ -26,13 +22,7 @@ export function Workspace(props: { libraries: readonly Library[] }) {
   };
 
   return (
-    <wa-split-panel
-      class="workspace"
-      ref={(element) => {
-        panel = element;
-        bindSplitPanel(element);
-      }}
-    >
+    <wa-split-panel class="workspace" ref={bindSplitPanel}>
       <PalettePanel libraries={props.libraries} onPlace={place} />
       <DiagramCanvas diagram={diagram} blocks={blocks} />
     </wa-split-panel>
@@ -65,6 +55,7 @@ function bindSplitPanel(element: HTMLElement): void {
   const panel = element as SplitPanelElement;
   panel.position = 23;
   panel.primary = "start";
+  requestAnimationFrame(() => new PaletteColumn(panel).fit());
 }
 
 function combinedPalette(libraries: readonly Library[]): Palette {
