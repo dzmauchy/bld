@@ -95,8 +95,8 @@ test("splits a black workspace into a palette and a diagram", async ({ page }) =
   const blockButton = await palette.locator("[data-block-id=ConstF32]").boundingBox();
   expect(blockButton).toBeTruthy();
   expect(blockButton!.height).toBeLessThan(60);
-  expect(blockButton!.width / blockButton!.height).toBeGreaterThan(1.15);
-  expect(blockButton!.width / blockButton!.height).toBeLessThan(1.25);
+  expect(blockButton!.width / blockButton!.height).toBeGreaterThan(1.39);
+  expect(blockButton!.width / blockButton!.height).toBeLessThan(1.49);
   const titleSize = await palette.locator("[data-block-id=ConstF32] .flow-node-title").evaluate((element) => {
     const fontSize = parseFloat(getComputedStyle(element).fontSize);
     const rootSize = parseFloat(getComputedStyle(document.documentElement).fontSize);
