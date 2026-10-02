@@ -157,14 +157,16 @@ test("splits a black workspace into a palette and a diagram", async ({ page }) =
     const gap = Number.parseFloat(gridStyle?.columnGap ?? "");
     const padding = Number.parseFloat(gridStyle?.paddingLeft ?? "") + Number.parseFloat(gridStyle?.paddingRight ?? "");
     const twoButtons = button * 2 + (Number.isFinite(gap) ? gap : 0) + (Number.isFinite(padding) ? padding : 0);
+    const root = Number.parseFloat(getComputedStyle(document.documentElement).fontSize);
     return {
       actual: element.getBoundingClientRect().width,
       expected: Math.max(...titles, twoButtons) + slack,
-      slackText: getComputedStyle(element).getPropertyValue("--palette-column-slack").trim(),
+      slack,
+      root,
     };
   });
-  expect(column.slackText).toBe("0.1rem");
-  expect(Math.abs(column.actual - column.expected)).toBeLessThan(1);
+  expect(Math.abs(column.slack - column.root * 0.1)).toBeLessThan(0.05);
+  expect(Math.abs(column.actual - column.expected), JSON.stringify(column)).toBeLessThan(1);
   expect(diagramBox!.width).toBeGreaterThan(paletteBox!.width);
   expect(Math.abs(paletteBox!.height - diagramBox!.height)).toBeLessThan(2);
 
