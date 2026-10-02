@@ -100,9 +100,9 @@ test("splits a black workspace into a palette and a diagram", async ({ page }) =
   const titleSize = await palette.locator("[data-block-id=ConstF32] .flow-node-title").evaluate((element) => {
     const fontSize = parseFloat(getComputedStyle(element).fontSize);
     const rootSize = parseFloat(getComputedStyle(document.documentElement).fontSize);
-    return fontSize - rootSize * 0.5;
+    return fontSize / rootSize;
   });
-  expect(titleSize).toBeCloseTo(96 / 72, 1);
+  expect(titleSize).toBeCloseTo(0.7, 2);
   const portOpacity = await palette.locator("[data-block-id=ConstF32] .flow-node-port-col").first().evaluate((element) => Number(getComputedStyle(element).opacity));
   expect(portOpacity).toBeLessThan(0.6);
   const rowCounts = await palette.locator(".palette-blocks-grid").evaluateAll((grids) =>
