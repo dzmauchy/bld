@@ -94,8 +94,31 @@ test("splits a black workspace into a palette and a diagram", async ({ page }) =
   await expect(palette.locator("[data-block-id=ScopeF32] .flow-node-icon svg")).toBeVisible();
   const blockButton = await palette.locator("[data-block-id=ConstF32]").boundingBox();
   expect(blockButton).toBeTruthy();
-  expect(blockButton!.width).toBeLessThan(60);
   expect(blockButton!.height).toBeLessThan(60);
+  expect(blockButton!.width / blockButton!.height).toBeGreaterThan(1.15);
+  expect(blockButton!.width / blockButton!.height).toBeLessThan(1.25);
+  const titleSize = await palette.locator("[data-block-id=ConstF32] .flow-node-title").evaluate((element) => {
+    const fontSize = parseFloat(getComputedStyle(element).fontSize);
+    const rootSize = parseFloat(getComputedStyle(document.documentElement).fontSize);
+    return fontSize - rootSize * 0.5;
+  });
+  expect(titleSize).toBeCloseTo(96 / 72, 1);
+  const portOpacity = await palette.locator("[data-block-id=ConstF32] .flow-node-port-col").first().evaluate((element) => Number(getComputedStyle(element).opacity));
+  expect(portOpacity).toBeLessThan(0.6);
+  const rowCounts = await palette.locator(".palette-blocks-grid").evaluateAll((grids) =>
+    grids.map((grid) => {
+      const rows = new Map<number, number>();
+      for (const button of grid.querySelectorAll("[data-block-id]")) {
+        const top = Math.round(button.getBoundingClientRect().top);
+        rows.set(top, (rows.get(top) ?? 0) + 1);
+      }
+      return [...rows.values()];
+    }),
+  );
+  expect(rowCounts.some((counts) => counts.includes(2))).toBe(true);
+  for (const counts of rowCounts) {
+    for (const count of counts) expect(count).toBeLessThanOrEqual(2);
+  }
   expect(await palette.evaluate((element) => getComputedStyle(element).backgroundColor)).toBe("rgb(28, 33, 37)");
   await expect(diagram.locator("h1")).toHaveText("Diagram");
 

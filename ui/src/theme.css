@@ -82,6 +82,8 @@ wa-split-panel::part(panel) {
   --port-stub: 1px;
   --port-rail: 1px;
   --palette-button-size: 3.25rem;
+  --palette-button-width: calc(var(--palette-button-size) * 1.2);
+  --palette-port-emphasis: 0.45;
 }
 
 .palette-header {
@@ -186,12 +188,13 @@ wa-split-panel::part(panel) {
 
 .palette-blocks-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, var(--palette-button-size));
+  grid-template-columns: repeat(2, var(--palette-button-width));
   justify-content: start;
   align-items: start;
   gap: 4px;
   padding: 4px;
-  width: 100%;
+  width: max-content;
+  max-width: 100%;
   box-sizing: border-box;
 }
 
@@ -199,7 +202,7 @@ wa-split-panel::part(panel) {
   display: grid;
   grid-template-columns: auto minmax(0, 1fr) auto;
   align-items: center;
-  width: var(--palette-button-size);
+  width: var(--palette-button-width);
   min-width: 0;
   height: var(--palette-button-size);
   min-height: 0;
@@ -256,7 +259,7 @@ wa-split-panel::part(panel) {
 
 .region-palette .flow-node-title {
   max-width: 100%;
-  font-size: 0.5rem;
+  font-size: calc(0.5rem + 1pt);
   line-height: 1.05;
   text-align: center;
   color: #adb5bd;
@@ -290,6 +293,7 @@ wa-split-panel::part(panel) {
   gap: 1px;
   min-width: 0;
   padding: 2px 0;
+  opacity: var(--palette-port-emphasis);
 }
 
 .region-palette .flow-node-port-col.is-in {
