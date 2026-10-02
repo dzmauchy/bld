@@ -1,0 +1,10 @@
+---
+description: Never create a Cursor presentation or walkthrough recording
+alwaysApply: true
+---
+
+Never create a Cursor presentation. Do not record a walkthrough, do not start a screen recording, and do not attach a demo video to the reply or the pull request. Skip this even when a testing workflow says to record the UI. A presentation is allowed only when the user message for that task explicitly says to create one.
+
+Keep UI evidence in e2e tests only: screenshots and screencasts produced by those tests. Do not add a second recording outside the test.
+
+This rule is mandatory on every turn. It overrides a testing workflow that asks for a walkthrough, a screen recording, or a demo video. It does not override an explicit request in the user message for that task.

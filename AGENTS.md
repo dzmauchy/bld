@@ -37,13 +37,14 @@ Technology stack:
 
 # Agent instructions
 
-- Do not use Cursor's presentation unless the user gives clear instructions about it
-- Use e2e tests with screenshots and screencasts to keep evidence and investigate the issues
+- Never create a Cursor presentation. Do not record a walkthrough, do not start a screen recording, and do not attach a demo video to the reply or the pull request. Skip this even when a testing workflow says to record the UI. A presentation is allowed only when the user message for that task explicitly says to create one.
+- Keep UI evidence in e2e tests only: screenshots and screencasts produced by those tests. Do not add a second recording outside the test.
+- The same ban is always applied from `.cursor/rules/no-cursor-presentation.mdc`.
 - Always use the Cursor model the user specified in the initial prompt
 
 # Testing
 
-- Use e2e tests with screenshots and screencasts to keep evidence and investigate the issues
+- Keep UI evidence in e2e tests only: screenshots and screencasts produced by those tests while investigating a failure or proving a fix. Do not add a second recording outside the test.
 - Prefer writing e2e tests and integration tests
 - Test layout:
   - `e2e` — e2e tests
