@@ -127,7 +127,46 @@ test("splits a black workspace into a palette and a diagram", async ({ page }) =
   expect(paletteBox).toBeTruthy();
   expect(diagramBox).toBeTruthy();
   expect(paletteBox!.x).toBeLessThan(diagramBox!.x);
-  expect(paletteBox!.width).toBeGreaterThan(160);
+  const column = await palette.evaluate((element) => {
+    const shrink = (node: Element) => {
+      const clone = node.cloneNode(true);
+      if (!(clone instanceof HTMLElement)) return 0;
+      clone.style.position = "absolute";
+      clone.style.visibility = "hidden";
+      clone.style.width = "max-content";
+      clone.style.maxWidth = "none";
+      clone.style.minWidth = "max-content";
+      if (getComputedStyle(node).display === "inline") clone.style.display = "inline-block";
+      element.appendChild(clone);
+      const width = clone.getBoundingClientRect().width;
+      clone.remove();
+      return width;
+    };
+    const titles = [...element.querySelectorAll(".palette-header, .palette-ns-toggle, .flow-node-title")].map(shrink);
+    const grid = element.querySelector(".palette-blocks-grid");
+    const gridStyle = grid ? getComputedStyle(grid) : undefined;
+    const probe = document.createElement("div");
+    probe.style.position = "absolute";
+    probe.style.visibility = "hidden";
+    probe.style.width = "var(--palette-button-width)";
+    element.appendChild(probe);
+    const button = probe.getBoundingClientRect().width;
+    probe.style.width = "var(--palette-column-slack)";
+    const slack = probe.getBoundingClientRect().width;
+    probe.remove();
+    const gap = Number.parseFloat(gridStyle?.columnGap ?? "");
+    const padding = Number.parseFloat(gridStyle?.paddingLeft ?? "") + Number.parseFloat(gridStyle?.paddingRight ?? "");
+    const twoButtons = button * 2 + (Number.isFinite(gap) ? gap : 0) + (Number.isFinite(padding) ? padding : 0);
+    const root = Number.parseFloat(getComputedStyle(document.documentElement).fontSize);
+    return {
+      actual: element.getBoundingClientRect().width,
+      expected: Math.max(...titles, twoButtons) + slack,
+      slack,
+      root,
+    };
+  });
+  expect(Math.abs(column.slack - column.root * 0.1)).toBeLessThan(0.05);
+  expect(Math.abs(column.actual - column.expected), JSON.stringify(column)).toBeLessThan(1);
   expect(diagramBox!.width).toBeGreaterThan(paletteBox!.width);
   expect(Math.abs(paletteBox!.height - diagramBox!.height)).toBeLessThan(2);
 

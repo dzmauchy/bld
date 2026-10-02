@@ -1,5 +1,6 @@
 import { Diagram, Palette, TypeSystem, type BlockDefinition, type DiagramBlock, type Library } from "core";
 import { createSignal, For, type Accessor } from "solid-js";
+import { PaletteColumn } from "./palette/paletteColumnWidth.js";
 import { PalettePanel } from "./palette/PalettePanel.js";
 
 interface SplitPanelElement extends HTMLElement {
@@ -54,6 +55,7 @@ function bindSplitPanel(element: HTMLElement): void {
   const panel = element as SplitPanelElement;
   panel.position = 23;
   panel.primary = "start";
+  requestAnimationFrame(() => new PaletteColumn(panel).fit());
 }
 
 function combinedPalette(libraries: readonly Library[]): Palette {

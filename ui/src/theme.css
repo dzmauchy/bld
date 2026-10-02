@@ -83,6 +83,7 @@ wa-split-panel::part(panel) {
   --port-rail: 1px;
   --palette-button-size: 3.25rem;
   --palette-button-width: calc(var(--palette-button-size) * 1.2);
+  --palette-column-slack: 0.1rem;
   --palette-port-emphasis: 0.45;
 }
 
