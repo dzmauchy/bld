@@ -88,15 +88,23 @@ test("splits a black workspace into a palette and a diagram", async ({ page }) =
   await expect(palette).toBeVisible();
   await expect(diagram).toBeVisible();
   await expect(palette).toHaveAttribute("data-libraries", "base");
-  await expect(palette.locator("h1")).toHaveText("Palette");
-  await expect(palette.locator(".palette-subtitle")).toHaveText("Click to place on the canvas");
+  await expect(palette.locator(".palette-header, .palette-title, .palette-subtitle, h1")).toHaveCount(0);
+  await expect(palette.getByText("Click to place on the canvas")).toHaveCount(0);
   await expect(palette.locator(".palette-ns-toggle").first()).toBeVisible();
   await expect(palette.locator("[data-block-id=ScopeF32] .flow-node-icon svg")).toBeVisible();
   const blockButton = await palette.locator("[data-block-id=ConstF32]").boundingBox();
   expect(blockButton).toBeTruthy();
   expect(blockButton!.height).toBeLessThan(60);
-  expect(blockButton!.width / blockButton!.height).toBeGreaterThan(1.39);
-  expect(blockButton!.width / blockButton!.height).toBeLessThan(1.49);
+  expect(blockButton!.width / blockButton!.height).toBeGreaterThan(1.27);
+  expect(blockButton!.width / blockButton!.height).toBeLessThan(1.37);
+  const blockFill = await palette.locator("[data-block-id=ConstF32], [data-block-id=SumF32], [data-block-id=ScopeF32]").evaluateAll((buttons) =>
+    buttons.map((button) => getComputedStyle(button).backgroundImage),
+  );
+  expect(blockFill).toHaveLength(3);
+  for (const fill of blockFill) expect(fill).toContain("linear-gradient");
+  expect(new Set(blockFill).size).toBe(3);
+  const gpioClip = await palette.locator("[data-block-id=GpioInF32] .flow-node-title").evaluate((element) => element.scrollWidth - element.clientWidth);
+  expect(gpioClip).toBeLessThanOrEqual(1);
   const titleSize = await palette.locator("[data-block-id=ConstF32] .flow-node-title").evaluate((element) => {
     const fontSize = parseFloat(getComputedStyle(element).fontSize);
     const rootSize = parseFloat(getComputedStyle(document.documentElement).fontSize);
@@ -142,7 +150,7 @@ test("splits a black workspace into a palette and a diagram", async ({ page }) =
       clone.remove();
       return width;
     };
-    const titles = [...element.querySelectorAll(".palette-header, .palette-ns-toggle, .flow-node-title")].map(shrink);
+    const titles = [...element.querySelectorAll(".palette-ns-toggle, .flow-node-title")].map(shrink);
     const grid = element.querySelector(".palette-blocks-grid");
     const gridStyle = grid ? getComputedStyle(grid) : undefined;
     const probe = document.createElement("div");
@@ -167,6 +175,19 @@ test("splits a black workspace into a palette and a diagram", async ({ page }) =
   });
   expect(Math.abs(column.slack - column.root * 0.1)).toBeLessThan(0.05);
   expect(Math.abs(column.actual - column.expected), JSON.stringify(column)).toBeLessThan(1);
+  expect(paletteBox!.width).toBeLessThan(170);
+  const centered = await palette.evaluate((element) => {
+    const paletteBox = element.getBoundingClientRect();
+    const hostMid = (paletteBox.left + paletteBox.right) / 2;
+    return [...element.querySelectorAll(".palette-blocks-grid")].map((grid) => {
+      const buttons = [...grid.querySelectorAll("[data-block-id]")];
+      const left = Math.min(...buttons.map((button) => button.getBoundingClientRect().left));
+      const right = Math.max(...buttons.map((button) => button.getBoundingClientRect().right));
+      return Math.abs((left + right) / 2 - hostMid);
+    });
+  });
+  expect(centered.length).toBeGreaterThan(0);
+  for (const delta of centered) expect(delta).toBeLessThan(2);
   expect(diagramBox!.width).toBeGreaterThan(paletteBox!.width);
   expect(Math.abs(paletteBox!.height - diagramBox!.height)).toBeLessThan(2);
 

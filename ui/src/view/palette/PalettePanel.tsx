@@ -14,13 +14,7 @@ export function PalettePanel(props: { libraries: readonly Library[]; onPlace: (d
   const [expansion, setExpansion] = createSignal(PaletteExpansion.expanded(groups));
 
   return (
-    <section class="region region-palette" data-region="palette" data-libraries={libraryIds} slot="start">
-      <header class="palette-header">
-        <div>
-          <h1 class="palette-title">Palette</h1>
-          <p class="palette-subtitle">Click to place on the canvas</p>
-        </div>
-      </header>
+    <section class="region region-palette" data-region="palette" data-libraries={libraryIds} slot="start" aria-label="Palette">
       <div class="palette-list">
         <For each={groups}>
           {(group) => (
@@ -56,7 +50,7 @@ function PaletteFolder(props: {
         title={props.group.hint}
         onClick={() => props.onToggle(props.group.id)}
       >
-        {props.group.label}
+        <span class="palette-ns-label">{props.group.label}</span>
       </button>
       <Show when={open()}>
         <div class={`palette-ns-body${props.depth > 0 ? " is-nested" : ""}`}>

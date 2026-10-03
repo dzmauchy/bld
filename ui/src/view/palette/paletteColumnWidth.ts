@@ -60,7 +60,7 @@ export class PaletteColumn {
 
 /** Shrink-wrapped width of a palette title, including its padding and markers. */
 class PaletteTitle {
-  static readonly selector = ".palette-header, .palette-ns-toggle, .flow-node-title";
+  static readonly selector = ".palette-ns-toggle, .flow-node-title";
 
   constructor(
     private readonly element: HTMLElement,
