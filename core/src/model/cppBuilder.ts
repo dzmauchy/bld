@@ -5,7 +5,7 @@ import type { DiagramBlock } from "./diagramBlock";
 import type { Connection } from "./connection";
 import type { PortEndpoint } from "./endpoint";
 import { ConfigPropertyDefinition } from "./blockDefinition";
-import { ClangConstructorCatalog } from "./clangConstructorCatalog";
+import { ClangConstructorCatalog, type ConstructorParameter } from "./clangConstructorCatalog";
 import { InferredPortType } from "./inferredPortType";
 import { browserHost } from "./browserHost";
 
@@ -223,6 +223,19 @@ export class CppDiagramBuilder extends DiagramSourceBuilder {
     return ordered;
   }
 
+  private resolvedParameters(
+    catalog: ClangConstructorCatalog,
+    definition: DiagramBlock["definition"],
+  ): readonly ConstructorParameter[] | undefined {
+    const declared = catalog.parametersFor(definition.cppClass);
+    if (declared) return declared;
+    const constructed = catalog.constructedParameters(definition.cppClass);
+    if (!constructed) return undefined;
+    const names = [...definition.config.keys()];
+    if (constructed.length !== names.length) return undefined;
+    return constructed.map((param, index) => ({ ...param, name: names[index]! }));
+  }
+
   private readConfigs(diagram: Diagram, ast: ClangAstJson): void {
     const catalog = ClangConstructorCatalog.fromAst(ast);
     const seen = new Set<DiagramBlock["definition"]>();
@@ -230,7 +243,7 @@ export class CppDiagramBuilder extends DiagramSourceBuilder {
       const definition = block.definition;
       if (seen.has(definition)) continue;
       seen.add(definition);
-      const resolved = catalog.parametersFor(definition.cppClass);
+      const resolved = this.resolvedParameters(catalog, definition);
       if (!resolved) continue;
       const properties = resolved.map((param) => {
         const existing = definition.getConfig(param.name);

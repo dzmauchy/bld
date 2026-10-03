@@ -23,6 +23,7 @@ export class ClangConstructorCatalog {
     private readonly declared: ReadonlyMap<string, readonly ConstructorParameter[]>,
     private readonly specializations: readonly SpecializationRecord[],
     private readonly primary: ReadonlyMap<string, readonly ConstructorParameter[]>,
+    private readonly constructed: ReadonlyMap<string, readonly ConstructorParameter[]>,
   ) {}
 
   static fromAst(ast: ClangAstJson): ClangConstructorCatalog {
@@ -31,6 +32,7 @@ export class ClangConstructorCatalog {
     const declared = new Map<string, readonly ConstructorParameter[]>();
     const specializations: SpecializationRecord[] = [];
     const primary = new Map<string, readonly ConstructorParameter[]>();
+    const constructed = new Map<string, readonly ConstructorParameter[]>();
     const walk = (node: ClangAstJson, namespaceParts: readonly string[]): void => {
       const next = node.kind === "NamespaceDecl" && node.name ? [...namespaceParts, node.name] : namespaceParts;
       const qualified = node.name ? qualify(next, node.name) : "";
@@ -50,6 +52,11 @@ export class ClangConstructorCatalog {
           if (params) primary.set(qualified, params);
         }
       }
+      if (node.kind === "CXXConstructExpr" && node.type?.qualType) {
+        const params = parametersFromConstruct(node);
+        const previous = constructed.get(node.type.qualType);
+        if (params && (!previous || params.length > previous.length)) constructed.set(node.type.qualType, params);
+      }
       if (node.kind === "ClassTemplateSpecializationDecl" && node.name) {
         const args = (node.inner ?? [])
           .filter((child) => child.kind === "TemplateArgument")
@@ -59,7 +66,12 @@ export class ClangConstructorCatalog {
       for (const child of node.inner ?? []) walk(child, next);
     };
     walk(ast, []);
-    return new ClangConstructorCatalog(aliases, records, declared, specializations, primary);
+    return new ClangConstructorCatalog(aliases, records, declared, specializations, primary, constructed);
+  }
+
+  /** Types and defaults from a precompiled-header call, which omits the class body. */
+  constructedParameters(cppClass: string): readonly ConstructorParameter[] | undefined {
+    return this.constructed.get(cppClass);
   }
 
   parametersFor(cppClass: string): readonly ConstructorParameter[] | undefined {
@@ -130,6 +142,13 @@ function basesOf(node: ClangAstJson): string[] {
     .filter((type) => type.length > 0);
 }
 
+function parametersFromConstruct(node: ClangAstJson): readonly ConstructorParameter[] | undefined {
+  const ctorType = (node as ClangAstJson & { ctorType?: { qualType?: string } }).ctorType?.qualType ?? "";
+  if (!/^void\s*\(/.test(ctorType) || ctorType.includes("&")) return undefined;
+  const args = node.inner ?? [];
+  return args.slice(1).map((arg) => parameterFromNode(arg, ""));
+}
+
 function explicitParameters(node: ClangAstJson): readonly ConstructorParameter[] | undefined {
   const constructors = (node.inner ?? []).filter((child) => child.kind === "CXXConstructorDecl" && !child.isImplicit);
   const constructor = constructors.find((decl) =>
@@ -138,16 +157,16 @@ function explicitParameters(node: ClangAstJson): readonly ConstructorParameter[]
   const parameters: ConstructorParameter[] = [];
   for (const child of constructor.inner ?? []) {
     if (child.kind !== "ParmVarDecl" || !child.name || child.name === "blockId") continue;
-    const type = concreteType(child);
-    let value = defaultValue(child);
-    if (Array.isArray(value) && !/\bArray\s*</.test(type) && value.length === 1) value = value[0];
-    parameters.push({
-      name: child.name,
-      type,
-      defaultValue: value,
-    });
+    parameters.push(parameterFromNode(child, child.name));
   }
   return parameters;
+}
+
+function parameterFromNode(node: ClangAstJson, name: string): ConstructorParameter {
+  const type = concreteType(node);
+  let value = defaultValue(node);
+  if (Array.isArray(value) && !/\bArray\s*</.test(type) && value.length === 1) value = value[0];
+  return { name, type, defaultValue: value };
 }
 
 function concreteType(node: ClangAstJson): string {
