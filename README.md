@@ -49,10 +49,10 @@ The project features a **client-side only** architecture:
 ## Key Features
 
 - **Pure Client-Side Execution**: Zero backend dependencies; compilation and execution take place entirely within the browser.
-- **C++ Diagram Builder**: Generates C++ that instantiates `push::f32` blocks from the base library and delegates wasm compilation to the `cpp` workspace.
+- **C++ Diagram Builder**: Generates C++ that instantiates `push::f_32` blocks from the base library and delegates wasm compilation to the `cpp` workspace.
 - **Web Worker Thread Isolation**: All runtime execution runs off the main thread with non-blocking RPC communication and streaming pin updates.
 - **Sliding Scope Buffers**: High-rate signal capture in the browser uses a `Float32Array`/`Float64Array` ring with a single write pointer.
-- **Release metadata**: `meta.json` in the base archive lists every block, namespace, and port. Loading the palette does not invoke Clang.
+- **Release metadata**: `meta.json` in the base archive lists every block, namespace, port, and parameter. Loading the palette does not invoke Clang. Parameter controls come from that manifest. Clang supplies each parameter's C++ type and default during analysis.
 - **Clang type checks**: Port types and connection compatibility come from `clang++` AST dumps. Configuration properties that match their defaults are omitted from the diagram comment.
 - **Production-Ready UI Stack**: Built on Solid.js, Web Awesome, dark mode by default, and bundled with Rsbuild.
 
@@ -164,7 +164,7 @@ flowchart TD
     A["Diagram C++ / mount()"] --> B["CppDiagramBuilder"]
     
     subgraph Emit["C++ Generation"]
-        B --> B1["Map header comments to push::f32 classes"]
+        B --> B1["Map release metadata to push::f_32 classes"]
         B1 --> B2["Reverse-topo apply order (sinks before sources)"]
         B2 --> B3["Emit diagram.cpp mount() plus native headers"]
     end
@@ -332,21 +332,24 @@ const errors = result.diagnostics.filter(d => d.severity === "error");
 
 Use `canConnect()` for immediate structural checks (endpoints, direction, duplicates, and cycles). Use `await canConnectAsync()` to check a proposed connection with Clang without changing the diagram. `DiagramCompiler.compile()` performs analysis and throws `DiagramCompilationError` with structured diagnostics if it fails. Synchronous inference is available for host Clang tests; browser clients use the asynchronous API.
 
-Constructor configuration definitions and defaults become available after analysis. Run analysis before emitting configured sources directly with `builder.build()`. `compile()` handles this automatically. Default configuration values are omitted from JSON after the definitions have been discovered.
+Parameter ids, titles, descriptions, icons, and controls come from the release `parameters` array. Clang fills each parameter's C++ type and default during analysis. Run analysis before emitting configured sources directly with `builder.build()`. `compile()` handles this automatically. Default configuration values are omitted from JSON after the definitions have been discovered.
 
 ## Standard Block Library (`base`)
 
-The [base v0.1.0 archive](https://github.com/dzmauchy/bld-base/releases/download/v0.1.0/base-0.1.0.tar.gz) contains 22 blocks in `push::f32` and `push::f64`. References use the exact metadata IDs, such as `ConstF32`, `ScopeF32`, and `ScopeF64`. Header directory paths are preserved.
+The [base v0.1.0 archive](https://github.com/dzmauchy/bld-base/releases/download/v0.1.0/base-0.1.0.tar.gz) contains 22 blocks in `push::f_32` and `push::f_64`. References use the exact metadata IDs, such as `ConstF32`, `ScopeF32`, and `ScopeF64`. Header directory paths are preserved. Block types are concrete classes and aliases, constructed as `push::f_32::sinks::ScopeF32(blockId, ...)`.
 
-| Block family | Input fields | Output fields |
-|---|---|---|
-| Const, SinGen, CosGen, RandGen, PulseGen | `downstream` | none |
-| GpioIn | `pins` | none |
-| Sin, Cos | `downstream` | `consumer` |
-| Sum, Product | `downstream`, `channelCount` | `channels` |
-| Scope | `channelCount` | `channels` |
+| Block family | Input fields | Output fields | Parameters |
+|---|---|---|---|
+| Const | `downstream` | none | `value` |
+| SinGen, CosGen | `downstream` | none | `precision`, `frequency`, `amplitude`, `phase` |
+| RandGen | `downstream` | none | `precision`, `amplitude` |
+| PulseGen | `downstream` | none | `dutyCycle`, `amplitude`, `frequency`, `phase` |
+| GpioIn | `pins` | none | `port`, `pins` |
+| Sin, Cos | `downstream` | `consumer` | none |
+| Sum, Product | `downstream` | `channels` | `precision` |
+| Scope | none | `channels` | `period`, `precision` |
 
-Connections pass consumer handles from output fields to input fields. For example, `ScopeF32.channels[0]` connects to `ConstF32.downstream`. Signals subsequently flow from the constant to the scope. Inferred types come from the C++ fields, including both numeric precisions.
+Connections pass consumer handles from output fields to input fields. Scope, sum, and product expose `channels` as a vectorized function: `scope->apply().channels(count)`. For example, `ScopeF32.channels[0]` connects to `ConstF32.downstream`. Signals subsequently flow from the constant to the scope. Sinks such as Scope take no input, so `apply()` is called without arguments. Inferred types come from the C++ fields, including both numeric precisions.
 
 ## Diagram File
 
@@ -429,7 +432,7 @@ The repository follows a clean, three-layer test layout:
 ```
 
 - **Unit Tests**: Verify isolated models (`Diagram`, `CppDiagramBuilder`, `CppBlockCatalog`, `TypeSystem`, `SlidingScopeBuffer`).
-- **Integration Tests**: Verify generated `mount()` matches header block refs and native `push::f32` class names.
+- **Integration Tests**: Verify generated `mount()` matches header block refs and native `push::f_32` class names.
 - **E2E Tests**: Clang integration tests in `core/tests/integration`, and in-browser clang/lld compile+run tests in `cpp/e2e/diagram.spec.ts` covering scopes and GPIO.
 
 ---

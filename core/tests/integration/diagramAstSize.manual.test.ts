@@ -147,7 +147,7 @@ describe("Manual Profile: Diagram AST Size Evidence", () => {
   test("verifies that generated AST JSON sizes are huge across diagram scales", async () => {
     // 1. Single block diagram: ConstF32
     const singleBlockDiagram = new Diagram("single_block", "Single Block", library.palette);
-    singleBlockDiagram.addBlock("ConstF32", { x: 0, y: 0 }, "c", { v: 42.0 });
+    singleBlockDiagram.addBlock("ConstF32", { x: 0, y: 0 }, "c", { value: 42.0 });
 
     measuringDumper.setContext("Single Block (ConstF32)", "probe");
     const singleAnalysis = await builder.analyze(singleBlockDiagram, measuringDumper);
@@ -156,7 +156,7 @@ describe("Manual Profile: Diagram AST Size Evidence", () => {
     // 2. Connected diagram: ConstF32 -> ScopeF32
     const connectedDiagram = new Diagram("connected", "Connected", library.palette);
     connectedDiagram.addBlock("ScopeF32", { x: 0, y: 0 }, "s");
-    connectedDiagram.addBlock("ConstF32", { x: 1, y: 0 }, "c", { v: 3.5 });
+    connectedDiagram.addBlock("ConstF32", { x: 1, y: 0 }, "c", { value: 3.5 });
     connectedDiagram.connect(
       new PortEndpoint("s", "output", "channels", 0),
       new PortEndpoint("c", "input", "downstream", 0),

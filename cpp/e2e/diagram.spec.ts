@@ -51,7 +51,7 @@ test.afterEach(async ({ cpp }) => {
 test("ConstF32 writes to a scope channel", async ({ cpp }) => {
   const diagram = new Diagram("const_scope", "const_scope", palette);
   diagram.addBlock("ScopeF32", { x: 0, y: 0 }, "s");
-  diagram.addBlock("ConstF32", { x: 1, y: 0 }, "c", { v: 3.5 });
+  diagram.addBlock("ConstF32", { x: 1, y: 0 }, "c", { value: 3.5 });
   connect(diagram, "c", "v", 0, "s", "sink", 0);
   await compileDiagram(cpp, diagram);
   expect(await cpp.invoke("lastPin", [0, 0])).toBe(3.5);
@@ -61,7 +61,7 @@ test("ConstF32 writes to a scope channel", async ({ cpp }) => {
 test("ConstF32 fans out across two scope channels", async ({ cpp }) => {
   const diagram = new Diagram("fan", "fan", palette);
   diagram.addBlock("ScopeF32", { x: 0, y: 0 }, "s");
-  diagram.addBlock("ConstF32", { x: 1, y: 0 }, "c", { v: 8 });
+  diagram.addBlock("ConstF32", { x: 1, y: 0 }, "c", { value: 8 });
   connect(diagram, "c", "v", 0, "s", "sink", 0);
   connect(diagram, "c", "v", 0, "s", "sink", 1);
   await compileDiagram(cpp, diagram);
@@ -72,8 +72,8 @@ test("ConstF32 fans out across two scope channels", async ({ cpp }) => {
 test("independent scope channels stay independent", async ({ cpp }) => {
   const diagram = new Diagram("indep", "indep", palette);
   diagram.addBlock("ScopeF32", { x: 0, y: 0 }, "s");
-  diagram.addBlock("ConstF32", { x: 1, y: 0 }, "a", { v: 1.5 });
-  diagram.addBlock("ConstF32", { x: 2, y: 0 }, "b", { v: 9.5 });
+  diagram.addBlock("ConstF32", { x: 1, y: 0 }, "a", { value: 1.5 });
+  diagram.addBlock("ConstF32", { x: 2, y: 0 }, "b", { value: 9.5 });
   connect(diagram, "a", "v", 0, "s", "sink", 0);
   connect(diagram, "b", "v", 0, "s", "sink", 1);
   await compileDiagram(cpp, diagram);
@@ -85,7 +85,7 @@ test("CosF32 of zero is one", async ({ cpp }) => {
   const diagram = new Diagram("cos", "cos", palette);
   diagram.addBlock("ScopeF32", { x: 0, y: 0 }, "s");
   diagram.addBlock("CosF32", { x: 1, y: 0 }, "cs");
-  diagram.addBlock("ConstF32", { x: 2, y: 0 }, "z", { v: 0 });
+  diagram.addBlock("ConstF32", { x: 2, y: 0 }, "z", { value: 0 });
   connect(diagram, "z", "v", 0, "cs", "v", 0);
   connect(diagram, "cs", "cos", 0, "s", "sink", 0);
   await compileDiagram(cpp, diagram);
@@ -96,7 +96,7 @@ test("SinF32 of zero is zero", async ({ cpp }) => {
   const diagram = new Diagram("sin", "sin", palette);
   diagram.addBlock("ScopeF32", { x: 0, y: 0 }, "s");
   diagram.addBlock("SinF32", { x: 1, y: 0 }, "sn");
-  diagram.addBlock("ConstF32", { x: 2, y: 0 }, "z", { v: 0 });
+  diagram.addBlock("ConstF32", { x: 2, y: 0 }, "z", { value: 0 });
   connect(diagram, "z", "v", 0, "sn", "v", 0);
   connect(diagram, "sn", "sin", 0, "s", "sink", 0);
   await compileDiagram(cpp, diagram);
@@ -107,8 +107,8 @@ test("product of two constants appears on the scope after tick", async ({ cpp })
   const diagram = new Diagram("prod", "prod", palette);
   diagram.addBlock("ScopeF32", { x: 0, y: 0 }, "s");
   diagram.addBlock("ProductF32", { x: 1, y: 0 }, "p");
-  diagram.addBlock("ConstF32", { x: 2, y: 0 }, "a", { v: 3 });
-  diagram.addBlock("ConstF32", { x: 3, y: 0 }, "b", { v: 4 });
+  diagram.addBlock("ConstF32", { x: 2, y: 0 }, "a", { value: 3 });
+  diagram.addBlock("ConstF32", { x: 3, y: 0 }, "b", { value: 4 });
   connect(diagram, "p", "p", 0, "s", "sink", 0);
   connect(diagram, "a", "v", 0, "p", "v", 0);
   connect(diagram, "b", "v", 0, "p", "v", 1);
@@ -121,8 +121,8 @@ test("sum of two constants appears on the scope after tick", async ({ cpp }) => 
   const diagram = new Diagram("sum", "sum", palette);
   diagram.addBlock("ScopeF32", { x: 0, y: 0 }, "s");
   diagram.addBlock("SumF32", { x: 1, y: 0 }, "sum");
-  diagram.addBlock("ConstF32", { x: 2, y: 0 }, "a", { v: 3 });
-  diagram.addBlock("ConstF32", { x: 3, y: 0 }, "b", { v: 4 });
+  diagram.addBlock("ConstF32", { x: 2, y: 0 }, "a", { value: 3 });
+  diagram.addBlock("ConstF32", { x: 3, y: 0 }, "b", { value: 4 });
   connect(diagram, "sum", "s", 0, "s", "sink", 0);
   connect(diagram, "a", "v", 0, "sum", "v", 0);
   connect(diagram, "b", "v", 0, "sum", "v", 1);
@@ -259,8 +259,8 @@ test("product does not write the scope until tick", async ({ cpp }) => {
   const diagram = new Diagram("prod_wait", "prod_wait", palette);
   diagram.addBlock("ScopeF32", { x: 0, y: 0 }, "s");
   diagram.addBlock("ProductF32", { x: 1, y: 0 }, "p");
-  diagram.addBlock("ConstF32", { x: 2, y: 0 }, "a", { v: 3 });
-  diagram.addBlock("ConstF32", { x: 3, y: 0 }, "b", { v: 4 });
+  diagram.addBlock("ConstF32", { x: 2, y: 0 }, "a", { value: 3 });
+  diagram.addBlock("ConstF32", { x: 3, y: 0 }, "b", { value: 4 });
   connect(diagram, "p", "p", 0, "s", "sink", 0);
   connect(diagram, "a", "v", 0, "p", "v", 0);
   connect(diagram, "b", "v", 0, "p", "v", 1);
@@ -274,9 +274,9 @@ test("sum of three constants", async ({ cpp }) => {
   const diagram = new Diagram("sum3", "sum3", palette);
   diagram.addBlock("ScopeF32", { x: 0, y: 0 }, "s");
   diagram.addBlock("SumF32", { x: 1, y: 0 }, "sum");
-  diagram.addBlock("ConstF32", { x: 2, y: 0 }, "a", { v: 1 });
-  diagram.addBlock("ConstF32", { x: 3, y: 0 }, "b", { v: 2 });
-  diagram.addBlock("ConstF32", { x: 4, y: 0 }, "c", { v: 3 });
+  diagram.addBlock("ConstF32", { x: 2, y: 0 }, "a", { value: 1 });
+  diagram.addBlock("ConstF32", { x: 3, y: 0 }, "b", { value: 2 });
+  diagram.addBlock("ConstF32", { x: 4, y: 0 }, "c", { value: 3 });
   connect(diagram, "sum", "s", 0, "s", "sink", 0);
   connect(diagram, "a", "v", 0, "sum", "v", 0);
   connect(diagram, "b", "v", 0, "sum", "v", 1);
@@ -310,10 +310,10 @@ test("nested products multiply four constants", async ({ cpp }) => {
   diagram.addBlock("ProductF32", { x: 1, y: 0 }, "root");
   diagram.addBlock("ProductF32", { x: 2, y: 0 }, "left");
   diagram.addBlock("ProductF32", { x: 3, y: 0 }, "right");
-  diagram.addBlock("ConstF32", { x: 4, y: 0 }, "c1", { v: 2 });
-  diagram.addBlock("ConstF32", { x: 5, y: 0 }, "c2", { v: 3 });
-  diagram.addBlock("ConstF32", { x: 6, y: 0 }, "c3", { v: 4 });
-  diagram.addBlock("ConstF32", { x: 7, y: 0 }, "c4", { v: 5 });
+  diagram.addBlock("ConstF32", { x: 4, y: 0 }, "c1", { value: 2 });
+  diagram.addBlock("ConstF32", { x: 5, y: 0 }, "c2", { value: 3 });
+  diagram.addBlock("ConstF32", { x: 6, y: 0 }, "c3", { value: 4 });
+  diagram.addBlock("ConstF32", { x: 7, y: 0 }, "c4", { value: 5 });
   connect(diagram, "c1", "v", 0, "left", "v", 0);
   connect(diagram, "c2", "v", 0, "left", "v", 1);
   connect(diagram, "c3", "v", 0, "right", "v", 0);
@@ -332,8 +332,8 @@ test("const through cos into a product with another const", async ({ cpp }) => {
   diagram.addBlock("ScopeF32", { x: 0, y: 0 }, "s");
   diagram.addBlock("ProductF32", { x: 1, y: 0 }, "p");
   diagram.addBlock("CosF32", { x: 2, y: 0 }, "c");
-  diagram.addBlock("ConstF32", { x: 3, y: 0 }, "zero", { v: 0 });
-  diagram.addBlock("ConstF32", { x: 4, y: 0 }, "amp", { v: 5 });
+  diagram.addBlock("ConstF32", { x: 3, y: 0 }, "zero", { value: 0 });
+  diagram.addBlock("ConstF32", { x: 4, y: 0 }, "amp", { value: 5 });
   connect(diagram, "zero", "v", 0, "c", "v", 0);
   connect(diagram, "c", "cos", 0, "p", "v", 0);
   connect(diagram, "amp", "v", 0, "p", "v", 1);
@@ -346,7 +346,7 @@ test("const through cos into a product with another const", async ({ cpp }) => {
 test("const to scope increments pinWriteCount", async ({ cpp }) => {
   const diagram = new Diagram("writes", "writes", palette);
   diagram.addBlock("ScopeF32", { x: 0, y: 0 }, "s");
-  diagram.addBlock("ConstF32", { x: 1, y: 0 }, "c", { v: 2 });
+  diagram.addBlock("ConstF32", { x: 1, y: 0 }, "c", { value: 2 });
   connect(diagram, "c", "v", 0, "s", "sink", 0);
   await compileDiagram(cpp, diagram);
   expect(await cpp.invoke("pinWriteCount")).toBe(1);
@@ -370,7 +370,7 @@ test("wave generators register a tick interval", async ({ cpp }) => {
 test("const to scope does not register an interval", async ({ cpp }) => {
   const diagram = new Diagram("noint", "noint", palette);
   diagram.addBlock("ScopeF32", { x: 0, y: 0 }, "s");
-  diagram.addBlock("ConstF32", { x: 1, y: 0 }, "c", { v: 1 });
+  diagram.addBlock("ConstF32", { x: 1, y: 0 }, "c", { value: 1 });
   connect(diagram, "c", "v", 0, "s", "sink", 0);
   await compileDiagram(cpp, diagram);
   expect(await cpp.invoke("activeIntervalCount")).toBe(0);
@@ -392,7 +392,7 @@ test("gpio high through product with const two", async ({ cpp }) => {
   diagram.addBlock("ScopeF32", { x: 0, y: 0 }, "s");
   diagram.addBlock("ProductF32", { x: 1, y: 0 }, "p");
   diagram.addBlock("GpioInF32", { x: 2, y: 0 }, "g");
-  diagram.addBlock("ConstF32", { x: 3, y: 0 }, "c", { v: 2 });
+  diagram.addBlock("ConstF32", { x: 3, y: 0 }, "c", { value: 2 });
   connect(diagram, "g", "pin", 0, "p", "v", 0);
   connect(diagram, "c", "v", 0, "p", "v", 1);
   connect(diagram, "p", "p", 0, "s", "sink", 0);
@@ -431,7 +431,7 @@ test("two independent gpio blocks drive two scopes", async ({ cpp }) => {
 test("F64 retains double precision through the browser runtime", async ({ cpp }) => {
   const diagram = new Diagram("double", "double", palette);
   diagram.addBlock("ScopeF64", { x: 0, y: 0 }, "scope");
-  diagram.addBlock("ConstF64", { x: 1, y: 0 }, "constant", { v: 1.234567890123 });
+  diagram.addBlock("ConstF64", { x: 1, y: 0 }, "constant", { value: 1.234567890123 });
   diagram.connect(new PortEndpoint("scope", "output", "channels"), new PortEndpoint("constant", "input", "downstream"));
   await compileDiagram(cpp, diagram);
   expect(await cpp.invoke("lastPin", [0, 0])).toBe(1.234567890123);

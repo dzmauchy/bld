@@ -12,7 +12,8 @@ async function valid(bytes) {
     const entries = await unpackTar(gunzipSync(bytes));
     const meta = entries.find((entry) => entry.header.name.replace(/^\.\//, "") === "meta.json");
     const parsed = JSON.parse(new TextDecoder().decode(meta?.data));
-    return Array.isArray(parsed.blocks) && Array.isArray(parsed.namespaces);
+    return Array.isArray(parsed.blocks) && Array.isArray(parsed.namespaces)
+      && parsed.blocks.every((block) => Array.isArray(block.parameters));
   } catch { return false; }
 }
 if (await valid(await readFile(destination).catch(() => new Uint8Array()))) process.exit(0);

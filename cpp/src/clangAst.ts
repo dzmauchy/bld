@@ -131,7 +131,9 @@ export class ClangQualType {
   }
 
   get isVectorized(): boolean {
-    return /\bVectorized(?:Input)?\s*</.test(this.qualType) || /\bArray\s*</.test(this.canonical);
+    return /\bVectorized(?:Input|Output)?\s*</.test(this.qualType)
+      || /\bVectorized(?:Input|Output)?\s*</.test(this.canonical)
+      || /\bArray\s*</.test(this.canonical);
   }
 
   get isPointer(): boolean {
