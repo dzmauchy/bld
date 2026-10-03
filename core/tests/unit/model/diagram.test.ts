@@ -37,6 +37,10 @@ describe("Palette", () => {
     expect(scope?.getOutput("channels")).toBeDefined();
     expect(scope?.getConfig("period")?.defaultValue).toBe(60);
     expect(scope?.getConfig("precision")?.defaultValue).toBe(10);
+    expect(scope?.getConfig("period")?.control).toMatchObject({ type: "slider", min: 1, max: 3600, step: 1 });
+    expect(palette.getBlock("ConstF32")?.getConfig("value")?.defaultValue).toBe(1);
+    expect(palette.getBlock("GpioInF32")?.getConfig("pins")?.defaultValue).toEqual([0]);
+    expect(palette.getBlock("PulseGenF32")?.getConfig("dutyCycle")?.defaultValue).toBe(0.5);
   });
 
   test("filters by category and namespace", () => {
@@ -47,7 +51,7 @@ describe("Palette", () => {
     expect(sources.map((b) => b.id)).toContain("CosGenF32");
     expect(sources.map((b) => b.id)).toContain("GpioInF32");
 
-    const pushBlocks = palette.getBlocksByNamespace(["push", "f32"]);
+    const pushBlocks = palette.getBlocksByNamespace(["push", "f_32"]);
     expect(pushBlocks.length).toBeGreaterThan(0);
   });
 
@@ -248,7 +252,7 @@ describe("Wasm Code Generation", () => {
     const scope = diagram.addBlock("ScopeF32", { x: 10, y: 20 }, "scope_0", { precision: 25 });
 
     expect(scope.getOutputPorts().map((port) => port.id)).toContain("channels");
-    expect(scope.getInputPorts().map((p) => p.id)).toEqual(["channelCount"]);
+    expect(scope.getInputPorts().map((p) => p.id)).toEqual([]);
     expect(scope.getAllConf()).toMatchObject({ period: 60, precision: 25 });
     expect(scope.definition.getDefaultConfig()).toMatchObject({ period: 60, precision: 10 });
 

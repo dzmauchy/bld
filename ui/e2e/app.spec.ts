@@ -178,7 +178,7 @@ test("splits a black workspace into a palette and a diagram", async ({ page }) =
     await expect(palette.locator(`[data-block-id="${id}"]`)).toHaveCount(1);
   }
 
-  const sinks = palette.locator('[data-namespace="push::f32::sinks"] > .palette-ns-toggle');
+  const sinks = palette.locator('[data-namespace="push::f_32::sinks"] > .palette-ns-toggle');
   await sinks.click();
   await expect(palette.locator("[data-block-id=ScopeF32]")).toBeHidden();
   await sinks.click();

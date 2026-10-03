@@ -54,6 +54,9 @@ export class ConfigPropertyDefinition extends PropertyDefinition {
     type: DataType,
     readonly defaultValue: unknown,
     readonly control: Record<string, unknown> = {},
+    readonly title: string = id,
+    readonly description: string = "",
+    readonly icon: string = "",
   ) {
     super(id, type);
   }
@@ -68,6 +71,9 @@ export interface RawPortCatalogEntry {
 export interface RawConfigPropertyCatalogEntry {
   type: TypeDescriptor | string;
   control?: Record<string, unknown> & { default?: unknown };
+  title?: string;
+  description?: string;
+  icon?: string;
 }
 
 export interface RawBlockCatalogEntry {
@@ -104,6 +110,12 @@ export class BlockDefinition {
 
   registerConfig(property: ConfigPropertyDefinition): void {
     this.configProperties.set(property.id, property);
+  }
+
+  /** Replaces constructor parameters in call order after Clang resolves types and defaults. */
+  assignParameters(properties: readonly ConfigPropertyDefinition[]): void {
+    this.configProperties.clear();
+    for (const property of properties) this.configProperties.set(property.id, property);
   }
 
   getInput(id: string): PortDefinition | undefined {
@@ -144,7 +156,15 @@ export class BlockDefinition {
       Object.entries(raw.conf ?? {}).map(([confId, entry]) => {
         const ctrl = entry.control ?? {};
         const defaultValue = ctrl.default !== undefined ? ctrl.default : ctrl.type === "set_of_pins" ? [0] : undefined;
-        return [confId, new ConfigPropertyDefinition(confId, typeSystem.parse(entry.type), defaultValue, ctrl)];
+        return [confId, new ConfigPropertyDefinition(
+          confId,
+          typeSystem.parse(entry.type),
+          defaultValue,
+          ctrl,
+          entry.title ?? confId,
+          entry.description ?? "",
+          entry.icon ?? "",
+        )];
       }),
     );
 

@@ -1,4 +1,4 @@
-import type { RawBlockCatalogEntry, RawPortCatalogEntry } from "./blockDefinition";
+import type { RawBlockCatalogEntry, RawConfigPropertyCatalogEntry, RawPortCatalogEntry } from "./blockDefinition";
 
 interface MetadataEntry {
   id: string;
@@ -8,6 +8,11 @@ interface MetadataEntry {
   icon?: string;
   inputs?: MetadataEntry[];
   outputs?: MetadataEntry[];
+  parameters?: MetadataParameter[];
+}
+
+interface MetadataParameter extends MetadataEntry {
+  control?: Record<string, unknown>;
 }
 
 /** The release manifest is the authority for exposed blocks and ports. */
@@ -35,14 +40,31 @@ export class MetadataCatalog {
       if (this.blocks[entry.id]) throw new Error(`Duplicate block ${entry.id}`);
       this.blocks[entry.id] = {
         ns: entry.namespace!.split("::"),
-        cpp: `${entry.namespace}::${entry.id}<>`,
+        cpp: `${entry.namespace}::${entry.id}`,
         title: entry.name ?? entry.id,
         description: entry.description ?? "",
         icon: entry.icon ?? "",
         inputs: this.ports(entry.inputs ?? []),
         outputs: this.ports(entry.outputs ?? []),
+        conf: this.parameters(entry.parameters ?? []),
       };
     }
+  }
+
+  private parameters(entries: MetadataParameter[]): Record<string, RawConfigPropertyCatalogEntry> {
+    const conf: Record<string, RawConfigPropertyCatalogEntry> = {};
+    for (const entry of entries) {
+      if (!/^[A-Za-z_]\w*$/.test(entry.id)) throw new Error(`Invalid parameter ${entry.id}`);
+      if (conf[entry.id]) throw new Error(`Duplicate parameter ${entry.id}`);
+      conf[entry.id] = {
+        type: "auto",
+        title: entry.name ?? entry.id,
+        description: entry.description ?? "",
+        icon: entry.icon ?? "",
+        control: { ...(entry.control ?? {}) },
+      };
+    }
+    return conf;
   }
 
   private ports(entries: MetadataEntry[]): Record<string, RawPortCatalogEntry> {

@@ -30,7 +30,7 @@ function createTestDiagram(): Diagram {
     precision: 10,
   });
   const constant = diagram.addBlock("ConstF32", { x: 100, y: 10 }, "const_0", {
-    v: 3.14,
+    value: 3.14,
   });
   diagram.connect(
     new PortEndpoint(scope.id, "output", "channels", 0),
@@ -48,8 +48,8 @@ describe("DiagramCompiler C++ generation", () => {
     const diagram = createTestDiagram();
     const cpp = compiler.emitText(diagram);
     expect(cpp).toContain("#include <base/f32_blocks.hpp>");
-    expect(cpp).toContain("push::f32::sinks::ScopeF32");
-    expect(cpp).toContain("push::f32::sources::ConstF32");
+    expect(cpp).toContain("push::f_32::sinks::ScopeF32");
+    expect(cpp).toContain("push::f_32::sources::ConstF32");
     expect(cpp).toContain("void mount()");
     expect(cpp).not.toContain("start(");
     expect(cpp).toContain("3.14f");
@@ -93,7 +93,7 @@ describe("DiagramCompiler C++ generation", () => {
     const files = captured[0];
     expect(files?.get("diagram.cpp")).toContain("void mount()");
     expect(files?.get("diagram.cpp")).toContain("#include \"wasm_host.hpp\"");
-    expect(files?.get("base/f32_blocks.hpp")).toContain("class ScopeF32");
+    expect(files?.get("base/f32_blocks.hpp")).toContain("using ScopeF32");
     expect(files?.get("wasm_host.hpp")).toContain("void start()");
     expect(files?.get("wasm_host.cpp")).toBeUndefined();
   });
@@ -125,7 +125,7 @@ describe("DiagramCompiler C++ generation", () => {
   test("Diagram.emitText uses the default browser compiler files when provided", () => {
     const diagram = createTestDiagram();
     const cpp = diagram.emitText(new BrowserCompiler(libraryFiles));
-    expect(cpp).toContain("new push::f32::sources::ConstF32");
+    expect(cpp).toContain("new push::f_32::sources::ConstF32");
   });
 
   test("setContext switches a compiler onto a registered target", () => {

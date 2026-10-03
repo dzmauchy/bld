@@ -34,7 +34,7 @@ export class DiagramJsonBuilder {
   }
 
   addConstant(id: string, value: number, x = 100, y = 0): this {
-    return this.addBlock(id, "ConstF32", { v: value }, x, y);
+    return this.addBlock(id, "ConstF32", { value }, x, y);
   }
 
   addCosGen(id: string, conf?: Record<string, unknown>, x = 100, y = 0): this {

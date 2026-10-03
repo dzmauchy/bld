@@ -63,7 +63,19 @@ describe("Library and Asset Loader", () => {
     const gpio = lib.palette.getBlock("GpioInF32");
     expect(gpio).toBeDefined();
     expect(gpio?.category).toBe("sources");
-    expect(gpio?.cppClass).toBe("push::f32::sources::GpioInF32<>");
+    expect(gpio?.cppClass).toBe("push::f_32::sources::GpioInF32");
+    expect(scope?.cppClass).toBe("push::f_32::sinks::ScopeF32");
+    expect([...scope?.config.keys() ?? []]).toEqual(["period", "precision"]);
+    expect(scope?.getConfig("period")?.title).toBe("Period");
+    expect(scope?.getConfig("period")?.description).toContain("seconds");
+    expect(scope?.getConfig("period")?.control).toMatchObject({ type: "slider", min: 1, max: 3600, step: 1 });
+    expect(scope?.getConfig("precision")?.control).toMatchObject({ type: "number", min: 1, max: 1000, step: 1 });
+    expect(lib.palette.getBlock("ConstF32")?.getConfig("value")?.title).toBe("Value");
+    expect(lib.palette.getBlock("ConstF32")?.getConfig("value")?.control).toMatchObject({ type: "number" });
+    expect(cos?.config.size).toBe(0);
+    expect([...lib.palette.getBlock("PulseGenF32")?.config.keys() ?? []]).toEqual(["dutyCycle", "amplitude", "frequency", "phase"]);
+    expect(gpio?.getConfig("pins")?.control).toMatchObject({ type: "text" });
+    expect(gpio?.getConfig("port")?.control).toMatchObject({ type: "number", min: 0, max: 65535, step: 1 });
 
     // In-memory CompilationModel populated
     expect(lib.compilationModel).toBeInstanceOf(CompilationModel);
@@ -115,7 +127,7 @@ describe("Library and Asset Loader", () => {
 
       expect(fetchMock).toHaveBeenCalledWith("https://my-plugin.org/dsp/library.json");
       expect(fetchMock).toHaveBeenCalledWith("https://my-plugin.org/dsp/plugin.tar.gz");
-      expect(lib.palette.getBlock("CustomBlock")?.cppClass).toBe("custom_ns::CustomBlock<>");
+      expect(lib.palette.getBlock("CustomBlock")?.cppClass).toBe("custom_ns::CustomBlock");
       expect(lib.compilationModel.getFile("plugin.hpp")).toContain("class CustomBlock");
     } finally {
       globalThis.fetch = originalFetch;

@@ -1,10 +1,11 @@
 /** Generates one C++ program for both type analysis and compilation. */
-import { ClangAstDumper, ClangTranslationUnit, ClangQualType, CppTypeNames, type ClangAstJson, type ClangDumpResult, type ICppCompiler } from "cpp";
+import { ClangAstDumper, ClangTranslationUnit, CppTypeNames, type ClangAstJson, type ClangDumpResult, type ICppCompiler } from "cpp";
 import { Diagram, DiagramPortTypes } from "./diagram";
 import type { DiagramBlock } from "./diagramBlock";
 import type { Connection } from "./connection";
 import type { PortEndpoint } from "./endpoint";
 import { ConfigPropertyDefinition } from "./blockDefinition";
+import { ClangConstructorCatalog, type ConstructorParameter } from "./clangConstructorCatalog";
 import { InferredPortType } from "./inferredPortType";
 import { browserHost } from "./browserHost";
 
@@ -55,13 +56,20 @@ export class DiagramAnalysis {
 }
 
 const helpers = `
-template <typename T> auto bld_port(T value, unsigned index) {
-  if constexpr (requires { value.size(); value[index]; }) return value[index];
-  else return value;
+template <typename Port>
+auto bld_take(Port port, unsigned count) {
+  if constexpr (requires { port(static_cast<u8>(count)); }) return port(static_cast<u8>(count));
+  else return port;
 }
-template <typename T, typename V> void bld_connect(T& input, unsigned index, V value) {
+template <typename Taken>
+auto bld_at(Taken taken, unsigned index) {
+  if constexpr (requires { taken.size(); taken[index]; }) return taken[index];
+  else return taken;
+}
+template <typename Input, typename Value>
+void bld_connect(Input& input, unsigned index, Value value) {
   if constexpr (requires { input.push_back(value); }) input.push_back(value);
-  else if constexpr (requires { input[0].push_back(value); }) {
+  else if constexpr (requires { input[index].push_back(value); }) {
     while (input.size() <= index) input.emplace_back();
     input[index].push_back(value);
   } else input = value;
@@ -88,52 +96,49 @@ export class CppDiagramBuilder extends DiagramSourceBuilder {
     const lines = [
       ...Object.keys(this.libraryFiles).filter((name) => /\.(h|hpp|hh|hxx)$/.test(name)).sort().map((name) => `#include <${name}>`),
       '#include "wasm_host.hpp"', helpers,
-      // Explicit local instantiations keep constructor metadata visible in PCH-backed ASTs.
-      ...(probe ? [...new Set(blocks.map((block) => block.definition.cppClass))].filter((cpp) => cpp.endsWith("<>")).map((cpp) => {
-        const split = cpp.lastIndexOf("::");
-        return split < 0 ? `template class ${cpp};` : `namespace ${cpp.slice(0, split)} { template class ${cpp.slice(split + 2)}; }`;
-      }) : []),
       ...JSON.stringify(diagram.toJSON(), null, 2).split("\n").map((line) => `// ${line}`),
       'extern "C" void mount() {',
     ];
-    for (const block of blocks) {
+    for (const block of order) {
       const i = index(block.id);
       const config = block.getAllConf();
-      const args = [`${i}u`];
       if (!probe) for (const key of Object.keys(config)) {
-        if (!block.definition.getConfig(key) && !(key === "channelCount" && block.definition.getInput(key))) {
+        if (!block.definition.getConfig(key)) {
           throw new Error(`Analyze the diagram before emitting configuration ${block.id}.${key}`);
         }
       }
+      const args = [`${i}u`];
       if (!probe) for (const prop of block.definition.config.values()) {
         args.push(literal(prop.type.raw, config[prop.id] ?? prop.defaultValue));
       }
-      lines.push(`#line 1 "block_${i}"`, `auto* b${i} = new ${block.definition.cppClass}(${args.join(", ")});`,
-        `auto i${i} = typename std::remove_pointer_t<decltype(b${i})>::Input{};`);
-    }
-    for (const block of order) {
-      const i = index(block.id);
-      for (const port of block.getInputPorts()) {
-        if (port.id === "channelCount") {
-          const width = Math.max(1, ...connections.filter((c) => c.from.blockId === block.id).map((c) => c.from.vectorIndex + 1));
-          const value = probe ? 1 : block.getConf<number>("channelCount") ?? width;
-          lines.push(`i${i}.channelCount = ${literal("u8", value)};`);
+      const hasInput = block.definition.inputs.size > 0;
+      const hasOutput = block.definition.outputs.size > 0;
+      lines.push(`#line 1 "block_${i}"`, `auto* b${i} = new ${block.definition.cppClass}(${args.join(", ")});`);
+      if (hasInput) {
+        lines.push(`auto i${i} = typename std::remove_pointer_t<decltype(b${i})>::Input{};`);
+        for (const connection of connections.filter((c) => c.to.blockId === block.id)) {
+          const source = index(connection.from.blockId);
+          const ci = connections.indexOf(connection);
+          lines.push(`#line 1 "connection_${ci}"`,
+            `bld_connect(i${i}.${connection.to.portId}, ${connection.to.vectorIndex}u, bld_at(taken_${source}_${connection.from.portId}, ${connection.from.vectorIndex}u));`);
+        }
+        for (const port of block.getInputPorts()) {
+          lines.push(`#line 1 "input_${i}_${port.id}"`, `auto port_${i}_input_${port.id} = i${i}.${port.id};`);
         }
       }
-      for (const connection of connections.filter((c) => c.to.blockId === block.id)) {
-        const source = index(connection.from.blockId);
-        const ci = connections.indexOf(connection);
-        lines.push(`#line 1 "connection_${ci}"`,
-          `bld_connect(i${i}.${connection.to.portId}, ${connection.to.vectorIndex}u, bld_port(o${source}.${connection.from.portId}, ${connection.from.vectorIndex}u));`);
-      }
-      for (const port of block.getInputPorts()) {
-        lines.push(`#line 1 "input_${i}_${port.id}"`, `auto port_${i}_input_${port.id} = i${i}.${port.id};`);
-      }
       lines.push(`#line 1 "block_${i}"`);
-      lines.push(block.getOutputPorts().length ? `auto o${i} = b${i}->apply(move(i${i}));` : `b${i}->apply(move(i${i}));`);
-      for (const port of block.getOutputPorts()) lines.push(`#line 1 "output_${i}_${port.id}"`, `auto port_${i}_output_${port.id} = o${i}.${port.id};`);
+      if (hasOutput && hasInput) lines.push(`auto o${i} = b${i}->apply(move(i${i}));`);
+      else if (hasOutput) lines.push(`auto o${i} = b${i}->apply();`);
+      else if (hasInput) lines.push(`b${i}->apply(move(i${i}));`);
+      else lines.push(`b${i}->apply();`);
+      for (const port of block.getOutputPorts()) {
+        const width = Math.max(1, ...connections.filter((c) => c.from.blockId === block.id && c.from.portId === port.id).map((c) => c.from.vectorIndex + 1));
+        lines.push(`#line 1 "output_${i}_${port.id}"`, `auto port_${i}_output_${port.id} = o${i}.${port.id};`,
+          `auto taken_${i}_${port.id} = bld_take(port_${i}_output_${port.id}, ${width}u);`);
+      }
       if (!probe && block.definition.getInput("pins") && block.definition.getConfig("pins")) {
-        lines.push(`register_gpio_block(${i}u, ${literal("u16", block.getConf("port"))}, ${literal("Array<u8>", block.getConf("pins"))});`);
+        const pins = block.definition.getConfig("pins")!;
+        lines.push(`register_gpio_block(${i}u, ${literal(block.definition.getConfig("port")?.type.raw ?? "u16", block.getConf("port"))}, ${literal(pins.type.raw, block.getConf("pins"))});`);
       }
     }
     lines.push("}", "");
@@ -167,9 +172,8 @@ export class CppDiagramBuilder extends DiagramSourceBuilder {
       for (const [id, value] of Object.entries(block.getAllConf())) {
         const prop = block.definition.getConfig(id);
         try {
-          if (!prop && !(id === "channelCount" && block.definition.getInput(id))) throw new Error(`Unknown configuration property "${id}"`);
-          literal(prop?.type.raw ?? "u8", value);
-          if (id === "channelCount" && (!Number.isInteger(value) || Number(value) < 0 || Number(value) > 255)) throw new Error("Channel count must be an integer between 0 and 255");
+          if (!prop) throw new Error(`Unknown configuration property "${id}"`);
+          literal(prop.type.raw, value);
         } catch (error) {
           diagnostics.push({ severity: "error", blockId: block.id, configId: id, message: error instanceof Error ? error.message : String(error) });
         }
@@ -178,14 +182,9 @@ export class CppDiagramBuilder extends DiagramSourceBuilder {
     for (const c of diagram.getConnections()) {
       const sourceType = inferred.types.get(c.from.blockId, "output", c.from.portId);
       const targetType = inferred.types.get(c.to.blockId, "input", c.to.portId);
-      const source = diagram.getBlock(c.from.blockId)!;
       const target = diagram.getBlock(c.to.blockId)!;
       let message: string | undefined;
       if ((!sourceType?.isVector && c.from.vectorIndex !== 0) || (!targetType?.isVector && c.to.vectorIndex !== 0)) message = "Scalar ports require vector index 0";
-      if (source.definition.getInput("channelCount")) {
-        const count = source.getConf<number>("channelCount");
-        if (c.from.vectorIndex >= (count ?? 255)) message = "Output channel index exceeds the channel count";
-      }
       if (c.to.portId === "pins") {
         const pins = target.getConf<unknown[]>("pins");
         if (Array.isArray(pins) && c.to.vectorIndex >= pins.length) message = "Input pin index exceeds the configured pins";
@@ -224,25 +223,42 @@ export class CppDiagramBuilder extends DiagramSourceBuilder {
     return ordered;
   }
 
+  private resolvedParameters(
+    catalog: ClangConstructorCatalog,
+    definition: DiagramBlock["definition"],
+  ): readonly ConstructorParameter[] | undefined {
+    const declared = catalog.parametersFor(definition.cppClass);
+    if (declared) return declared;
+    const constructed = catalog.constructedParameters(definition.cppClass);
+    if (!constructed) return undefined;
+    const names = [...definition.config.keys()];
+    if (constructed.length !== names.length) return undefined;
+    return constructed.map((param, index) => ({ ...param, name: names[index]! }));
+  }
+
   private readConfigs(diagram: Diagram, ast: ClangAstJson): void {
-    const walk = (node: ClangAstJson, path: string[]) => {
-      const ns = node.kind === "NamespaceDecl" && node.name ? [...path, node.name] : path;
-      if (node.kind === "ClassTemplateSpecializationDecl" && node.name) {
-        const cpp = [...ns, node.name].join("::") + "<>";
-        const definitions = diagram.getBlocks().filter((b) => b.definition.cppClass === cpp).map((b) => b.definition);
-        const ctor = node.inner?.find((n) => n.kind === "CXXConstructorDecl" && !n.isImplicit && n.inner?.some((p) => p.kind === "ParmVarDecl" && p.name === "blockId"));
-        const params = ctor?.inner?.filter((n) => n.kind === "ParmVarDecl").slice(1) ?? [];
-        for (const definition of definitions) for (const param of params) {
-          if (!param.name) continue;
-          const type = ClangQualType.fromAst(param.type).qualType;
-          const value = defaultValue(param);
-          definition.registerConfig(new ConfigPropertyDefinition(param.name, diagram.typeSystem.parse(type), value));
-        }
-        return;
-      }
-      node.inner?.forEach((child) => walk(child, ns));
-    };
-    walk(ast, []);
+    const catalog = ClangConstructorCatalog.fromAst(ast);
+    const seen = new Set<DiagramBlock["definition"]>();
+    for (const block of diagram.getBlocks()) {
+      const definition = block.definition;
+      if (seen.has(definition)) continue;
+      seen.add(definition);
+      const resolved = this.resolvedParameters(catalog, definition);
+      if (!resolved) continue;
+      const properties = resolved.map((param) => {
+        const existing = definition.getConfig(param.name);
+        return new ConfigPropertyDefinition(
+          param.name,
+          diagram.typeSystem.parse(param.type),
+          param.defaultValue,
+          existing?.control ?? {},
+          existing?.title ?? param.name,
+          existing?.description ?? "",
+          existing?.icon ?? "",
+        );
+      });
+      definition.assignParameters(properties);
+    }
   }
 
   private result(diagram: Diagram, dump: ClangDumpResult): DiagramAnalysis {
@@ -291,22 +307,17 @@ export class CppDiagramBuilder extends DiagramSourceBuilder {
 }
 
 function literal(type: string, value: unknown): string {
-  if (Array.isArray(value)) return `${type}{${value.map((v) => literal(type.slice(type.indexOf("<") + 1, -1), v)).join(", ")}}`;
+  if (Array.isArray(value)) {
+    if (!/\bArray\s*</.test(type)) {
+      if (value.length === 1) return literal(type, value[0]);
+      throw new Error(`Invalid C++ config value ${JSON.stringify(value)}`);
+    }
+    const inner = type.slice(type.indexOf("<") + 1, type.lastIndexOf(">"));
+    return `${type}{${value.map((v) => literal(inner, v)).join(", ")}}`;
+  }
   if (value === undefined) return `${type}{}`;
   if (typeof value !== "number" && typeof value !== "boolean") throw new Error(`Invalid C++ config value ${String(value)}`);
   if (typeof value === "number" && !Number.isFinite(value)) throw new Error("Config values must be finite");
   return CppTypeNames.literalFromClang(type, value);
 }
 
-function defaultValue(node: ClangAstJson): unknown {
-  const n = node as ClangAstJson & { value?: string | boolean };
-  if (n.kind === "IntegerLiteral" || n.kind === "FloatingLiteral") return Number(n.value);
-  if (n.kind === "CXXBoolLiteralExpr") return n.value;
-  if (n.kind === "InitListExpr") return n.inner?.map(defaultValue);
-  if (n.kind === "UnaryOperator" && (n as typeof n & { opcode?: string }).opcode === "-") return -Number(defaultValue(n.inner![0]!));
-  for (const child of n.inner ?? []) {
-    const value = defaultValue(child);
-    if (value !== undefined) return value;
-  }
-  return undefined;
-}

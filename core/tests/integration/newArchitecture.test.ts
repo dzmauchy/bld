@@ -32,13 +32,13 @@ describe("release metadata and diagram AST", () => {
   test("connected program uses auto and constructor defaults from Clang", async () => {
     const d = diagram();
     d.addBlock("ScopeF32", {x: 0, y: 0}, "scope");
-    const c = d.addBlock("ConstF32", {x: 0, y: 0}, "constant", {v: 2.5});
+    const c = d.addBlock("ConstF32", {x: 0, y: 0}, "constant", {value: 2.5});
     connect(d, "scope", "constant");
     const result = await builder.analyze(d);
     expect(result.diagnostics.filter((d) => d.severity === "error")).toEqual([]);
     expect(result.ok).toBe(true);
     expect(builder.emitDiagram(d)).toContain("(1u, 2.5f)");
-    c.setConf("v", 1);
+    c.setConf("value", 1);
     expect(c.toJSON().conf).toBeUndefined();
   });
   test("incompatible precision identifies the exact connection and endpoints", async () => {

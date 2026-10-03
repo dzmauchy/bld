@@ -38,7 +38,7 @@ export function createConstScopeTestDefinition(): DiagramTestDefinition {
     createDiagram: (palette: any) => {
       const diagram = new Diagram("const_scope", "const_scope", palette);
       diagram.addBlock("ScopeF32", { x: 0, y: 0 }, "s");
-      diagram.addBlock("ConstF32", { x: 1, y: 0 }, "c", { v: 3.5 });
+      diagram.addBlock("ConstF32", { x: 1, y: 0 }, "c", { value: 3.5 });
       connect(diagram, "c", "v", 0, "s", "sink", 0);
       return diagram;
     },
