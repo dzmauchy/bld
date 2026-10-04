@@ -7,6 +7,7 @@ const root = path.dirname(fileURLToPath(import.meta.url));
 delete process.env.NO_COLOR;
 
 export default defineConfig({
+  globalSetup: "../ui/scripts/precacheLlvmToolchain.ts",
   testDir: "./e2e",
   // GitHub Actions sets CI, and Playwright then defaults to the dot reporter.
   reporter: "list",

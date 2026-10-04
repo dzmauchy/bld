@@ -1,6 +1,7 @@
 import { defineConfig } from "@playwright/test";
 
 export default defineConfig({
+  globalSetup: "./scripts/precacheLlvmToolchain.ts",
   testDir: "./e2e",
   // GitHub Actions sets CI, and Playwright then defaults to the dot reporter.
   reporter: "list",

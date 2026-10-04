@@ -1,9 +1,12 @@
 import { createServer, type IncomingMessage, type Server, type ServerResponse } from "node:http";
 import { expect, test } from "@rstest/core";
 import { attachLlvmToolchainProxy, LlvmToolchainAssetCache } from "../../scripts/llvmToolchainProxyMiddleware.ts";
+import { LlvmToolchainPrecache } from "../../scripts/precacheLlvmToolchain.ts";
 
 const prefix = "https://github.com/dzmauchy/clang-wasm/releases/download/clang-23.1.2/";
 const noDelay = async () => {};
+
+const releaseFiles = ["clang.js", "clang.wasm", "lld.js", "lld.wasm", "sysroot.tgz"];
 
 class ProxyTestServer {
   private readonly server: Server;
@@ -142,6 +145,62 @@ test("forbidden and unrelated requests never download upstream assets", async ()
     expect(unrelated.status).toBe(404);
     await unrelated.text();
     expect(requests).toBe(0);
+  } finally {
+    await server.close();
+  }
+});
+
+test("precache waits for every asset and subsequent browser requests use the server cache", async () => {
+  const requests = new Map<string, number>();
+  const sysrootStarted = Promise.withResolvers<void>();
+  const sysrootReady = Promise.withResolvers<void>();
+  const assets = new LlvmToolchainAssetCache(async (url) => {
+    const name = url.slice(prefix.length);
+    requests.set(name, (requests.get(name) ?? 0) + 1);
+    if (name === "sysroot.tgz") {
+      sysrootStarted.resolve();
+      await sysrootReady.promise;
+    }
+    return new Response(name);
+  }, noDelay);
+  const server = new ProxyTestServer(assets);
+  const base = await server.start();
+  let finished = false;
+  const preloading = new LlvmToolchainPrecache(base).preload().then(() => { finished = true; });
+  try {
+    await sysrootStarted.promise;
+    expect(finished).toBe(false);
+    sysrootReady.resolve();
+    await preloading;
+    expect(finished).toBe(true);
+    for (const name of releaseFiles) {
+      const url = `${base}/llvm-toolchain-proxy?url=${encodeURIComponent(`${prefix}${name}`)}`;
+      expect(await (await fetch(url)).text()).toBe(name);
+    }
+    expect([...requests.entries()].sort()).toEqual(releaseFiles.map((name) => [name, 1]).sort());
+  } finally {
+    sysrootReady.resolve();
+    await server.close();
+  }
+});
+
+test("precache reports a failed asset before tests start and a retry reuses successful downloads", async () => {
+  let available = false;
+  const requests = new Map<string, number>();
+  const assets = new LlvmToolchainAssetCache(async (url) => {
+    const name = url.slice(prefix.length);
+    requests.set(name, (requests.get(name) ?? 0) + 1);
+    return name === "sysroot.tgz" && !available
+      ? new Response("unavailable", { status: 503 }) : new Response(name);
+  }, noDelay);
+  const server = new ProxyTestServer(assets);
+  const base = await server.start();
+  const precache = new LlvmToolchainPrecache(base);
+  try {
+    await expect(precache.preload()).rejects.toThrow("failed to precache sysroot.tgz: HTTP 503");
+    available = true;
+    await precache.preload();
+    for (const name of releaseFiles) expect(requests.get(name)).toBe(name === "sysroot.tgz" ? 4 : 1);
   } finally {
     await server.close();
   }
