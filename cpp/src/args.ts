@@ -36,8 +36,9 @@ export class ClangArgumentBuilder {
 
   private common(pchPath?: string): string[] {
     return [
-      "--target=wasm32-unknown-emscripten",
+      "--target=wasm32-unknown-unknown",
       "--sysroot=/sysroot",
+      "-stdlib=libc++",
       "-resource-dir", this.options.resourceDir,
       "-fno-exceptions", "-fno-rtti", "-fno-threadsafe-statics",
       `-std=${this.options.std}`, `-O${this.options.optimize}`,
@@ -50,13 +51,14 @@ export class ClangArgumentBuilder {
 
 export class LldArgumentBuilder {
   build(objectPaths: string[], outputPath: string): string[] {
-    const lib = "/sysroot/lib/target";
+    const lib = "/sysroot/lib";
     return [
       "-flavor",
       "wasm",
       "--no-entry",
       "--export-all",
       "--export-table",
+      "--export-memory",
       "--allow-undefined",
       "--stack-first",
       "-z",
@@ -64,15 +66,12 @@ export class LldArgumentBuilder {
       "-L",
       lib,
       ...objectPaths,
-      `${lib}/crt1_reactor.o`,
-      "-lc++-noexcept",
-      "-lc++abi-noexcept",
-      "-lclang_rt.builtins",
-      "-ldlmalloc",
+      "-lbrowser",
+      "-lc++",
+      "-lc++abi",
       "-lc",
-      "-lstubs",
-      "-lstandalonewasm",
-      "-lnoexit",
+      "-lm",
+      "-lclang_rt.builtins-wasm32",
       "-o",
       outputPath,
     ];

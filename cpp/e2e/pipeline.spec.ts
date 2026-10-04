@@ -84,6 +84,82 @@ test("compiles against sysroot headers", async () => {
   expect(result).toBe(42);
 });
 
+test("bare wasm uses LLVM libc, initializes C++ state once, and imports browser output and clocks", async () => {
+  const output: string[] = [];
+  const collectOutput = (message: import("@playwright/test").ConsoleMessage) => output.push(message.text());
+  page.on("console", collectOutput);
+  try {
+    const result = await page.evaluate(async () => {
+      const source = `
+#if defined(__EMSCRIPTEN__) || defined(__wasi__)
+#error Expected wasm32-unknown-unknown
+#endif
+#include <browser.hpp>
+#include <chrono>
+#include <cmath>
+#include <cstdio>
+#include <string>
+#include <vector>
+
+int constructions = 0;
+struct Startup {
+  std::vector<int> values{40, 2};
+  Startup() { ++constructions; }
+} startup;
+
+int main() { return 0; }
+
+extern "C" int answer() {
+  static std::string label = "bare wasm π";
+  static std::vector<int> calls{0};
+  std::printf("%s\\n", label.c_str());
+  return startup.values[0] + startup.values[1] + 100 * constructions + ++calls[0];
+}
+extern "C" double sine(double value) { return std::sin(value); }
+extern "C" double monotonic() { return browser::now(); }
+extern "C" double utc() {
+  return std::chrono::duration<double, std::milli>(std::chrono::system_clock::now().time_since_epoch()).count();
+}
+`;
+      // Inspect the actual module sent to the execution worker.
+      const postMessage = Worker.prototype.postMessage;
+      let imports: WebAssembly.ModuleImportDescriptor[] = [];
+      Worker.prototype.postMessage = function (...args: Parameters<Worker["postMessage"]>) {
+        const request = args[0] as { type?: string; wasm?: Uint8Array<ArrayBuffer> };
+        if (request.type === "instantiate" && request.wasm) {
+          imports = WebAssembly.Module.imports(new WebAssembly.Module(request.wasm));
+        }
+        return Reflect.apply(postMessage, this, args);
+      };
+      try {
+        await window.cpp.compile({ "runtime.cpp": source });
+        const first = await window.cpp.invoke("answer", []);
+        const second = await window.cpp.invoke("answer", []);
+        const sine = await window.cpp.invoke("sine", [0.5]);
+        const monotonic = await window.cpp.invoke("monotonic", []);
+        const beforeUtc = Date.now();
+        const utc = await window.cpp.invoke("utc", []);
+        const afterUtc = Date.now();
+        await window.cpp.instantiateLast();
+        return { imports, first, second, sine, monotonic, beforeUtc, utc, afterUtc, restarted: await window.cpp.invoke("answer", []) };
+      } finally {
+        Worker.prototype.postMessage = postMessage;
+      }
+    });
+    expect(result.imports.map(({ module, name }) => `${module}.${name}`).sort()).toEqual([
+      "env.js_now", "env.js_print_char", "env.js_time",
+    ]);
+    expect([result.first, result.second, result.restarted]).toEqual([143, 144, 143]);
+    expect(result.sine).toBeCloseTo(Math.sin(0.5));
+    expect(result.monotonic).toBeGreaterThan(0);
+    expect(result.utc).toBeGreaterThanOrEqual(result.beforeUtc - 1);
+    expect(result.utc).toBeLessThanOrEqual(result.afterUtc + 1);
+    expect(output.filter((line) => line === "bare wasm π")).toHaveLength(3);
+  } finally {
+    page.off("console", collectOutput);
+  }
+});
+
 test("executes wasm with host env bindings", async () => {
   const result = await page.evaluate(async (source) => {
     return window.cpp.compileAndInvoke({ "host.cpp": source }, "call_host", [10, 32]);

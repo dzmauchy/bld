@@ -8,14 +8,16 @@ function setU32(memory: WebAssembly.Memory, ptr: number, value: number): void {
   new DataView(memory.buffer).setUint32(ptr, value, true);
 }
 
-/**
- * Minimal WASI preview1 + env stubs so standalone clang/lld output can instantiate.
- */
 export type HostEnvCallbacks = {
   sendPinF32?: (blockId: number, pin: number, value: number) => void;
+  printChar?: (character: number) => void;
 };
 
+/** Browser imports for the LLVM libc sysroot, with bindings for older standalone modules. */
 export class DefaultWasmBindings {
+  private readonly outputDecoder = new TextDecoder();
+  private outputLine = "";
+
   constructor(
     private readonly getMemory: MemoryGetter,
     private readonly host: HostEnvCallbacks = {},
@@ -23,6 +25,9 @@ export class DefaultWasmBindings {
 
   env(): WebAssembly.ModuleImports {
     return {
+      js_print_char: (character: number) => this.printChar(character),
+      js_now: () => performance.now(),
+      js_time: () => Date.now(),
       host_add: (left: number, right: number) => left + right,
       host_sendPinF32: (blockId: number, pin: number, value: number) => {
         this.host.sendPinF32?.(blockId, pin, value);
@@ -35,6 +40,19 @@ export class DefaultWasmBindings {
       },
       emscripten_notify_memory_growth: () => {},
     };
+  }
+
+  private printChar(character: number): void {
+    const byte = character & 255;
+    if (this.host.printChar) {
+      this.host.printChar(byte);
+      return;
+    }
+    this.outputLine += this.outputDecoder.decode(new Uint8Array([byte]), { stream: true });
+    if (byte === 10) {
+      console.log(this.outputLine.slice(0, -1));
+      this.outputLine = "";
+    }
   }
 
   wasi(): WebAssembly.ModuleImports {

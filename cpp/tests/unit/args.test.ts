@@ -23,10 +23,11 @@ describe("toolchain argument builders", () => {
     expect(args).not.toContain("-c");
   });
 
-  test("clang compiles one source to an object with the emscripten sysroot", () => {
+  test("clang compiles one source to a bare wasm object with libc++", () => {
     const args = new ClangArgumentBuilder().build("/work/add.cpp", "/work/add.o");
-    expect(args).toContain("--target=wasm32-unknown-emscripten");
+    expect(args).toContain("--target=wasm32-unknown-unknown");
     expect(args).toContain("--sysroot=/sysroot");
+    expect(args).toContain("-stdlib=libc++");
     expect(args).toContain("-resource-dir");
     expect(args).toContain("/sysroot/lib/clang/23");
     expect(args).toContain("-std=c++23");
@@ -41,9 +42,14 @@ describe("toolchain argument builders", () => {
     expect(args).toContain("--no-entry");
     expect(args).toContain("--export-all");
     expect(args).toContain("/work/add.o");
-    expect(args).toContain("/sysroot/lib/target/crt1_reactor.o");
-    expect(args).toContain("-lc++-noexcept");
-    expect(args).toContain("-lstandalonewasm");
+    expect(args).toContain("--export-memory");
+    expect(args).toContain("/sysroot/lib");
+    expect(args).toContain("-lbrowser");
+    expect(args).toContain("-lc++");
+    expect(args).toContain("-lc++abi");
+    expect(args).toContain("-lc");
+    expect(args).toContain("-lm");
+    expect(args).toContain("-lclang_rt.builtins-wasm32");
     expect(args.at(-2)).toBe("-o");
     expect(args.at(-1)).toBe("/work/a.wasm");
   });

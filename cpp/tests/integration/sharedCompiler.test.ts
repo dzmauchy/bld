@@ -89,7 +89,7 @@ describe("shared clang/lld storage", () => {
       return 0;
     });
     const linkerFactory = new DisposableToolFactory(files, (_options, fs, args) => {
-      expect(fs.exists("/sysroot/lib/target/libc.a")).toBe(true);
+      expect(fs.exists("/sysroot/lib/libc.a")).toBe(true);
       for (const path of ["/work/main.o", "/work/other.o"]) {
         const stream = fs.open(path, 0);
         const bytes = new Uint8Array(1);
@@ -108,7 +108,7 @@ describe("shared clang/lld storage", () => {
     const tar = await packTar([
       { header: { name: "sysroot/include/test.h", size: 5 }, body: "hello" },
       { header: { name: "sysroot/lib/clang/23/include/stddef.h", size: 5 }, body: "hello" },
-      { header: { name: "sysroot/lib/target/libc.a", size: 3 }, body: "lib" },
+      { header: { name: "sysroot/lib/libc.a", size: 3 }, body: "lib" },
     ]);
     const gzip = await new Response(new Blob([tar]).stream().pipeThrough(new CompressionStream("gzip"))).arrayBuffer();
     const originalFetch = globalThis.fetch;
@@ -129,7 +129,7 @@ describe("shared clang/lld storage", () => {
       expect(fetches).toBe(1);
       expect(pchBuilds).toBe(1);
       expect(files.writeCount("/sysroot/include/test.h")).toBe(1);
-      expect(files.writeCount("/sysroot/lib/target/libc.a")).toBe(1);
+      expect(files.writeCount("/sysroot/lib/libc.a")).toBe(1);
       expect(files.writeCount("/pch/headers.pch")).toBe(1);
       expect(files.stat("/pch/headers.pch")).toEqual(pchStat);
       expect(files.copiedObjects).toBe(0);

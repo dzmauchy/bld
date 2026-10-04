@@ -8,7 +8,7 @@ describe("gzipped sysroot install", () => {
     const tar = await packTar([
       { header: { name: "sysroot/include/c++/v1/cstdint", size: 4 }, body: "int8" },
       { header: { name: "sysroot/lib/clang/23/include/stddef.h", size: 4 }, body: "size" },
-      { header: { name: "sysroot/lib/target/libc++.a", size: 3 }, body: "c++" },
+      { header: { name: "sysroot/lib/libc++.a", size: 3 }, body: "c++" },
     ]);
     const compressed = await new Response(
       new Blob([tar]).stream().pipeThrough(new CompressionStream("gzip")),
@@ -19,6 +19,6 @@ describe("gzipped sysroot install", () => {
     expect(result.files).toBe(2);
     expect(result.resourceDir).toBe("/sysroot/lib/clang/23");
     expect(new TextDecoder().decode(fs.readFile("/sysroot/include/c++/v1/cstdint"))).toBe("int8");
-    expect(fs.exists("/sysroot/lib/target/libc++.a")).toBe(false);
+    expect(fs.exists("/sysroot/lib/libc++.a")).toBe(false);
   });
 });

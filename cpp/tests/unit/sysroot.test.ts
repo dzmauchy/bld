@@ -7,12 +7,12 @@ describe("sysroot entry filter", () => {
   test("installs headers and clang resource files into the clang filesystem", () => {
     expect(shouldInstallSysrootEntry("sysroot/include/stdint.h", "headers")).toBe(true);
     expect(shouldInstallSysrootEntry("sysroot/lib/clang/23/include/stddef.h", "headers")).toBe(true);
-    expect(shouldInstallSysrootEntry("sysroot/lib/target/libc.a", "headers")).toBe(false);
+    expect(shouldInstallSysrootEntry("sysroot/lib/libc.a", "headers")).toBe(false);
   });
 
   test("installs static libraries into the lld filesystem", () => {
-    expect(shouldInstallSysrootEntry("sysroot/lib/target/libc.a", "libraries")).toBe(true);
-    expect(shouldInstallSysrootEntry("sysroot/lib/target/crt1_reactor.o", "libraries")).toBe(true);
+    expect(shouldInstallSysrootEntry("sysroot/lib/libc.a", "libraries")).toBe(true);
+    expect(shouldInstallSysrootEntry("sysroot/lib/libbrowser.a", "libraries")).toBe(true);
     expect(shouldInstallSysrootEntry("sysroot/include/stdio.h", "libraries")).toBe(false);
   });
 
@@ -25,7 +25,7 @@ describe("SysrootInstaller", () => {
   test("writes filtered header entries into a virtual filesystem", async () => {
     const tar = await packTar([
       { header: { name: "sysroot/include/foo.h", size: 5 }, body: "hello" },
-      { header: { name: "sysroot/lib/target/libc.a", size: 3 }, body: "lib" },
+      { header: { name: "sysroot/lib/libc.a", size: 3 }, body: "lib" },
     ]);
     const fs = new MemoryFileSystem();
     const installer = new SysrootInstaller(fs);
@@ -34,19 +34,19 @@ describe("SysrootInstaller", () => {
     expect(result.entries).toHaveLength(1);
     expect(result.entries[0]?.path).toBe("/sysroot/include/foo.h");
     expect(new TextDecoder().decode(fs.readFile("/sysroot/include/foo.h"))).toBe("hello");
-    expect(fs.exists("/sysroot/lib/target/libc.a")).toBe(false);
+    expect(fs.exists("/sysroot/lib/libc.a")).toBe(false);
   });
 
   test("writes filtered library entries into a virtual filesystem", async () => {
     const tar = await packTar([
       { header: { name: "sysroot/include/foo.h", size: 5 }, body: "hello" },
-      { header: { name: "sysroot/lib/target/libc.a", size: 3 }, body: "lib" },
+      { header: { name: "sysroot/lib/libc.a", size: 3 }, body: "lib" },
     ]);
     const fs = new MemoryFileSystem();
     const installer = new SysrootInstaller(fs);
     const result = await installer.install(tar, "libraries", false);
     expect(result.files).toBe(1);
-    expect(new TextDecoder().decode(fs.readFile("/sysroot/lib/target/libc.a"))).toBe("lib");
+    expect(new TextDecoder().decode(fs.readFile("/sysroot/lib/libc.a"))).toBe("lib");
     expect(fs.exists("/sysroot/include/foo.h")).toBe(false);
   });
 });
