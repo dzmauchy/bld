@@ -31,6 +31,7 @@ describe("shared clang/lld storage", () => {
     let pchBuilds = 0;
     const clangFactory = new DisposableToolFactory(files, (_options, fs, args) => {
       expect(fs.exists("/sysroot/include/test.h")).toBe(true);
+      expect(args[args.indexOf("-resource-dir") + 1]).toBe("/sysroot/lib/clang/24");
       if (args.includes("c++-header")) {
         pchBuilds++;
         fs.writeTree(args.at(-1)!, new Uint8Array([7]));
@@ -42,7 +43,11 @@ describe("shared clang/lld storage", () => {
       return 0;
     });
     const linkerFactory = new DisposableToolFactory(files, (_options, fs, args) => {
-      expect(fs.exists("/sysroot/lib/libc.a")).toBe(true);
+      const searchPaths = args.flatMap((arg, index) => arg === "-L" ? [args[index + 1]!] : []);
+      for (const library of args.filter((arg) => arg.startsWith("-l"))) {
+        const name = `lib${library.slice(2)}.a`;
+        expect(searchPaths.some((path) => fs.exists(`${path}/${name}`)), `linker must find ${name}`).toBe(true);
+      }
       for (const path of ["/work/main.o", "/work/other.o"]) {
         const stream = fs.open(path, 0);
         const bytes = new Uint8Array(1);
@@ -60,8 +65,15 @@ describe("shared clang/lld storage", () => {
     );
     const tar = await packTar([
       { header: { name: "sysroot/include/test.h", size: 5 }, body: "hello" },
-      { header: { name: "sysroot/lib/clang/23/include/stddef.h", size: 5 }, body: "hello" },
-      { header: { name: "sysroot/lib/libc.a", size: 3 }, body: "lib" },
+      { header: { name: "sysroot/lib/clang/24/include/stddef.h", size: 5 }, body: "hello" },
+      ...[
+        "sysroot/lib/libbrowser.a",
+        "sysroot/lib/libc++.a",
+        "sysroot/lib/libc++abi.a",
+        "sysroot/lib/wasm32-unknown-unknown/libc.a",
+        "sysroot/lib/wasm32-unknown-unknown/libm.a",
+        "sysroot/lib/clang/24/lib/wasi/libclang_rt.builtins-wasm32.a",
+      ].map((name) => ({ header: { name, size: 3 }, body: "lib" })),
     ]);
     const gzip = await new Response(new Blob([tar]).stream().pipeThrough(new CompressionStream("gzip"))).arrayBuffer();
     const originalFetch = globalThis.fetch;
@@ -82,7 +94,7 @@ describe("shared clang/lld storage", () => {
       expect(fetches).toBe(1);
       expect(pchBuilds).toBe(1);
       expect(files.writeCount("/sysroot/include/test.h")).toBe(1);
-      expect(files.writeCount("/sysroot/lib/libc.a")).toBe(1);
+      expect(files.writeCount("/sysroot/lib/wasm32-unknown-unknown/libc.a")).toBe(1);
       expect(files.writeCount("/pch/headers.pch")).toBe(1);
       expect(files.stat("/pch/headers.pch")).toEqual(pchStat);
       expect(files.copiedObjects).toBe(0);

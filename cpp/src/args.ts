@@ -50,6 +50,12 @@ export class ClangArgumentBuilder {
 }
 
 export class LldArgumentBuilder {
+  constructor(private readonly resourceDir = "/sysroot/lib/clang/23") {}
+
+  withResourceDir(resourceDir: string): LldArgumentBuilder {
+    return new LldArgumentBuilder(resourceDir);
+  }
+
   build(objectPaths: string[], outputPath: string): string[] {
     const lib = "/sysroot/lib";
     return [
@@ -65,6 +71,10 @@ export class LldArgumentBuilder {
       "stack-size=1048576",
       "-L",
       lib,
+      "-L",
+      `${lib}/wasm32-unknown-unknown`,
+      "-L",
+      `${this.resourceDir}/lib/wasi`,
       ...objectPaths,
       "-lbrowser",
       "-lc++",

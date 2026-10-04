@@ -8,9 +8,13 @@ export class WasmLinker extends EmscriptenTool {
     createModule: EmscriptenModuleFactory,
     wasmUrl: string,
     sharedFiles: SharedToolchainFileSystem,
-    private readonly args: LldArgumentBuilder = new LldArgumentBuilder(),
+    private args: LldArgumentBuilder = new LldArgumentBuilder(),
   ) {
     super(createModule, "wasm-ld", wasmUrl, sharedFiles);
+  }
+
+  protected override onSysrootInstalled(resourceDir: string): void {
+    this.args = this.args.withResourceDir(resourceDir);
   }
 
   async link(objects: ObjectFile[], outputPath = "/work/a.wasm"): Promise<Uint8Array> {
