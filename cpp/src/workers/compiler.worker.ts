@@ -15,8 +15,8 @@ const sysrootUrl = release.assetUrl("sysroot.tgz");
 export class CompilerWorkerSession {
   private readonly files = new SharedToolchainFileSystem();
   private readonly compiler = new CppWasmCompiler(
-    new ClangFrontend(new RemoteEmscriptenModule(release.assetUrl("clang.js"), clangWasmUrl).createFactory(), clangWasmUrl, undefined, this.files),
-    new WasmLinker(new RemoteEmscriptenModule(release.assetUrl("lld.js"), lldWasmUrl).createFactory(), lldWasmUrl, undefined, this.files),
+    new ClangFrontend(new RemoteEmscriptenModule(release.assetUrl("clang.js"), clangWasmUrl).createFactory(), clangWasmUrl, this.files),
+    new WasmLinker(new RemoteEmscriptenModule(release.assetUrl("lld.js"), lldWasmUrl).createFactory(), lldWasmUrl, this.files),
     sysrootUrl,
   );
 

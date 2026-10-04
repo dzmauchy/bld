@@ -2,7 +2,6 @@ import { isHeader, workPath } from "./paths.ts";
 
 export interface HeaderFileStore {
   writeText(path: string, text: string): void;
-  writeBytes(path: string, bytes: Uint8Array): void;
 }
 
 /** A bounded cache of the current header bundle, kept outside Emscripten's disposable FS. */
@@ -10,7 +9,6 @@ export class PrecompiledHeaders {
   static readonly headerPath = "/pch/headers.hpp";
   static readonly outputPath = "/pch/headers.pch";
   private readonly headers: ReadonlyMap<string, string>;
-  private readonly files = new Map<string, Uint8Array>();
 
   constructor(files: ReadonlyMap<string, string>) {
     this.headers = new Map([...files].filter(([name]) => isHeader(name)).map(([name, text]) => [workPath(name), text]));
@@ -25,14 +23,9 @@ export class PrecompiledHeaders {
     return headers.length === this.headers.size && headers.every(([name, text]) => this.headers.get(workPath(name)) === text);
   }
 
-  capture(path: string, bytes: Uint8Array): void {
-    this.files.set(path, bytes.slice());
-  }
-
-  restore(store: HeaderFileStore): void {
+  writeTo(store: HeaderFileStore): void {
     for (const [path, text] of this.headers) store.writeText(path, text);
     const includes = [...this.headers.keys()].sort().filter((path) => !path.endsWith(".inc"));
     store.writeText(PrecompiledHeaders.headerPath, includes.map((path) => `#include "${path}"`).join("\n") + "\n");
-    for (const [path, bytes] of this.files) store.writeBytes(path, bytes);
   }
 }

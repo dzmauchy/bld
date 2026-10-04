@@ -33,22 +33,11 @@ export async function instantiateWasm(
   env: EnvBindings = defaultEnvBindings(),
 ): Promise<WebAssembly.Instance> {
   const module = await WebAssembly.compile(toWasmBytes(wasm));
-  let instance: WebAssembly.Instance | undefined;
   const bindings = new DefaultWasmBindings(
-    () => {
-      const memory = instance?.exports["memory"];
-      if (memory instanceof WebAssembly.Memory) return memory;
-      throw new Error("wasm module has no exported memory");
-    },
     env.sendPinF32 ? { sendPinF32: env.sendPinF32 } : {},
   );
-  instance = await WebAssembly.instantiate(module, bindings.fill(module));
-  const initialize = instance.exports["_initialize"];
-  if (typeof initialize === "function") (initialize as () => void)();
-  else {
-    const ctors = instance.exports["__wasm_call_ctors"];
-    if (typeof ctors === "function") (ctors as () => void)();
-  }
+  const instance = await WebAssembly.instantiate(module, bindings.fill(module));
+  callExport(instance, "__wasm_call_ctors");
   callExport(instance, "start");
   return instance;
 }

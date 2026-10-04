@@ -380,12 +380,14 @@ f64 read_adc_f64(u32, u8) { return 0; }
 void send_dac_f32(u32, u8, f32) {}
 void send_dac_f64(u32, u8, f64) {}
 
+__attribute__((import_module("env"), import_name("host_sendPinF32")))
 void host_sendPinF32(u32 blockId, u8 pin, f32 value);
 
 void send_value_f32(u32 blockId, u8 inputId, f32 value) {
   WasmHost::instance().sendF32(blockId, inputId, value);
   host_sendPinF32(blockId, inputId, value);
 }
+__attribute__((import_module("env"), import_name("host_sendPinF64")))
 void host_sendPinF64(u32 blockId, u8 pin, f64 value);
 void send_value_f64(u32 blockId, u8 inputId, f64 value) {
   WasmHost::instance().sendF64(blockId, inputId, value);

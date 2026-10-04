@@ -174,7 +174,7 @@ flowchart TD
     subgraph ClangLld["cpp clang/lld"]
         C --> D["ICppCompiler.compile(files)"]
         D --> E["clang++ -std=c++23 wasm32-unknown-unknown"]
-        E --> F["wasm-ld --export-all"]
+        E --> F["wasm-ld --export-dynamic"]
     end
     
     F --> G["Uint8Array Wasm Binary"]
@@ -355,7 +355,7 @@ Connections pass consumer handles from output fields to input fields. Scope, sum
 
 Diagrams support JSON import/export and a C++ `mount()` entry point with an attached JSON comment. See [`core/assets/diagram_demo.cpp`](core/assets/diagram_demo.cpp). The application supplies the browser HAL adapter; the release archive supplies the block headers and metadata.
 
-Both AST analysis and wasm compilation use `-std=c++23`, `--target=wasm32-unknown-unknown`, and `-stdlib=libc++`. Compiler assets (`clang.js`, `clang.wasm`, `lld.js`, `lld.wasm`, `sysroot.tgz`) come from [clang-23.1.2](https://github.com/dzmauchy/clang-wasm/releases/tag/clang-23.1.2). The sysroot packages LLVM libc, libc++, libc++abi, math, compiler builtins, and the browser runtime in `/sysroot/lib`. Generated modules use `env.js_print_char`, `env.js_now`, and `env.js_time` for output and clocks without requiring WASI. Compilation and runtime execution run in browser workers. The same-origin asset relay only delivers release files.
+Both AST analysis and wasm compilation use `-std=c++23`, `--target=wasm32-unknown-unknown`, and `-stdlib=libc++`. Compiler assets (`clang.js`, `clang.wasm`, `lld.js`, `lld.wasm`, `sysroot.tgz`) come from [clang-23.1.2](https://github.com/dzmauchy/clang-wasm/releases/tag/clang-23.1.2). The sysroot packages LLVM libc, libc++, libc++abi, math, compiler builtins, and the browser runtime in `/sysroot/lib`. Generated modules use `env.js_print_char`, `env.js_now`, and `env.js_time` for output and clocks without requiring WASI. Application symbols use default visibility and are exported with `--export-dynamic`; C++ constructors are initialized through the explicitly exported `__wasm_call_ctors`. Host functions declare their imports explicitly, and unresolved dependencies fail at link time. Clang and LLD share one required PROXYFS filesystem for the sysroot, headers, PCH, and objects. Compilation and runtime execution run in browser workers. The same-origin asset relay only delivers release files.
 
 ---
 

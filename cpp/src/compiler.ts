@@ -20,7 +20,11 @@ export class CppWasmCompiler implements ICppCompiler {
     private readonly clang: ClangFrontend,
     private readonly linker: WasmLinker,
     private readonly sysrootUrl: string,
-  ) {}
+  ) {
+    if (clang.sharedFileSystem !== linker.sharedFileSystem) {
+      throw new Error("clang and lld must use the same shared filesystem");
+    }
+  }
 
   async initialize(): Promise<void> {
     this.ready ??= this.boot().catch((error: unknown) => {
@@ -37,13 +41,8 @@ export class CppWasmCompiler implements ICppCompiler {
       if (boot.status === "rejected") throw boot.reason;
     }
     const archive = await this.fetchSysroot();
-    if (this.clang.sharedFileSystem && this.clang.sharedFileSystem === this.linker.sharedFileSystem) {
-      const resourceDir = await this.clang.installSysroot(archive, "all");
-      this.linker.useResourceDir(resourceDir);
-    } else {
-      await this.clang.installSysroot(archive, "headers");
-      await this.linker.installSysroot(archive, "libraries");
-    }
+    const resourceDir = await this.clang.installSysroot(archive, "all");
+    this.linker.useResourceDir(resourceDir);
   }
 
   /** Precompile shared headers once; source changes reuse the cached PCH. */

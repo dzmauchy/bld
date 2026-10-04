@@ -28,6 +28,7 @@ describe("toolchain argument builders", () => {
     expect(args).toContain("--target=wasm32-unknown-unknown");
     expect(args).toContain("--sysroot=/sysroot");
     expect(args).toContain("-stdlib=libc++");
+    expect(args).toContain("-fvisibility=default");
     expect(args).toContain("-resource-dir");
     expect(args).toContain("/sysroot/lib/clang/23");
     expect(args).toContain("-std=c++23");
@@ -40,7 +41,9 @@ describe("toolchain argument builders", () => {
     const args = new LldArgumentBuilder().build(["/work/add.o"], "/work/a.wasm");
     expect(args.slice(0, 2)).toEqual(["-flavor", "wasm"]);
     expect(args).toContain("--no-entry");
-    expect(args).toContain("--export-all");
+    expect(args).toContain("--export-dynamic");
+    expect(args).toContain("--export=__wasm_call_ctors");
+    expect(args).not.toContain("--allow-undefined");
     expect(args).toContain("/work/add.o");
     expect(args).toContain("--export-memory");
     expect(args).toContain("/sysroot/lib");

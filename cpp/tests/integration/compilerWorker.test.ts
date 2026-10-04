@@ -1,5 +1,6 @@
 import { describe, expect, test } from "@rstest/core";
 import { ClangFrontend } from "../../src/clang.ts";
+import { SharedToolchainFileSystem } from "../../src/sharedFileSystem.ts";
 import { WasmLinker } from "../../src/linker.ts";
 import { CppWasmCompiler, WorkerCppWasmCompiler } from "../../src/compiler.ts";
 import type { WorkerResponse } from "../../src/messages.ts";
@@ -98,14 +99,15 @@ test("failed initialization waits for both tools before allowing a retry", async
   const gate = Promise.withResolvers<void>();
   let boots = 0;
   let settled = false;
+  const files = new SharedToolchainFileSystem();
   const clang = new ClangFrontend(async () => {
     boots += 1;
     await gate.promise;
     throw new Error("clang unavailable");
-  }, "clang.wasm");
+  }, "clang.wasm", files);
   const linker = new WasmLinker(async () => {
     throw new Error("lld unavailable");
-  }, "lld.wasm");
+  }, "lld.wasm", files);
   const compiler = new CppWasmCompiler(clang, linker, "sysroot.tgz");
   const initializing = compiler.initialize().catch((error: Error) => {
     settled = true;

@@ -2,10 +2,10 @@ import { packTar } from "modern-tar";
 import { describe, expect, test } from "@rstest/core";
 import { ClangFrontend } from "../../src/clang.ts";
 import { CppWasmCompiler } from "../../src/compiler.ts";
-import type { EmscriptenModuleFactory, EmscriptenModuleOptions } from "../../src/emscripten.ts";
-import { MemoryFileSystem, type EmscriptenFsApi } from "../../src/filesystem.ts";
+import type { EmscriptenFsApi } from "../../src/filesystem.ts";
 import { WasmLinker } from "../../src/linker.ts";
 import { SharedToolchainFileSystem } from "../../src/sharedFileSystem.ts";
+import { DisposableToolFactory } from "../toolchainFixture.ts";
 
 class RecordingFiles extends SharedToolchainFileSystem {
   private readonly writes = new Map<string, number>();
@@ -23,53 +23,6 @@ class RecordingFiles extends SharedToolchainFileSystem {
 
   writeCount(path: string): number { return this.writes.get(path) ?? 0; }
   get copiedObjects(): number { return this.objectCopies; }
-}
-
-/** Models fresh tool filesystems mounting one owner, with one invocation per runtime. */
-class DisposableToolFactory {
-  private created = 0;
-
-  constructor(
-    private readonly owner: SharedToolchainFileSystem,
-    private readonly invoke: (options: EmscriptenModuleOptions | undefined, fs: SharedToolchainFileSystem, args: string[]) => number,
-  ) {}
-
-  get boots(): number { return this.created; }
-
-  readonly create: EmscriptenModuleFactory = async (options) => {
-    this.created++;
-    const local = new MemoryFileSystem();
-    const mounted = new Map<string, SharedToolchainFileSystem>();
-    const files = (path: string) => mounted.get(`/${path.split("/")[1]}`) ?? local;
-    const api: EmscriptenFsApi = {
-      mkdir: (path) => files(path).mkdirTree(path),
-      mkdirTree: (path) => files(path).mkdirTree(path),
-      writeFile: (path, data) => files(path).writeFile(path, data),
-      readFile: (path) => files(path).readFile(path),
-      readdir: (path) => files(path).list(path),
-      unlink: (path) => files(path).unlink(path),
-      rmdir: (path) => files(path).rmdir(path),
-      chdir: (path) => files(path).chdir(path),
-      analyzePath: (path) => ({ exists: files(path).exists(path) }),
-      stat: (path) => ({ mode: files(path).isDirectory(path) ? 0o040000 : 0o100000 }),
-      mount: (_type, { root, fs }, path) => {
-        expect(root).toBe(path);
-        expect(fs).toBe(this.owner);
-        mounted.set(path, fs as SharedToolchainFileSystem);
-      },
-    };
-    let invoked = false;
-    return {
-      FS: api,
-      PROXYFS: {},
-      callMain: (args) => {
-        expect(invoked, "clang/lld entry points must never be reused").toBe(false);
-        invoked = true;
-        expect([...mounted.keys()]).toEqual([...SharedToolchainFileSystem.mountPaths]);
-        return this.invoke(options, this.owner, args);
-      },
-    };
-  };
 }
 
 describe("shared clang/lld storage", () => {
@@ -101,8 +54,8 @@ describe("shared clang/lld storage", () => {
       return 0;
     });
     const compiler = new CppWasmCompiler(
-      new ClangFrontend(clangFactory.create, "clang.wasm", undefined, files),
-      new WasmLinker(linkerFactory.create, "lld.wasm", undefined, files),
+      new ClangFrontend(clangFactory.create, "clang.wasm", files),
+      new WasmLinker(linkerFactory.create, "lld.wasm", files),
       "https://example.test/sysroot.tgz",
     );
     const tar = await packTar([
@@ -155,7 +108,7 @@ describe("shared clang/lld storage", () => {
       }
       return 0;
     });
-    const clang = new ClangFrontend(factory.create, "clang.wasm", undefined, files);
+    const clang = new ClangFrontend(factory.create, "clang.wasm", files);
     const sources = new Map([["nested/value.hpp", "#pragma once\nconstexpr int value = 1;"], ["main.cpp", "int answer = value;"]]);
     await clang.precompileHeaders(sources);
     const headerStat = files.stat("/work/nested/value.hpp");
@@ -176,7 +129,7 @@ describe("shared clang/lld storage", () => {
 
   test("reports missing PROXYFS support instead of silently disabling shared storage", async () => {
     const files = new SharedToolchainFileSystem();
-    const clang = new ClangFrontend(async () => ({ FS: {} as EmscriptenFsApi, callMain: () => 0 }), "clang.wasm", undefined, files);
+    const clang = new ClangFrontend(async () => ({ FS: {} as EmscriptenFsApi, PROXYFS: undefined, callMain: () => 0 }), "clang.wasm", files);
     await expect(clang.boot()).rejects.toThrow("must export FS.mount and PROXYFS");
   });
 });

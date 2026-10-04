@@ -31,31 +31,19 @@ export abstract class VirtualFileSystem {
 }
 
 export type EmscriptenFsApi = {
-  mount?(type: unknown, options: { root: string; fs: unknown }, path: string): unknown;
+  mount(type: unknown, options: { root: string; fs: unknown }, path: string): unknown;
   mkdir(path: string): void;
-  mkdirTree?(path: string): void;
+  mkdirTree(path: string): void;
   writeFile(path: string, data: string | Uint8Array): void;
   readFile(path: string): Uint8Array;
   readdir(path: string): string[];
   unlink(path: string): void;
   rmdir(path: string): void;
   chdir(path: string): void;
-  analyzePath?(path: string): { exists: boolean };
+  analyzePath(path: string): { exists: boolean };
   stat(path: string): { mode: number };
-  isDir?(mode: number): boolean;
+  isDir(mode: number): boolean;
 };
-
-function isNotFound(error: unknown): boolean {
-  if (error === null || typeof error !== "object") return false;
-  const err = error as { code?: string; errno?: number };
-  return err.code === "ENOENT" || err.errno === 44;
-}
-
-function isExists(error: unknown): boolean {
-  if (error === null || typeof error !== "object") return false;
-  const err = error as { code?: string; errno?: number };
-  return err.code === "EEXIST" || err.errno === 20;
-}
 
 export class EmscriptenFileSystem extends VirtualFileSystem {
   constructor(private readonly fs: EmscriptenFsApi) {
@@ -64,21 +52,7 @@ export class EmscriptenFileSystem extends VirtualFileSystem {
 
   override mkdirTree(path: string): void {
     if (path === "/" || path === "") return;
-    if (typeof this.fs.mkdirTree === "function") {
-      this.fs.mkdirTree(path);
-      return;
-    }
-    const parts = path.split("/").filter(Boolean);
-    let current = "";
-    for (const part of parts) {
-      current += `/${part}`;
-      try {
-        this.fs.mkdir(current);
-      } catch (error) {
-        if (isExists(error) || (this.exists(current) && this.isDirectory(current))) continue;
-        throw error;
-      }
-    }
+    this.fs.mkdirTree(path);
   }
 
   override writeFile(path: string, data: string | Uint8Array): void {
@@ -86,25 +60,15 @@ export class EmscriptenFileSystem extends VirtualFileSystem {
   }
 
   override readFile(path: string): Uint8Array {
-    const bytes = this.fs.readFile(path);
-    return bytes instanceof Uint8Array ? bytes : new Uint8Array(bytes);
+    return this.fs.readFile(path);
   }
 
   override exists(path: string): boolean {
-    if (typeof this.fs.analyzePath === "function") return this.fs.analyzePath(path).exists;
-    try {
-      this.fs.stat(path);
-      return true;
-    } catch (error) {
-      if (isNotFound(error)) return false;
-      throw error;
-    }
+    return this.fs.analyzePath(path).exists;
   }
 
   override isDirectory(path: string): boolean {
-    const stat = this.fs.stat(path);
-    if (typeof this.fs.isDir === "function") return this.fs.isDir(stat.mode);
-    return (stat.mode & 0o170000) === 0o040000;
+    return this.fs.isDir(this.fs.stat(path).mode);
   }
 
   override list(path: string): string[] {

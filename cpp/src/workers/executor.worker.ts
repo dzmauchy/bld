@@ -8,20 +8,11 @@ export class WasmExecutorSession {
 
   async instantiate(wasm: Uint8Array): Promise<string[]> {
     const module = await WebAssembly.compile(toWasmBytes(wasm));
-    let instance: WebAssembly.Instance | undefined;
-    const bindings = new DefaultWasmBindings(() => {
-      const memory = instance?.exports["memory"];
-      if (memory instanceof WebAssembly.Memory) return memory;
-      throw new Error("wasm module has no exported memory");
-    });
-    instance = await WebAssembly.instantiate(module, bindings.fill(module));
+    const bindings = new DefaultWasmBindings();
+    const instance = await WebAssembly.instantiate(module, bindings.fill(module));
     this.instance = instance;
-    const initialize = instance.exports["_initialize"];
-    if (typeof initialize === "function") (initialize as () => void)();
-    else {
-      const ctors = instance.exports["__wasm_call_ctors"];
-      if (typeof ctors === "function") (ctors as () => void)();
-    }
+    const ctors = instance.exports["__wasm_call_ctors"];
+    if (typeof ctors === "function") (ctors as () => void)();
     const start = instance.exports["start"];
     if (typeof start === "function") (start as () => void)();
     return Object.keys(instance.exports);

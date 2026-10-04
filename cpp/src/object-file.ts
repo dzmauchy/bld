@@ -3,14 +3,14 @@ import { SharedToolchainFileSystem } from "./sharedFileSystem.ts";
 export class ObjectFile {
   constructor(
     readonly path: string,
-    private readonly contents: Uint8Array | SharedToolchainFileSystem,
+    private readonly files: SharedToolchainFileSystem,
   ) {}
 
   get bytes(): Uint8Array {
-    return this.contents instanceof SharedToolchainFileSystem ? this.contents.readFile(this.path) : this.contents;
+    return this.files.readFile(this.path);
   }
 
-  isStoredIn(files: SharedToolchainFileSystem | undefined): boolean {
-    return files !== undefined && this.contents === files;
+  isStoredIn(files: SharedToolchainFileSystem): boolean {
+    return this.files === files;
   }
 }

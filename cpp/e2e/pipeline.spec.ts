@@ -31,13 +31,6 @@ extern "C" int32_t add32(int32_t a, int32_t b) {
 }
 `;
 
-const HOST_CPP = `
-extern "C" int host_add(int a, int b);
-extern "C" int call_host(int a, int b) {
-  return host_add(a, b);
-}
-`;
-
 const SECOND_CPP = `
 extern "C" int mul(int a, int b) {
   return a * b;
@@ -107,8 +100,6 @@ struct Startup {
   Startup() { ++constructions; }
 } startup;
 
-int main() { return 0; }
-
 extern "C" int answer() {
   static std::string label = "bare wasm π";
   static std::vector<int> calls{0};
@@ -160,11 +151,33 @@ extern "C" double utc() {
   }
 });
 
-test("executes wasm with host env bindings", async () => {
-  const result = await page.evaluate(async (source) => {
-    return window.cpp.compileAndInvoke({ "host.cpp": source }, "call_host", [10, 32]);
-  }, HOST_CPP);
-  expect(result).toBe(42);
+test("rejects unresolved dependencies at link time", async () => {
+  const message = await page.evaluate(async () => {
+    try {
+      await window.cpp.compileOnly({
+        "missing.cpp": 'extern "C" int missing_dependency(); extern "C" int answer() { return missing_dependency(); }',
+      });
+      return "";
+    } catch (error) {
+      return error instanceof Error ? error.message : String(error);
+    }
+  });
+  expect(message).toMatch(/undefined symbol: missing_dependency/);
+});
+
+test("rejects an explicit host import without a registered binding", async () => {
+  const message = await page.evaluate(async () => {
+    try {
+      await window.cpp.compile({ "unknown.cpp": `
+extern "C" __attribute__((import_module("env"), import_name("unknown_host"))) int unknown_host();
+extern "C" int answer() { return unknown_host(); }
+` });
+      return "";
+    } catch (error) {
+      return error instanceof Error ? error.message : String(error);
+    }
+  });
+  expect(message).toBe("unsupported wasm import env.unknown_host (function)");
 });
 
 test("reuses the single clang/lld worker across different programs", async () => {
