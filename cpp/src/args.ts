@@ -8,7 +8,7 @@ export class ClangArgumentBuilder {
   constructor(private readonly options: ClangCompileOptions = {
     resourceDir: "/sysroot/lib/clang/23",
     std: "c++23",
-    optimize: "2",
+    optimize: "z",
   }) {}
 
   withResourceDir(resourceDir: string): ClangArgumentBuilder {

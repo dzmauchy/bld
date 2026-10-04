@@ -27,7 +27,7 @@ async function relayReleaseAsset(requestUrl, name) {
     statusText: upstream.statusText,
     headers: {
       "content-type": type,
-      "cache-control": "private, max-age=3600",
+      "cache-control": upstream.ok ? "private, max-age=3600" : "no-store",
     },
   });
 }

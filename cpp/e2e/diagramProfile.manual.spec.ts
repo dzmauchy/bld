@@ -5,6 +5,7 @@ import { expect, test, type CppSession } from "./fixtures/cpp.ts";
 import "../../core/tests/nodeFileFetch.ts";
 import {
   CppDiagramBuilder,
+  Diagram,
   Library,
   registerAppAssets,
 } from "../../core/src/index.ts";
@@ -42,6 +43,9 @@ test.afterEach(async ({ cpp }) => {
 
 test("Profile: ConstF32 writes to a scope channel", async ({ cpp }) => {
   const reporter = new MarkdownTableProfileReporter();
+  const pchStart = performance.now();
+  await cpp.precompileHeaders(builder.build(new Diagram("headers", "Headers", palette)));
+  const pchDurationMs = performance.now() - pchStart;
 
   // Print Setup & Warmup Profile
   console.log(`\n### Environment Initialization & Warmup Profile`);
@@ -50,6 +54,7 @@ test("Profile: ConstF32 writes to a scope channel", async ({ cpp }) => {
   console.log(`| Library.load("base.json") | ${libraryLoadDurationMs.toFixed(2)} ms | Parsed metadata & compilation model |`);
   console.log(`| CppDiagramBuilder init | ${builderInitDurationMs.toFixed(2)} ms | Initialized builder with library files |`);
   console.log(`| Browser & Workers Warmup | ${cpp.warmupDurationMs.toFixed(2)} ms | Navigation, ServiceWorker claim, Clang/LLD boot, sysroot unpack |`);
+  console.log(`| Precompiled headers | ${pchDurationMs.toFixed(2)} ms | Prepared the same header bundle as the browser analyzer |`);
 
   // 1. Pass 1: Cold Run
   const coldSession = new ExecutionProfileSession(
