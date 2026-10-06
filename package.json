@@ -8,23 +8,14 @@
     "cpp"
   ],
   "devDependencies": {
-    "@rsbuild/plugin-solid": "2.0.0-rc.1",
-    "@rstest/adapter-rsbuild": "^0.12.3",
     "@rstest/core": "^0.12.3",
     "@types/node": "^24",
     "typescript": "^7.0.2",
     "wrangler": "^4.147.0"
   },
   "allowScripts": {
+    "@bjorn3/browser_wasi_shim": true,
     "esbuild": true,
     "workerd": true
-  },
-  "dependencies": {
-    "@solidjs/web": "^2.0.0-rc.13",
-    "solid-js": "^2.0.0-rc.13"
-  },
-  "overrides": {
-    "@solidjs/babel-plugin": "2.0.0-rc.13",
-    "@solidjs/compiler": "2.0.0-rc.13"
   }
 }

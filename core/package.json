@@ -22,8 +22,5 @@
     "test": "tsc -b && tsc -b tsconfig.test.json && rstest",
     "test:unit": "tsc -b && tsc -b tsconfig.test.json && rstest tests/unit",
     "clean": "tsc -b --clean"
-  },
-  "devDependencies": {
-    "@rstest/adapter-rsbuild": "^0.12.2"
   }
 }
