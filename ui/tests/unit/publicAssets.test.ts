@@ -11,10 +11,15 @@ const schemaAssets = {
 
 test("rsbuild copies core JSON schemas to /schemas", () => {
   expect(config.html?.template).toBe("./index.html");
-  expect(config.output?.copy).toEqual([
+  const copy = config.output?.copy ?? [];
+  expect(copy.slice(0, 2)).toEqual([
     { from: "../core/assets/schemas", to: "schemas" },
     { from: "../cpp/public/llvm-toolchain-sw.js", to: "./" },
   ]);
+  expect(copy).toHaveLength(3);
+  const wasm = copy[2];
+  expect(wasm && typeof wasm === "object" && "from" in wasm ? String(wasm.from) : "").toMatch(/[/\\]libavoid\.wasm$/);
+  expect(wasm && typeof wasm === "object" && "to" in wasm ? wasm.to : undefined).toBe("libavoid.wasm");
   expect(Object.keys(schemaAssets).sort()).toEqual([...schemaAssetFiles].sort());
   expect(CoreSchemaCatalog.shared.schemaNames).toEqual(["library"]);
   for (const [name, schema] of Object.entries(schemaAssets)) {
