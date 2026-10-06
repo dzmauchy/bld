@@ -208,7 +208,8 @@ wa-split-panel::part(panel) {
   border: 1px solid color-mix(in srgb, var(--block-accent, #0d6efd) 62%, #243038);
   border-radius: 5px;
   box-shadow: 0 1px 3px rgba(0, 0, 0, 0.4);
-  cursor: pointer;
+  cursor: grab;
+  touch-action: none;
   text-align: left;
   font: inherit;
   padding: 0;
@@ -233,7 +234,23 @@ wa-split-panel::part(panel) {
 }
 
 .region-palette .palette-item.flow-node:active {
-  transform: translateY(1px);
+  cursor: grabbing;
+}
+
+@keyframes palette-fade-blink {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.32;
+  }
+}
+
+.region-palette .palette-item.flow-node.is-armed {
+  animation: palette-fade-blink 0.85s ease-in-out infinite;
+  outline: 2px solid #8eb6ff;
+  outline-offset: 2px;
 }
 
 .region-palette .block-kind-data {
@@ -365,23 +382,177 @@ wa-split-panel::part(panel) {
 .diagram-canvas {
   position: relative;
   min-height: calc(100% - 42px);
+  min-width: 100%;
+  width: max-content;
   background-color: #000000;
   background-image:
     linear-gradient(rgba(255, 255, 255, 0.045) 1px, transparent 1px),
     linear-gradient(90deg, rgba(255, 255, 255, 0.045) 1px, transparent 1px);
   background-size: 24px 24px;
+  user-select: none;
+}
+
+.diagram-canvas.is-armed {
+  cursor: crosshair;
+}
+
+.diagram-canvas.is-receiving {
+  box-shadow: inset 0 0 0 1px #3d5f99;
+}
+
+.diagram-extent {
+  pointer-events: none;
+}
+
+.diagram-wires {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  overflow: visible;
+  pointer-events: none;
+  z-index: 1;
+}
+
+.diagram-wire {
+  fill: none;
+  stroke: #8eb6ff;
+  stroke-width: 2;
+  stroke-linejoin: round;
+  stroke-linecap: round;
+}
+
+.diagram-wire.is-draft {
+  stroke: #c5c5c5;
+  stroke-dasharray: 5 4;
+}
+
+#diagram-wire-arrow {
+  fill: #8eb6ff;
 }
 
 .diagram-block {
+  --block-accent: #0d6efd;
   position: absolute;
-  min-width: 128px;
-  padding: 8px 12px;
-  background: #000000;
-  color: #ffffff;
-  border: 1px solid #3a3a3a;
+  box-sizing: border-box;
   border-radius: 6px;
+  border: 1px solid color-mix(in srgb, var(--block-accent) 62%, #243038);
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.16), rgba(255, 255, 255, 0) 46%),
+    linear-gradient(
+      165deg,
+      color-mix(in srgb, var(--block-accent) 72%, #1c2830) 0%,
+      color-mix(in srgb, var(--block-accent) 28%, #0e1318) 100%
+    );
+  color: #dee2e6;
+  cursor: grab;
+  touch-action: none;
+  z-index: 2;
+}
+
+.diagram-block.is-moving {
+  cursor: grabbing;
+  z-index: 4;
+}
+
+.diagram-block.block-kind-data {
+  --block-accent: #0dcaf0;
+}
+
+.diagram-block.block-kind-process {
+  --block-accent: #0d6efd;
+}
+
+.diagram-block.block-kind-output {
+  --block-accent: #dc3545;
+}
+
+.diagram-block-body {
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  pointer-events: none;
+}
+
+.diagram-block-icon {
+  display: inline-flex;
+  color: var(--block-accent, #0d6efd);
+}
+
+.diagram-block-icon svg {
+  width: 16px;
+  height: 16px;
+  stroke: currentColor;
+  fill: none;
 }
 
 .diagram-block-title {
-  font-size: 14px;
+  max-width: calc(100% - 28px);
+  font-size: 12px;
+  line-height: 1.1;
+  color: #dee2e6;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.diagram-port {
+  position: absolute;
+  width: 18px;
+  height: 18px;
+  transform: translate(-50%, -50%);
+  cursor: crosshair;
+  touch-action: none;
+  z-index: 3;
+}
+
+.diagram-port::after {
+  content: "";
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 8px;
+  height: 8px;
+  transform: translate(-50%, -50%);
+  box-sizing: border-box;
+  border-radius: 50%;
+  border: 1px solid var(--block-accent, #0d6efd);
+  background: #14171a;
+}
+
+.diagram-port:hover::after {
+  background: var(--block-accent, #0d6efd);
+}
+
+.palette-drag-ghost {
+  position: fixed;
+  left: 0;
+  top: 0;
+  z-index: 40;
+  pointer-events: none;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-sizing: border-box;
+  border-radius: 6px;
+  border: 1px solid color-mix(in srgb, var(--block-accent, #0d6efd) 70%, #fff);
+  background: color-mix(in srgb, var(--block-accent, #0d6efd) 55%, #101418);
+  color: #fff;
+  font-size: 12px;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.45);
+}
+
+.palette-drag-ghost.block-kind-data {
+  --block-accent: #0dcaf0;
+}
+
+.palette-drag-ghost.block-kind-process {
+  --block-accent: #0d6efd;
+}
+
+.palette-drag-ghost.block-kind-output {
+  --block-accent: #dc3545;
 }

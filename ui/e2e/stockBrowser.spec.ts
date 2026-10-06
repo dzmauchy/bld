@@ -20,7 +20,11 @@ test("loads the base palette in a stock browser", async ({ page }) => {
   const diagram = page.locator("[data-region=diagram]");
   await expect(palette).toBeVisible();
   await expect(diagram).toBeVisible();
-  await palette.locator("[data-block-id=ConstF32]").click();
+  const constant = palette.locator("[data-block-id=ConstF32]");
+  await constant.click();
+  await expect(constant).toHaveAttribute("data-armed", "true");
+  await expect(diagram.locator("[data-block-ref=ConstF32]")).toHaveCount(0);
+  await diagram.locator("[data-diagram-canvas]").click({ position: { x: 96, y: 80 } });
   await expect(diagram.locator("[data-block-ref=ConstF32]")).toHaveCount(1);
   expect(errors.join("\n")).not.toMatch(/invalid heap type/i);
 });

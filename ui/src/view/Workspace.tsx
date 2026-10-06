@@ -1,5 +1,7 @@
-import { Diagram, Palette, TypeSystem, type BlockDefinition, type DiagramBlock, type Library } from "core";
-import { createSignal, For, type Accessor } from "solid-js";
+import { Diagram, Palette, TypeSystem, type Library } from "core";
+import { onCleanup } from "solid-js";
+import { DiagramCanvas, DragGhostView } from "./diagram/DiagramCanvas.js";
+import { DiagramEditor } from "./diagram/diagramEditor.js";
 import { PaletteColumn } from "./palette/paletteColumnWidth.js";
 import { PalettePanel } from "./palette/PalettePanel.js";
 
@@ -9,45 +11,22 @@ interface SplitPanelElement extends HTMLElement {
 }
 
 export function Workspace(props: { libraries: readonly Library[] }) {
-  const diagram = new Diagram("diagram", "Diagram", combinedPalette(props.libraries));
-  const [blocks, setBlocks] = createSignal<DiagramBlock[]>([]);
-
-  const place = (definition: BlockDefinition) => {
-    const count = blocks().length;
-    const placed = diagram.addBlock(definition, {
-      x: 24 + (count % 4) * 168,
-      y: 24 + Math.floor(count / 4) * 96,
-    });
-    setBlocks((current) => [...current, placed]);
-  };
+  const editor = new DiagramEditor(new Diagram("diagram", "Diagram", combinedPalette(props.libraries)));
+  editor.start();
+  onCleanup(() => editor.destroy());
 
   return (
-    <wa-split-panel class="workspace" ref={bindSplitPanel}>
-      <PalettePanel libraries={props.libraries} onPlace={place} />
-      <DiagramCanvas diagram={diagram} blocks={blocks} />
-    </wa-split-panel>
-  );
-}
-
-function DiagramCanvas(props: { diagram: Diagram; blocks: Accessor<DiagramBlock[]> }) {
-  return (
-    <section class="region region-diagram" data-region="diagram" slot="end">
-      <h1 class="region-header">{props.diagram.title}</h1>
-      <div class="diagram-canvas" data-diagram-id={props.diagram.id}>
-        <For each={props.blocks()}>
-          {(block) => (
-            <article
-              class="diagram-block"
-              data-diagram-block={block.id}
-              data-block-ref={block.ref}
-              style={{ left: `${block.x}px`, top: `${block.y}px` }}
-            >
-              <span class="diagram-block-title">{block.definition.title}</span>
-            </article>
-          )}
-        </For>
-      </div>
-    </section>
+    <>
+      <wa-split-panel class="workspace" ref={bindSplitPanel}>
+        <PalettePanel
+          libraries={props.libraries}
+          armedId={editor.armedId}
+          onPointerDown={(definition, event) => editor.palettePointerDown(definition, event)}
+        />
+        <DiagramCanvas editor={editor} />
+      </wa-split-panel>
+      <DragGhostView editor={editor} />
+    </>
   );
 }
 
