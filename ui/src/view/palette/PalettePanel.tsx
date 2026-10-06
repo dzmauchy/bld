@@ -8,7 +8,11 @@ import {
   type PaletteGroup,
 } from "./palettePresenter.js";
 
-export function PalettePanel(props: { libraries: readonly Library[]; onPlace: (definition: BlockDefinition) => void }) {
+export function PalettePanel(props: {
+  libraries: readonly Library[];
+  armedId: Accessor<string | undefined>;
+  onPointerDown: (definition: BlockDefinition, event: PointerEvent) => void;
+}) {
   const groups = new LibraryListPalettePresenter(props.libraries).present();
   const libraryIds = props.libraries.map((library) => library.id).join(" ");
   const [expansion, setExpansion] = createSignal(PaletteExpansion.expanded(groups));
@@ -23,7 +27,8 @@ export function PalettePanel(props: { libraries: readonly Library[]; onPlace: (d
               depth={0}
               expansion={expansion}
               onToggle={(id) => setExpansion((current) => current.toggled(id))}
-              onPlace={props.onPlace}
+              armedId={props.armedId}
+              onPointerDown={props.onPointerDown}
             />
           )}
         </For>
@@ -37,7 +42,8 @@ function PaletteFolder(props: {
   depth: number;
   expansion: Accessor<PaletteExpansion>;
   onToggle: (id: string) => void;
-  onPlace: (definition: BlockDefinition) => void;
+  armedId: Accessor<string | undefined>;
+  onPointerDown: (definition: BlockDefinition, event: PointerEvent) => void;
 }) {
   const open = () => props.expansion().has(props.group.id);
   return (
@@ -60,11 +66,13 @@ function PaletteFolder(props: {
                 {(block) => (
                   <button
                     type="button"
-                    class={`palette-item flow-node ${BlockAccent.forCategory(block.category).className}`}
+                    class={`palette-item flow-node ${BlockAccent.forCategory(block.category).className}${props.armedId() === block.id ? " is-armed" : ""}`}
                     data-block-id={block.id}
                     data-library={props.group.libraryId}
+                    data-armed={props.armedId() === block.id ? "true" : "false"}
+                    aria-pressed={props.armedId() === block.id ? "true" : "false"}
                     title={block.description || block.title}
-                    onClick={() => props.onPlace(block)}
+                    onPointerDown={(event) => props.onPointerDown(block, event)}
                   >
                     <div class="flow-node-port-col is-in">
                       <For each={portsOf(block.inputs)}>{(port) => <PortMark port={port} side="in" />}</For>
@@ -88,7 +96,8 @@ function PaletteFolder(props: {
                 depth={props.depth + 1}
                 expansion={props.expansion}
                 onToggle={props.onToggle}
-                onPlace={props.onPlace}
+                armedId={props.armedId}
+                onPointerDown={props.onPointerDown}
               />
             )}
           </For>

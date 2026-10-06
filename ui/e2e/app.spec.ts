@@ -1,6 +1,6 @@
 import { expect, test } from "@playwright/test";
 import { readdirSync, readFileSync } from "node:fs";
-import { dirname, join } from "node:path";
+import { basename, dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { CoreSchemaCatalog } from "core";
 
@@ -205,7 +205,11 @@ test("splits a black workspace into a palette and a diagram", async ({ page }) =
   await sinks.click();
   await expect(palette.locator("[data-block-id=ScopeF32]")).toBeVisible();
 
-  await palette.locator("[data-block-id=ScopeF32]").click();
+  const scope = palette.locator("[data-block-id=ScopeF32]");
+  await scope.click();
+  await expect(scope).toHaveAttribute("data-armed", "true");
+  await expect(diagram.locator("[data-block-ref=ScopeF32]")).toHaveCount(0);
+  await diagram.locator("[data-diagram-canvas]").click({ position: { x: 96, y: 80 } });
   await expect(diagram.locator("[data-block-ref=ScopeF32]")).toHaveCount(1);
   await expect(diagram.locator("[data-block-ref=ScopeF32]")).toContainText("Scope");
 });
@@ -227,7 +231,7 @@ test("client bundle uses release metadata and the pinned compiler", () => {
   expect(scripts).toContain("clang.wasm");
   expect(scripts).toContain("lld.wasm");
   expect(scripts).toContain("sysroot.tgz");
-  expect(collect(distDir, ".wasm")).toEqual([]);
+  expect(collect(distDir, ".wasm").map((path) => basename(path))).toEqual(["libavoid.wasm"]);
 });
 
 test("serves JSON schemas from /schemas", async ({ request }) => {
