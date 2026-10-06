@@ -14,7 +14,6 @@
     "wrangler": "^4.147.0"
   },
   "allowScripts": {
-    "@bjorn3/browser_wasi_shim": true,
     "esbuild": true,
     "workerd": true
   }
