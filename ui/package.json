@@ -20,17 +20,17 @@
   "dependencies": {
     "@awesome.me/webawesome": "^3.14.0",
     "@joint/router-avoid": "^4.3.3",
-    "@solidjs/web": "^2.0.0-rc.9",
+    "@solidjs/web": "^2.0.0-rc.13",
     "core": "*",
     "modern-tar": "^0.8.5",
     "cpp": "*",
-    "solid-js": "^2.0.0-rc.9"
+    "solid-js": "^2.0.0-rc.13"
   },
   "devDependencies": {
     "@playwright/test": "^1.63.0",
-    "@rsbuild/core": "^2.2.9",
-    "@rsbuild/plugin-solid": "2.0.0-rc.0",
-    "@rstest/adapter-rsbuild": "^0.12.2",
-    "@solidjs/compiler": "2.0.0-rc.9"
+    "@rsbuild/core": "^2.2.12",
+    "@rsbuild/plugin-solid": "2.0.0-rc.1",
+    "@rstest/adapter-rsbuild": "^0.12.3",
+    "@solidjs/compiler": "2.0.0-rc.13"
   }
 }
