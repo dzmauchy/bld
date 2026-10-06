@@ -11,7 +11,9 @@ const schemaAssets = {
 
 test("rsbuild copies core JSON schemas to /schemas", () => {
   expect(config.html?.template).toBe("./index.html");
-  const copy = config.output?.copy ?? [];
+  const copy = config.output?.copy;
+  expect(Array.isArray(copy)).toBe(true);
+  if (!Array.isArray(copy)) return;
   expect(copy.slice(0, 2)).toEqual([
     { from: "../core/assets/schemas", to: "schemas" },
     { from: "../cpp/public/llvm-toolchain-sw.js", to: "./" },
