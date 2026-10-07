@@ -4,7 +4,6 @@ export const browserHost = String.raw`#pragma once
 #include <core/hal.hpp>
 #include <core/math.hpp>
 
-void register_gpio_block(u32 blockId, u16 port, const core::array<u8>& pins);
 
 extern "C" void mount();
 

@@ -7,11 +7,11 @@ import {
   CppDiagramBuilder,
   Diagram,
   Library,
+  Palette,
   PortEndpoint,
   registerAppAssets,
 } from "core";
 import "../src/hostClangAstDumper.ts";
-import { ClangFunctionCatalog } from "../../core/src/model/clangFunctionCatalog.ts";
 
 const here = dirname(fileURLToPath(import.meta.url));
 const coreAssets = join(here, "../../core/assets");
@@ -33,8 +33,7 @@ function connect(diagram: Diagram, fromId: string, _fromPort: string, fromVec: n
 }
 
 async function compileDiagram(cpp: CppSession, diagram: Diagram): Promise<void> {
-  const analysis = await builder.analyze(diagram, cpp.astDumper);
-  expect(analysis.ok, JSON.stringify(analysis.diagnostics)).toBe(true);
+  expect(builder.validate(diagram)).toBeUndefined();
   await cpp.compile(builder.build(diagram));
 }
 
@@ -56,6 +55,58 @@ test("ConstF32 writes to a scope channel", async ({ cpp }) => {
   await compileDiagram(cpp, diagram);
   expect(await cpp.invoke("lastPin", [0, 0])).toBe(3.5);
   expect(await cpp.invoke("hasPin", [0, 0])).toBe(1);
+});
+
+test("custom struct streams and output-owned storage survive mounting", async ({ cpp }) => {
+  const library = await Library.load("base.json");
+  const files = { ...library.compilationModel.getFiles(), "custom.hpp": `#pragma once
+#include <core/hal.hpp>
+namespace custom {
+struct Event { i32 code; Bool ready; };
+inline i32 received[2]{};
+struct Inputs { VectorizedInput<core::function<void(Event)>> streams; };
+struct Outputs { VectorizedOutput<core::function<void(Event)>> listeners; };
+inline core::function<Outputs()> Watch(u32) {
+  return [] {
+    auto consumers = core::make_shared<core::array<core::function<void(Event)>>>();
+    auto pointers = core::make_shared<core::array<core::function<void(Event)>*>>();
+    return Outputs{[consumers, pointers](u8 count) {
+      *consumers = core::array<core::function<void(Event)>>(count);
+      *pointers = core::array<core::function<void(Event)>*>(count);
+      for (u8 i = 0; i < count; ++i) {
+        (*consumers)[i] = [i](Event event) { if (event.ready) received[i] = event.code; };
+        (*pointers)[i] = &(*consumers)[i];
+      }
+      return core::span<core::function<void(Event)>* const>{*pointers};
+    }};
+  };
+}
+inline core::function<void(Inputs)> Emit(u32, i32 code = 42, Bool ready = true) {
+  auto sinks = core::make_shared<core::array<core::function<void(Event)>*>>();
+  auto start = core::make_shared<core::function<void()>>([sinks, code, ready] {
+    for (auto* sink : *sinks) (*sink)(Event{code, ready});
+  });
+  return [sinks, start](Inputs input) {
+    *sinks = core::array<core::function<void(Event)>*>{input.streams};
+    on_start(start.get());
+  };
+}
+}
+extern "C" i32 customSeen(u32 channel) { return custom::received[channel]; }
+` };
+  const customPalette = Palette.fromCatalog({
+    Watch: { cpp: "custom::Watch", outputs: { listeners: { type: "auto", vector: true } } },
+    Emit: { cpp: "custom::Emit", inputs: { streams: { type: "auto", vector: true } },
+      conf: { code: { type: "auto", default: 42 }, ready: { type: "auto", default: true } } },
+  }, {});
+  const diagram = new Diagram("custom", "Custom events", customPalette);
+  diagram.addBlock("Watch", { x: 0, y: 0 }, "watch");
+  diagram.addBlock("Emit", { x: 1, y: 0 }, "emit", { code: 73 });
+  for (const channel of [0, 1])
+    diagram.connect(new PortEndpoint("watch", "output", "listeners", channel), new PortEndpoint("emit", "input", "streams"));
+  await cpp.compile(new CppDiagramBuilder(files).build(diagram));
+  expect(await cpp.invoke("customSeen", [0])).toBe(73);
+  expect(await cpp.invoke("customSeen", [1])).toBe(73);
 });
 
 test("ConstF32 fans out across two scope channels", async ({ cpp }) => {
@@ -229,7 +280,7 @@ test("GPIO span groups preserve disconnected pins and fan out one pin", async ({
   expect(await cpp.invoke("pinWriteCount")).toBe(4);
 });
 
-test("browser factory analysis discovers defaults for all released blocks", async ({ cpp }) => {
+test("metadata defaults remain available after browser port analysis", async ({ cpp }) => {
   const diagram = new Diagram("factories", "Factories", palette);
   for (const definition of palette.getBlocks()) diagram.addBlock(definition, { x: 0, y: 0 });
   const analysis = await builder.analyze(diagram, cpp.astDumper);
@@ -494,9 +545,8 @@ test("diagram AST analysis reads main-file declarations with lazy precompiled he
   expect(dump.ok, dump.diagnostics).toBe(true);
   const ast = dump.ast as { inner?: { kind?: string; name?: string }[] };
   expect(JSON.stringify(dump.ast)).toContain('"name":"mount"');
-  const factories = ClangFunctionCatalog.fromAst(ast);
-  expect(factories.parametersFor("push::f_32::sinks::ScopeF32")).toBeUndefined();
-  expect(factories.parametersFor("push::f_32::sinks::bld_factory_0")?.map((param) => param.defaultValue)).toEqual([60, 10]);
+  expect(ast.inner?.some(node => node.name?.startsWith("bld_factory_"))).toBe(false);
+  expect(palette.getBlock("ScopeF32")?.getDefaultConfig()).toEqual({ period: 60, precision: 10 });
   const bytes = new TextEncoder().encode(JSON.stringify(dump.ast)).byteLength;
   expect(bytes).toBeLessThan(2_000_000);
   test.info().annotations.push({ type: "AST bytes", description: String(bytes) });

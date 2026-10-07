@@ -52,8 +52,8 @@ The project features a **client-side only** architecture:
 - **C++ Diagram Builder**: Generates C++ that instantiates `push::f_32` blocks from the base library and delegates wasm compilation to the `cpp` workspace.
 - **Web Worker Thread Isolation**: All runtime execution runs off the main thread with non-blocking RPC communication and streaming pin updates.
 - **Sliding Scope Buffers**: High-rate signal capture in the browser uses a `Float32Array`/`Float64Array` ring with a single write pointer.
-- **Release metadata**: `meta.json` in the base archive lists every block, namespace, port, and parameter. Loading the palette does not invoke Clang. Parameter controls come from that manifest. Clang supplies each parameter's C++ type and default during analysis.
-- **Clang type checks**: Port types and connection compatibility come from `clang++` AST dumps. Configuration properties that match their defaults are omitted from the diagram comment.
+- **Release metadata**: `meta.json` in the base archive lists every block, namespace, port, and parameter. Loading the palette does not invoke Clang. Parameter controls, JSON defaults, vectorized flags, and channel constraints come from that manifest.
+- **Clang type checks**: Clang checks connection compatibility during compilation. Optional AST analysis displays the actual port types. Configuration properties that match their defaults are omitted from the diagram comment.
 - **Production-Ready UI Stack**: Built on Solid.js, Web Awesome, dark mode by default, and bundled with Rsbuild.
 
 ---
@@ -164,7 +164,7 @@ flowchart TD
     A["Diagram C++ / mount()"] --> B["CppDiagramBuilder"]
     
     subgraph Emit["C++ Generation"]
-        B --> B1["Map release metadata to push::f_32 factories"]
+        B --> B1["Read factory IDs and vectorized flags from metadata"]
         B1 --> B2["Reverse-topo apply order (sinks before sources)"]
         B2 --> B3["Emit diagram.cpp mount() plus native headers"]
     end
@@ -320,7 +320,9 @@ classDiagram
 
 ## Type System
 
-`CppDiagramBuilder.analyze()` assembles the connected C++23 program with `auto` variables for each input and output field, then asks Clang for its JSON AST and object in one invocation. Source-local factory adapters retain the release headers' parameter declarations and default expressions, letting Clang resolve defaults and check the chosen configuration in that same invocation. Compilation reuses the resulting object.
+`CppDiagramBuilder` emits calls to the release's `core/diagram.hpp` contract: `config_arg`, `block_inputs`, `input_connections`, `bind_block`, and `output_channels`. It uses factory and field IDs, JSON configuration, connection indices, and metadata vectorized flags without parsing C++ declarations or recognizing numeric types and containers. `DiagramCompiler.compile()` validates metadata constraints and sends the generated files to the C++ backend once. Clang emits the JSON AST and object in that single invocation; LLD links the object. Compilation does not run a preliminary analysis pass.
+
+`CppDiagramBuilder.analyze()` remains available for editor diagnostics and type labels. It reads the field type strings from an optional AST dump; those strings do not select wiring behavior. Matching subsequent compilation can reuse the emitted object.
 
 ```ts
 const result = await diagram.analyze();
@@ -330,9 +332,9 @@ const errors = result.diagnostics.filter(d => d.severity === "error");
 // Connection errors include blockId, inputId, outputId, connectionId, from, to.
 ```
 
-Use `canConnect()` for immediate structural checks (endpoints, direction, duplicates, and cycles). Use `await canConnectAsync()` to check a proposed connection with Clang without changing the diagram. `DiagramCompiler.compile()` performs analysis and throws `DiagramCompilationError` with structured diagnostics if it fails. Synchronous inference is available for host Clang tests; browser clients use the asynchronous API.
+Use `canConnect()` for immediate structural checks (endpoints, direction, duplicates, and cycles). Use `await canConnectAsync()` to check a proposed connection with Clang without changing the diagram. `DiagramCompiler.compile()` maps compiler errors to `DiagramCompilationError` diagnostics using generated source locations. Synchronous inference is available for host Clang tests; browser clients use the asynchronous API.
 
-Parameter ids, titles, descriptions, icons, and controls come from the release `parameters` array. Clang fills each parameter's C++ type and default during analysis. Configured sources can be emitted directly with `builder.build()`; the generated adapters preserve omitted factory defaults. Default configuration values are omitted from JSON after the definitions have been discovered.
+Parameter IDs, titles, descriptions, icons, controls, and JSON defaults come from the release `parameters` array. Defaults are available immediately when the library loads, so configuration equal to a default is omitted from JSON before any compilation. Generic port `length` bindings constrain channel indices using the selected configuration array and optional maximum. GPIO registration is performed by the released library through the browser HAL hook.
 
 ## Standard Block Library (`base`)
 
@@ -349,7 +351,7 @@ The [base v0.1.0 archive](https://github.com/dzmauchy/bld-base/releases/download
 | Sum, Product | `downstream` | `channels` | `precision` |
 | Scope | none | `channels` | `period`, `precision` |
 
-Connections pass `core::function` consumer pointers from output fields to input fields. Inputs borrow pointer lists through `core::span`; generated storage remains valid during wiring, and the built-in blocks copy these lists. Static factory results keep their captured state alive after `mount()` returns. Scope, sum, and product expose `channels` as a vectorized function: `scope().channels(count)`. For example, `ScopeF32.channels[0]` connects to `ConstF32.downstream`. Signals subsequently flow from the constant to the scope. Sinks such as Scope take no input, so the returned function is called without arguments. Inferred types come from the C++ fields, including both numeric precisions.
+Connections pass `core::function` consumer pointers from output fields to input fields. Inputs borrow pointer lists through `core::span`; generated storage remains valid during wiring, and the built-in blocks copy these lists. Static factory results and output channel objects keep captured state and consumer storage alive after `mount()` returns. Scope, sum, and product expose `channels` as a vectorized function: `scope().channels(count)`. For example, `ScopeF32.channels[0]` connects to `ConstF32.downstream`. Signals subsequently flow from the constant to the scope. Sinks such as Scope take no input, so the returned function is called without arguments. Inferred types come from the C++ fields, including both numeric precisions.
 
 ## Diagram File
 

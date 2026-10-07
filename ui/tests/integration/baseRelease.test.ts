@@ -4,7 +4,7 @@ import { packTar } from "modern-tar";
 import { expect, test } from "@rstest/core";
 import { isCurrentBaseRelease } from "../../scripts/fetch-base-release.mjs";
 
-test("the bundled base release exposes callable factories", async () => {
+test("the bundled base release exposes the type agnostic diagram contract", async () => {
   const bytes = await readFile(new URL("../../public/base-0.1.0.tar.gz", import.meta.url));
   expect(await isCurrentBaseRelease(bytes)).toBe(true);
 });
@@ -12,6 +12,7 @@ test("the bundled base release exposes callable factories", async () => {
 for (const [kind, factory] of [
   ["class", "using ScopeF32 = Scope<float>;"],
   ["standard-library", "inline std::function<void()> ScopeF32(unsigned blockId) { return [] {}; }"],
+  ["callable without diagram contract", "inline core::function<void()> ScopeF32(unsigned blockId) { return [] {}; }"],
 ]) test(`asset validation rejects the former ${kind} release under the same version`, async () => {
   const encoder = new TextEncoder();
   const files = {

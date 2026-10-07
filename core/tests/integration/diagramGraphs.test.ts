@@ -126,7 +126,7 @@ describe("E2E diagram C++ generation", () => {
       new DiagramJsonBuilder().addScope("s").addConstant("c", 42.5).connect("c", "v", 0, "s", "sink", 0).build(),
     );
     expect(cpp).toContain("ConstF32");
-    expect(cpp).toContain("static_cast<decltype(value)>(42.5)");
+    expect(cpp).toContain("core::config_arg<0>(::push::f_32::sources::ConstF32, 42.5)");
   });
 
   test("cos_gen and sin_gen to a multi-channel scope", () => {
@@ -157,7 +157,7 @@ describe("E2E diagram C++ generation", () => {
     expect(cpp).toContain("void mount()");
     expect(cpp).toContain("RandGenF32");
     expect(cpp).toContain("PulseGenF32");
-    expect(cpp).toContain("static_cast<decltype(dutyCycle)>(0.25)");
+    expect(cpp).toContain("core::config_arg<0>(::push::f_32::sources::PulseGenF32, 0.25)");
   });
 
   test("unary chain const -> cos -> sin -> scope", () => {
@@ -220,7 +220,8 @@ describe("E2E diagram C++ generation", () => {
     );
     expect(cpp).toContain("void mount()");
     expect(cpp).toContain("GpioInF32");
-    expect(cpp).toContain("register_gpio_block");
+    expect(cpp).not.toContain("register_gpio_block");
+    expect(cpp).toContain("core::input_connections<true, 2, 2>");
   });
 
   test("gpio through cos into scope", () => {
@@ -307,8 +308,8 @@ describe("E2E diagram C++ generation", () => {
         .build(),
     );
     expect(cpp).toContain("void mount()");
-    expect(cpp.match(/register_gpio_block\(blockId/g)).toHaveLength(2);
-    expect(cpp).toContain("bld_factory_2(2u)");
-    expect(cpp).toContain("bld_factory_3(3u)");
+    expect(cpp).not.toContain("register_gpio_block");
+    expect(cpp).toContain("::push::f_32::sources::GpioInF32(2u,");
+    expect(cpp).toContain("::push::f_32::sources::GpioInF32(3u,");
   });
 });

@@ -20,9 +20,6 @@ let palette: Palette;
 beforeAll(async () => {
   const lib = await Library.load("base.json");
   palette = lib.palette;
-  const all = new Diagram("all", "all", palette);
-  palette.getBlocks().forEach((b) => all.addBlock(b, {x:0,y:0}));
-  await all.analyze();
 });
 
 describe("Palette", () => {

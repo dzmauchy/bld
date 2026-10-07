@@ -10,6 +10,11 @@ export abstract class PropertyDefinition {
   ) {}
 }
 
+export interface PortLengthConstraint {
+  parameter: string;
+  max?: number;
+}
+
 export class PortDefinition extends PropertyDefinition {
   constructor(
     id: string,
@@ -17,6 +22,7 @@ export class PortDefinition extends PropertyDefinition {
     type: DataType,
     readonly vector: boolean = false,
     readonly concept?: unknown,
+    readonly length?: PortLengthConstraint,
   ) {
     super(id, type);
   }
@@ -30,6 +36,7 @@ export class PortDefinition extends PropertyDefinition {
   }
 
   get lengthBindConfId(): string | undefined {
+    if (this.length) return this.length.parameter;
     const concept = this.concept as { length?: { bind?: { type?: string; id?: string } } } | undefined;
     const bind = concept?.length?.bind;
     return bind?.type === "conf" && bind.id ? bind.id : undefined;
@@ -37,14 +44,14 @@ export class PortDefinition extends PropertyDefinition {
 }
 
 export class InputPortDefinition extends PortDefinition {
-  constructor(id: string, type: DataType, vector = false, concept?: unknown) {
-    super(id, "input", type, vector, concept);
+  constructor(id: string, type: DataType, vector = false, concept?: unknown, length?: PortLengthConstraint) {
+    super(id, "input", type, vector, concept, length);
   }
 }
 
 export class OutputPortDefinition extends PortDefinition {
-  constructor(id: string, type: DataType, vector = false, concept?: unknown) {
-    super(id, "output", type, vector, concept);
+  constructor(id: string, type: DataType, vector = false, concept?: unknown, length?: PortLengthConstraint) {
+    super(id, "output", type, vector, concept, length);
   }
 }
 
@@ -66,10 +73,12 @@ export interface RawPortCatalogEntry {
   vector?: boolean;
   type: TypeDescriptor | string;
   concept?: unknown;
+  length?: PortLengthConstraint;
 }
 
 export interface RawConfigPropertyCatalogEntry {
   type: TypeDescriptor | string;
+  default?: unknown;
   control?: Record<string, unknown> & { default?: unknown };
   title?: string;
   description?: string;
@@ -112,12 +121,6 @@ export class BlockDefinition {
     this.configProperties.set(property.id, property);
   }
 
-  /** Replaces factory parameters in call order after Clang resolves types and defaults. */
-  assignParameters(properties: readonly ConfigPropertyDefinition[]): void {
-    this.configProperties.clear();
-    for (const property of properties) this.configProperties.set(property.id, property);
-  }
-
   getInput(id: string): PortDefinition | undefined {
     return this.inputs.get(id);
   }
@@ -150,12 +153,12 @@ export class BlockDefinition {
     const category = ns.length >= 3 ? ns[2] : ns[ns.length - 1] ?? "";
 
     const buildPorts = (entries: Record<string, RawPortCatalogEntry> | undefined, Cls: typeof InputPortDefinition | typeof OutputPortDefinition) =>
-      new Map(Object.entries(entries ?? {}).map(([portId, e]) => [portId, new Cls(portId, typeSystem.parse(e.type), Boolean(e.vector), e.concept)]));
+      new Map(Object.entries(entries ?? {}).map(([portId, e]) => [portId, new Cls(portId, typeSystem.parse(e.type), Boolean(e.vector), e.concept, e.length)]));
 
     const config = new Map(
       Object.entries(raw.conf ?? {}).map(([confId, entry]) => {
         const ctrl = entry.control ?? {};
-        const defaultValue = ctrl.default !== undefined ? ctrl.default : ctrl.type === "set_of_pins" ? [0] : undefined;
+        const defaultValue = entry.default !== undefined ? entry.default : ctrl.default;
         return [confId, new ConfigPropertyDefinition(
           confId,
           typeSystem.parse(entry.type),

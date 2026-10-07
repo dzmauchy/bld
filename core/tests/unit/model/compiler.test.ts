@@ -13,6 +13,7 @@ import { Diagram } from "../../../src/model/diagram.ts";
 import { Library } from "../../../src/model/library.ts";
 import { Palette } from "../../../src/model/palette.ts";
 import { PortEndpoint } from "../../../src/model/endpoint.ts";
+import { ClangAstDumper } from "cpp";
 
 let palette: Palette;
 let libraryFiles: Record<string, string> = {};
@@ -21,7 +22,6 @@ beforeAll(async () => {
   const lib = await Library.load("base.json");
   palette = lib.palette;
   libraryFiles = lib.compilationModel.getFiles();
-  await createTestDiagram().analyze();
 });
 
 function createTestDiagram(): Diagram {
@@ -52,9 +52,9 @@ describe("DiagramCompiler C++ generation", () => {
     expect(cpp).toContain("push::f_32::sources::ConstF32");
     expect(cpp).toContain("void mount()");
     expect(cpp).not.toContain("start(");
-    expect(cpp).toContain("static_cast<decltype(value)>(3.14)");
-    expect(cpp).toContain("static auto b0 = push::f_32::sinks::bld_factory_0(");
-    expect(cpp).toContain("b1(core::detail::move(i1))");
+    expect(cpp).toContain("core::config_arg<0>(::push::f_32::sources::ConstF32, 3.14)");
+    expect(cpp).toContain("static auto b0 = ::push::f_32::sinks::ScopeF32(");
+    expect(cpp).toContain("core::bind_block(b1, core::detail::move(i1))");
   });
 
   test("BrowserCompiler specializes the browser profile", () => {
@@ -89,7 +89,16 @@ describe("DiagramCompiler C++ generation", () => {
       },
     });
     const diagram = createTestDiagram();
-    await expect(compiler.compile(diagram)).resolves.toBe(wasm);
+    const previous = ClangAstDumper.defaultDumper();
+    class ForbiddenDumper extends ClangAstDumper {
+      override dump(): never { throw new Error("Compilation must not run a preliminary AST pass"); }
+    }
+    ClangAstDumper.register(new ForbiddenDumper());
+    try {
+      await expect(compiler.compile(diagram)).resolves.toBe(wasm);
+    } finally {
+      ClangAstDumper.register(previous);
+    }
     expect(captured).toHaveLength(1);
     const files = captured[0];
     expect(files?.get("diagram.cpp")).toContain("void mount()");
@@ -97,6 +106,24 @@ describe("DiagramCompiler C++ generation", () => {
     expect(files?.get("base/f32_blocks.hpp")).toContain("ScopeF32(const u32 blockId");
     expect(files?.get("wasm_host.hpp")).toContain("void start()");
     expect(files?.get("wasm_host.cpp")).toBeUndefined();
+  });
+
+  test("compiler errors retain connection diagnostics and a successful retry clears them", async () => {
+    let fail = true;
+    const compiler = new BrowserCompiler(libraryFiles, {
+      async compile() {
+        if (fail) throw new Error("core/diagram.hpp:185:12: error: incompatible value\nconnection_0:1:1: note: in instantiation of template requested here");
+        return new Uint8Array([0, 97, 115, 109]);
+      },
+    });
+    const diagram = createTestDiagram();
+    const connection = diagram.getConnections()[0]!;
+    const failure = await compiler.compile(diagram).catch(error => error);
+    expect(failure.diagnostics[0]).toMatchObject({ blockId: "const_0", inputId: "downstream", connectionId: connection.id });
+    expect(diagram.getBlock("const_0")?.getInputPorts()[0]?.hasError).toBe(true);
+    fail = false;
+    await compiler.compile(diagram);
+    expect(diagram.getBlock("const_0")?.getInputPorts()[0]?.hasError).toBe(false);
   });
 
   test("run instantiates the wasm produced by the C++ backend", async () => {

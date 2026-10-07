@@ -4,7 +4,6 @@ import { Diagram } from "../../src/model/diagram";
 import { CppDiagramBuilder } from "../../src/model/cppBuilder";
 import { PortEndpoint } from "../../src/model/endpoint";
 import { ClangAstDumper, ClangTranslationUnit } from "cpp";
-import { ClangFunctionCatalog } from "../../src/model/clangFunctionCatalog";
 import { Palette } from "../../src/model/palette";
 
 let library: Library;
@@ -18,7 +17,58 @@ function connect(d: Diagram, source: string, target: string) {
   d.connect(new PortEndpoint(source, "output", "channels"), new PortEndpoint(target, "input", "downstream"), "wire");
 }
 describe("release metadata and diagram AST", () => {
-  test("source-local adapters preserve defaults for factories with the same name in different namespaces", async () => {
+  test("custom structs, booleans, and scalar arrays need no C++ declaration parsing", async () => {
+    const files = { ...library.compilationModel.getFiles(), "custom.hpp": `#pragma once
+#include <core/types.hpp>
+namespace custom {
+struct Packet { i32 payload; Bool valid; };
+struct Ports { Packet message; core::array<i32*> bundle; };
+#define FACTORY_NAME Source
+inline core::function<Ports()> FACTORY_NAME(u32, i32 code = 42, Bool valid = true) {
+  return [code, valid] { return Ports{{code, valid}, {}}; };
+}
+inline core::function<void(Ports)> Sink(u32) { return [](Ports) {}; }
+}` };
+    const ports = { message: { type: "auto" }, bundle: { type: "auto" } };
+    const palette = Palette.fromCatalog({
+      Source: { cpp: "custom::Source", outputs: ports,
+        conf: { code: { type: "auto", default: 42 }, valid: { type: "auto", default: true } } },
+      Sink: { cpp: "custom::Sink", inputs: ports },
+    }, {});
+    const d = new Diagram("custom", "Custom", palette);
+    const source = d.addBlock("Source", { x: 0, y: 0 }, "source", { valid: false });
+    d.addBlock("Sink", { x: 0, y: 0 }, "sink");
+    for (const field of Object.keys(ports))
+      d.connect(new PortEndpoint("source", "output", field), new PortEndpoint("sink", "input", field));
+    const custom = new CppDiagramBuilder(files);
+    const result = await custom.analyze(d);
+    expect(result.ok, JSON.stringify(result.diagnostics)).toBe(true);
+    expect(source.getConf("code")).toBe(42);
+    expect(source.toJSON().conf).toEqual({ valid: false });
+    expect(result.types.require("source", "output", "bundle").isVector).toBe(false);
+    expect(custom.emitDiagram(d)).toContain("core::config_arg<1>(::custom::Source, false)");
+    expect(custom.emitDiagram(d)).not.toContain("bld_factory");
+  });
+
+  test("channel length validation uses metadata bindings with arbitrary names", () => {
+    const palette = Palette.fromCatalog({
+      Source: { cpp: "custom::Source", outputs: { events: { type: "auto", vector: true } } },
+      Sink: { cpp: "custom::Sink", inputs: { samples: { type: "auto", vector: true,
+        length: { parameter: "routes", max: 2 } } }, conf: { routes: { type: "auto", default: [3, 5, 7] } } },
+    }, {});
+    const d = new Diagram("limits", "Limits", palette);
+    d.addBlock("Source", { x: 0, y: 0 }, "source");
+    const sink = d.addBlock("Sink", { x: 0, y: 0 }, "sink");
+    d.connect(new PortEndpoint("source", "output", "events"), new PortEndpoint("sink", "input", "samples", 1), "route");
+    expect(builder.validate(d)).toBeUndefined();
+    sink.setConf("routes", [3]);
+    expect(builder.validate(d)?.diagnostics[0]).toMatchObject({ connectionId: "route", inputId: "samples" });
+    sink.setConf("routes", [3, 5, 7]);
+    d.disconnect("route");
+    d.connect(new PortEndpoint("source", "output", "events"), new PortEndpoint("sink", "input", "samples", 2), "overflow");
+    expect(builder.validate(d)?.diagnostics[0]).toMatchObject({ connectionId: "overflow", inputId: "samples" });
+  });
+  test("metadata configures factories with the same name in different namespaces", async () => {
     const files = { ...library.compilationModel.getFiles(), "custom.hpp": `#pragma once
 #include <base/f32_blocks.hpp>
 // Same(const u32 blockId, const f32 value = 123) is only a comment.
@@ -34,7 +84,7 @@ inline auto Same(const u32 blockId, const f32 value = f32{0.5}) {
 }` };
     const palette = Palette.fromCatalog({ Custom: {
       cpp: "custom::Same", inputs: { downstream: { type: "auto", vector: true } },
-      conf: { value: { type: "auto" } },
+      conf: { value: { type: "auto", default: 0.5 } },
     } }, {});
     const d = new Diagram("custom", "Custom", palette);
     const block = d.addBlock("Custom", { x: 0, y: 0 }, "custom", { value: 3.5 });
@@ -44,7 +94,7 @@ inline auto Same(const u32 blockId, const f32 value = f32{0.5}) {
     expect(block.definition.getConfig("value")?.defaultValue).toBe(0.5);
     expect(result.types.require("custom", "input", "downstream").desugaredQualType).toContain("float");
   });
-  test("one full-source invocation resolves defaults and validates configured connections", async () => {
+  test("one full-source invocation validates configured connections with metadata defaults", async () => {
     const freshLibrary = await Library.load("base.json");
     const singlePassBuilder = new CppDiagramBuilder(freshLibrary.compilationModel.getFiles());
     const d = new Diagram("single_pass", "Single pass", freshLibrary.palette);
@@ -70,17 +120,6 @@ inline auto Same(const u32 blockId, const f32 value = f32{0.5}) {
     expect(constant.toJSON().conf).toBeUndefined();
     expect(analysis.types.require("constant", "input", "downstream").desugaredQualType).toContain("float");
   });
-  test("Clang resolves fixed-size array defaults as pin lists", async () => {
-    const files = new Map(Object.entries(library.compilationModel.getFiles()));
-    files.set("defaults.cpp", `#include <core/types.hpp>
-void Pins(u32 blockId, core::array<u8> empty = {},
-          core::array<u8> zeroed = core::array<u8>(2),
-          core::array<u8> repeated = core::array<u8>(3, u8{7})) {}`);
-    const dump = await ClangAstDumper.defaultDumper().dumpAsync(files, "defaults.cpp");
-    expect(dump.ok, dump.diagnostics).toBe(true);
-    const parameters = ClangFunctionCatalog.fromAst(dump.ast!).parametersFor("Pins");
-    expect(parameters?.map((parameter) => parameter.defaultValue)).toEqual([[], [0, 0], [7, 7, 7]]);
-  });
   test("metadata exposes both precisions without header comment parsing", () => {
     expect(library.palette.getBlocks()).toHaveLength(22);
     expect(library.palette.getBlock("ScopeF64")?.getOutput("channels")).toBeDefined();
@@ -101,7 +140,7 @@ void Pins(u32 blockId, core::array<u8> empty = {},
       expect(library.palette.getBlock(`Scope${precision}`)?.getDefaultConfig()).toEqual({ period: 60, precision: 10 });
       expect(library.palette.getBlock(`PulseGen${precision}`)?.getDefaultConfig()).toEqual({ dutyCycle: 0.5, amplitude: 1, frequency: 1, phase: 0 });
       expect(library.palette.getBlock(`GpioIn${precision}`)?.getDefaultConfig()).toEqual({ port: 0, pins: [0] });
-      expect(library.palette.getBlock(`GpioIn${precision}`)?.getConfig("pins")?.type.raw).toContain("core::array");
+      expect(library.palette.getBlock(`GpioIn${precision}`)?.getConfig("pins")?.type.raw).toBe("auto");
     }
   });
   test("GPIO vector configuration preserves empty, single and multiple pin lists", async () => {
@@ -112,12 +151,12 @@ void Pins(u32 blockId, core::array<u8> empty = {},
       const result = await builder.analyze(d);
       expect(result.ok, JSON.stringify(result.diagnostics)).toBe(true);
       expect(gpio.toJSON().conf?.pins).toEqual(pins);
-      expect(builder.emitDiagram(d)).toContain(`bld_config_array<decltype(pins)>(${pins.join(", ")})`);
+      expect(builder.emitDiagram(d)).toContain(`core::config_arg<1>(::push::f_32::sources::GpioInF32${pins.length ? ", " : ""}${pins.map(pin => `${pin}.0`).join(", ")})`);
     }
     gpio.setConf("pins", [0]);
     expect(gpio.toJSON().conf).toBeUndefined();
   });
-  test("connected program uses auto and factory defaults from Clang", async () => {
+  test("connected program uses auto and factory defaults from metadata", async () => {
     const d = diagram();
     d.addBlock("ScopeF32", {x: 0, y: 0}, "scope");
     const c = d.addBlock("ConstF32", {x: 0, y: 0}, "constant", {value: 2.5});
@@ -125,11 +164,11 @@ void Pins(u32 blockId, core::array<u8> empty = {},
     const result = await builder.analyze(d);
     expect(result.diagnostics.filter((d) => d.severity === "error")).toEqual([]);
     expect(result.ok).toBe(true);
-    expect(builder.emitDiagram(d)).toContain("static_cast<decltype(value)>(2.5)");
+    expect(builder.emitDiagram(d)).toContain("core::config_arg<0>(::push::f_32::sources::ConstF32, 2.5)");
     c.setConf("value", 1);
     expect(c.toJSON().conf).toBeUndefined();
   });
-  test("single-channel wiring borrows a span while combined channels keep their own storage", async () => {
+  test("single-channel and combined wiring use the same library-owned connection API", async () => {
     const d = diagram();
     d.addBlock("ScopeF32", { x: 0, y: 0 }, "scope_a");
     d.addBlock("ScopeF32", { x: 0, y: 0 }, "scope_b");
@@ -143,8 +182,8 @@ void Pins(u32 blockId, core::array<u8> empty = {},
     const dump = await ClangAstDumper.defaultDumper().dumpAsync(builder.build(d), "diagram.cpp");
     expect(dump.ok, dump.diagnostics).toBe(true);
     const unit = ClangTranslationUnit.parse(dump.ast);
-    expect(unit.varType("input_2_downstream")?.canonical).toMatch(/^core::span</);
-    expect(unit.varType("input_3_downstream")?.canonical).toMatch(/^BldInput</);
+    expect(unit.varType("input_2_downstream")?.canonical).toMatch(/^core::InputConnections</);
+    expect(unit.varType("input_3_downstream")?.canonical).toMatch(/^core::InputConnections</);
   });
   test("incompatible precision identifies the exact connection and endpoints", async () => {
     const d = diagram();

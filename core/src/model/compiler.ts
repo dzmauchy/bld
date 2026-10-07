@@ -161,9 +161,21 @@ export class DiagramCompiler extends CompilationModel {
       throw new Error("C++ compiler backend is required");
     }
     const builder = new CppDiagramBuilder({ ...ClangAstDumper.libraryFiles, ...this.getFiles() });
-    const analysis = await builder.analyze(diagram);
-    if (!analysis.ok) throw new DiagramCompilationError(analysis.diagnostics);
-    return this.cppCompiler.compile(builder.build(diagram));
+    const invalid = builder.validate(diagram);
+    if (invalid) {
+      invalid.assignTo(diagram);
+      throw new DiagramCompilationError(invalid.diagnostics);
+    }
+    const files = builder.build(diagram);
+    try {
+      const wasm = await this.cppCompiler.compile(files);
+      for (const block of diagram.getBlocks()) {
+        for (const port of [...block.getInputPorts(), ...block.getOutputPorts()]) port.assignAnalysis(port.inferredType, []);
+      }
+      return wasm;
+    } catch (error) {
+      throw new DiagramCompilationError(builder.compilationFailure(diagram, error).diagnostics);
+    }
   }
 
   async run<TSession extends WasmSessionLike = WasmSessionLike>(

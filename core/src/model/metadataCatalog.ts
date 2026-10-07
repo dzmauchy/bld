@@ -1,4 +1,4 @@
-import type { RawBlockCatalogEntry, RawConfigPropertyCatalogEntry, RawPortCatalogEntry } from "./blockDefinition";
+import type { PortLengthConstraint, RawBlockCatalogEntry, RawConfigPropertyCatalogEntry, RawPortCatalogEntry } from "./blockDefinition";
 
 interface MetadataEntry {
   id: string;
@@ -10,10 +10,12 @@ interface MetadataEntry {
   outputs?: MetadataEntry[];
   parameters?: MetadataParameter[];
   vectorized?: boolean;
+  length?: PortLengthConstraint;
 }
 
 interface MetadataParameter extends MetadataEntry {
   control?: Record<string, unknown>;
+  default?: unknown;
 }
 
 /** The release manifest is the authority for exposed blocks and ports. */
@@ -63,6 +65,7 @@ export class MetadataCatalog {
         description: entry.description ?? "",
         icon: entry.icon ?? "",
         control: { ...(entry.control ?? {}) },
+        default: entry.default,
       };
     }
     return conf;
@@ -71,7 +74,7 @@ export class MetadataCatalog {
   private ports(entries: MetadataEntry[]): Record<string, RawPortCatalogEntry> {
     return Object.fromEntries(entries.map((entry) => {
       if (!/^[A-Za-z_]\w*$/.test(entry.id)) throw new Error(`Invalid port ${entry.id}`);
-      return [entry.id, { type: "auto", vector: Boolean(entry.vectorized) }];
+      return [entry.id, { type: "auto", vector: Boolean(entry.vectorized), ...(entry.length ? { length: { ...entry.length } } : {}) }];
     }));
   }
 }

@@ -14,9 +14,12 @@ export async function isCurrentBaseRelease(bytes) {
     const parsed = JSON.parse(new TextDecoder().decode(meta?.data));
     return Array.isArray(parsed.blocks) && Array.isArray(parsed.namespaces)
       && parsed.blocks.every((block) => Array.isArray(block.parameters))
+      && parsed.blocks.every((block) => block.parameters.every((parameter) => Object.hasOwn(parameter, "default")))
+      && parsed.blocks.some((block) => block.inputs?.some((port) => port.length?.parameter && port.length?.max === 8))
       && entries.some((entry) => entry.header.name.replace(/^\.\//, "") === "base/f32_blocks.hpp"
         && /core::function<[^;]*\bScopeF32\(/.test(new TextDecoder().decode(entry.data)))
-      && entries.some((entry) => entry.header.name.replace(/^\.\//, "") === "core/lib.hpp");
+      && entries.some((entry) => entry.header.name.replace(/^\.\//, "") === "core/lib.hpp")
+      && entries.some((entry) => entry.header.name.replace(/^\.\//, "") === "core/diagram.hpp");
   } catch { return false; }
 }
 async function fetchBaseRelease() {

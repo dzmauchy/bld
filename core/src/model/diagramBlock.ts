@@ -29,7 +29,7 @@ export class DiagramBlockPort extends PortDefinition {
   private messages: readonly DiagramDiagnostic[] = [];
 
   constructor(definition: PortDefinition) {
-    super(definition.id, definition.direction, definition.type, definition.vector, definition.concept);
+    super(definition.id, definition.direction, definition.type, definition.vector, definition.concept, definition.length);
   }
 
   get inferredType(): InferredPortType | undefined {
