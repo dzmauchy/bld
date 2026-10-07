@@ -43,10 +43,7 @@ test.beforeAll(async ({ browser }) => {
   page = await browser.newPage();
   await page.goto("/");
   await expect(page.locator("#status")).toHaveText("module-ready");
-  await page.evaluate(async () => {
-    await window.cpp.warmup();
-  });
-  await expect(page.locator("#status")).toHaveText("ready");
+  expect(await page.evaluate(() => window.cpp.workerCreateCount())).toBe(0);
 });
 
 test.afterAll(async () => {

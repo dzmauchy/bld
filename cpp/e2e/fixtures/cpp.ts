@@ -23,20 +23,19 @@ export class CppSession {
     });
   }
 
-  private _warmupDurationMs = 0;
+  private _pageReadyDurationMs = 0;
 
-  get warmupDurationMs(): number {
-    return this._warmupDurationMs;
+  get pageReadyDurationMs(): number {
+    return this._pageReadyDurationMs;
   }
 
-  async warmup(baseURL: string): Promise<void> {
+  async open(baseURL: string): Promise<void> {
     const start = performance.now();
     await this.page.goto(baseURL);
     await expect(this.page.locator("#status")).toHaveText("module-ready");
-    await this.page.evaluate(() => window.cpp.warmup());
-    await expect(this.page.locator("#status")).toHaveText("ready");
-    expect(this.workers).toHaveLength(2);
-    this._warmupDurationMs = performance.now() - start;
+    expect(this.workers).toHaveLength(0);
+    expect(await this.page.evaluate(() => window.cpp.workerCreateCount())).toBe(0);
+    this._pageReadyDurationMs = performance.now() - start;
   }
 
   async compile(files: Map<string, string>): Promise<void> {
@@ -60,9 +59,10 @@ export class CppSession {
   }
 
   async expectWorkersReused(): Promise<void> {
-    expect(this.workers).toHaveLength(2);
+    // The compiler and executor are each created on first use, then retained.
+    expect(this.workers.length).toBeLessThanOrEqual(2);
     expect(this.page.workers()).toEqual(this.workers);
-    expect(await this.page.evaluate(() => window.cpp.workerCreateCount())).toBe(2);
+    expect(await this.page.evaluate(() => window.cpp.workerCreateCount())).toBe(this.workers.length);
   }
 
   async close(): Promise<void> {
@@ -81,7 +81,7 @@ export const test = base.extend<{}, { cpp: CppSession }>({
     const page = await browser.newPage();
     const session = new CppSession(page);
     try {
-      await session.warmup(baseURL);
+      await session.open(baseURL);
       await use(session);
     } finally {
       await session.close();

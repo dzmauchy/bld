@@ -44,13 +44,13 @@ test.afterEach(async ({ cpp }) => {
 test("Profile: ConstF32 writes to a scope channel", async ({ cpp }) => {
   const reporter = new MarkdownTableProfileReporter();
 
-  // Print Setup & Warmup Profile
-  console.log(`\n### Environment Initialization & Warmup Profile`);
+  // Asset loading and compiler initialization are measured in the first operation.
+  console.log(`\n### Environment Initialization Profile`);
   console.log(`| Setup Step | Duration (ms) | Details |`);
   console.log(`| :--- | :---: | :--- |`);
   console.log(`| Library.load("base.json") | ${libraryLoadDurationMs.toFixed(2)} ms | Parsed metadata & compilation model |`);
   console.log(`| CppDiagramBuilder init | ${builderInitDurationMs.toFixed(2)} ms | Initialized builder with library files |`);
-  console.log(`| Browser & Workers Warmup | ${cpp.warmupDurationMs.toFixed(2)} ms | Navigation, ServiceWorker claim, Clang/LLD boot, sysroot unpack |`);
+  console.log(`| Browser page ready | ${cpp.pageReadyDurationMs.toFixed(2)} ms | Navigation and ServiceWorker claim; no toolchain preloading |`);
 
   // 1. Pass 1: Cold Run
   const coldSession = new ExecutionProfileSession(
