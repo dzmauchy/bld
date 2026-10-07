@@ -23,12 +23,6 @@ export default defineConfig({
   use: {
     baseURL: "http://localhost:3002",
     trace: "on-first-retry",
-    launchOptions: {
-      args: [
-        "--enable-experimental-webassembly-features",
-        "--js-flags=--wasm-custom-descriptors,--wasm-compact-imports,--experimental-wasm-compact-imports,--wasm-staging",
-      ],
-    },
   },
   webServer: {
     command: `npx rsbuild build --root "${root}" && npx rsbuild preview --root "${root}" --port 3002`,
