@@ -3,7 +3,7 @@ import { ClangFrontend } from "../../src/clang.ts";
 import { CppWasmCompiler, WorkerCppWasmCompiler } from "../../src/compiler.ts";
 import type { EmscriptenModuleFactory } from "../../src/emscripten.ts";
 import { SharedToolchainFileSystem } from "../../src/sharedFileSystem.ts";
-import { DisposableToolFactory } from "../toolchainFixture.ts";
+import { DisposableToolFactory, writeClangOutputs } from "../toolchainFixture.ts";
 import { WasmLinker } from "../../src/linker.ts";
 import type { WorkerResponse } from "../../src/messages.ts";
 import { Thread } from "../../src/thread.ts";
@@ -40,7 +40,7 @@ describe("CppWasmCompiler", () => {
     const objectBytes = new Uint8Array([1, 2, 3, 4]);
     const wasmBytes = new Uint8Array([0, 97, 115, 109, 1]);
     const clang = new DisposableToolFactory(files, (_options, fs, args) => {
-      fs.writeTree(args.at(-1) ?? "", objectBytes);
+      writeClangOutputs(fs, args, objectBytes);
       return 0;
     });
     const lld = new DisposableToolFactory(files, (_options, fs, args) => {
@@ -62,15 +62,15 @@ describe("CppWasmCompiler", () => {
     expect(wasm).toEqual(wasmBytes);
     expect(clang.runs).toHaveLength(1);
     expect(clang.runs[0]).toContain("/work/add.cpp");
-    expect(clang.runs[0]?.at(-1)).toBe("/work/add.o");
+    expect(clang.runs[0]).toContain("-dump");
     expect(lld.runs).toHaveLength(1);
-    expect(lld.runs[0]).toContain("/work/add.o");
-    expect(files.exists("/work/add.o")).toBe(true);
+    expect(lld.runs[0]).toContain("/work/build/add.o");
+    expect(files.exists("/work/build/add.o")).toBe(true);
   });
 
-  test("emits JSON and text ASTs without stripping comments", async () => {
+  test("reads JSON AST files without stripping comments", async () => {
     const files = new SharedToolchainFileSystem();
-    const clang = new DisposableToolFactory(files, () => 0);
+    const clang = new DisposableToolFactory(files, (_options, fs, args) => { writeClangOutputs(fs, args); return 0; });
     const lld = new DisposableToolFactory(files, () => 0);
 
     const frontend = new ClangFrontend(clang.create, "clang.wasm", files);
@@ -82,18 +82,12 @@ describe("CppWasmCompiler", () => {
     const source = '/*{"blocks":{},"connections":{}}*/\nextern "C" void mount() {}';
     const json = await compiler.dumpAst(new Map([["demo.cpp", source]]), "demo.cpp");
     expect(json.ok).toBe(true);
-    expect(clang.runs.at(-1)).toContain("-ast-dump=json");
-    expect(clang.runs.at(-1)).toContain("-fparse-all-comments");
-    expect(new TextDecoder().decode(files.readFile("/work/demo.cpp"))).toContain('"blocks"');
-
-    const text = await compiler.emitAst(new Map([["demo.cpp", source]]), "demo.cpp");
-    expect(text.ok).toBe(true);
-    expect(clang.runs.at(-1)).toContain("-ast-dump");
-    expect(clang.runs.at(-1)).toContain("-fparse-all-comments");
+    expect(clang.runs.at(-1)).toContain("-dump");
+    expect(json.ast).toMatchObject({ kind: "TranslationUnitDecl" });
     expect(new TextDecoder().decode(files.readFile("/work/demo.cpp"))).toContain('"blocks"');
   });
 
-  test("flushes the trailing stdout line into the AST dump", async () => {
+  test("flushes the trailing stdout line into captured compiler output", async () => {
     const files = new SharedToolchainFileSystem();
     const factory = new DisposableToolFactory(files, () => 0);
     const create: EmscriptenModuleFactory = async (options) => {
@@ -146,20 +140,5 @@ describe("WorkerCppWasmCompiler", () => {
 
     expect(dump.ok).toBe(true);
     expect(dump.ast).toEqual(ast);
-  });
-
-  test("emits a text AST through the compiler worker", async () => {
-    const thread = new ScriptedThread((request) => {
-      if (request.type === "init") return { id: request.id as number, type: "ok" };
-      expect(request.type).toBe("emit-ast");
-      expect(request.mainFile).toBe("add.cpp");
-      return { id: request.id as number, type: "ok", result: 0, astText: "TranslationUnitDecl", stdout: "TranslationUnitDecl", stderr: "" };
-    });
-
-    const compiler = new WorkerCppWasmCompiler(thread);
-    const dump = await compiler.emitAst(new Map([["add.cpp", "int add(int a, int b) { return a + b; }"]]), "add.cpp");
-
-    expect(dump.ok).toBe(true);
-    expect(dump.astText).toBe("TranslationUnitDecl");
   });
 });

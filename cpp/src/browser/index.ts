@@ -28,9 +28,6 @@ async function runtime(): Promise<BrowserCppRuntime> {
 }
 
 const api: CppPageApi = {
-  async precompileHeaders(files) {
-    await (await runtime()).compiler.precompileHeaders(new Map(Object.entries(files)));
-  },
   async dumpAst(files, mainFile) {
     return (await runtime()).compiler.dumpAst(new Map(Object.entries(files)), mainFile);
   },

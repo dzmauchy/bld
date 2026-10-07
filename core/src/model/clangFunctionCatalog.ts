@@ -24,7 +24,7 @@ export class ClangFunctionCatalog {
           declared.set([...next, node.name].join("::"), parameters.slice(1).map((param) => parameter(param, param.name ?? "")));
         }
       }
-      // PCH dumps omit declarations but retain the factory call's default arguments.
+      // Fall back to the factory call's default arguments when its declaration is absent.
       // Named block variables identify the exact factory, even when several factories return the same callable type.
       if (node.kind === "VarDecl" && /^b\d+$/.test(node.name ?? "")) {
         const call = factoryCall(node);

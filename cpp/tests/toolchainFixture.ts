@@ -52,3 +52,18 @@ export class DisposableToolFactory {
     };
   };
 }
+
+/** Writes the launcher’s paired outputs for each translation unit. */
+export function writeClangOutputs(
+  fs: SharedToolchainFileSystem,
+  args: string[],
+  bytes = new Uint8Array([42]),
+  ast: unknown = { kind: "TranslationUnitDecl" },
+): void {
+  expect(args.slice(0, 3)).toEqual(["-dump", "--output-dir", "/work/build"]);
+  for (const source of args.slice(3)) {
+    const stem = source.slice(source.lastIndexOf("/") + 1).replace(/\.[^.]+$/, "");
+    fs.writeTree(`/work/build/${stem}.o`, bytes);
+    fs.writeTree(`/work/build/${stem}.json`, JSON.stringify(ast));
+  }
+}

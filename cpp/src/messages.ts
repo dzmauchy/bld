@@ -10,7 +10,6 @@ export type WorkerOk = {
   stderr?: string;
   exports?: string[];
   ast?: unknown;
-  astText?: string;
 };
 
 export type WorkerErr = {
@@ -46,20 +45,7 @@ export type CompilerDumpAstRequest = {
   mainFile: string;
 };
 
-export type CompilerEmitAstRequest = {
-  type: "emit-ast";
-  id: number;
-  files: Record<string, string>;
-  mainFile: string;
-};
-
-export type CompilerPrecompileHeadersRequest = {
-  type: "precompile-headers";
-  id: number;
-  files: Record<string, string>;
-};
-
-export type CompilerRequest = CompilerPrecompileHeadersRequest | CompilerInitRequest | CompilerCompileRequest | CompilerDumpAstRequest | CompilerEmitAstRequest;
+export type CompilerRequest = CompilerInitRequest | CompilerCompileRequest | CompilerDumpAstRequest;
 
 export type ExecutorInstantiateRequest = {
   type: "instantiate";

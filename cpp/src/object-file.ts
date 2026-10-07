@@ -10,6 +10,11 @@ export class ObjectFile {
     return this.files.readFile(this.path);
   }
 
+  /** JSON AST emitted alongside this object by clang-wasm. */
+  get ast(): unknown {
+    return JSON.parse(new TextDecoder().decode(this.files.readFile(this.path.replace(/\.o$/, ".json"))));
+  }
+
   isStoredIn(files: SharedToolchainFileSystem): boolean {
     return this.files === files;
   }

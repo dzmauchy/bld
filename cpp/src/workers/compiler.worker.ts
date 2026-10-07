@@ -24,20 +24,12 @@ export class CompilerWorkerSession {
     await this.compiler.initialize();
   }
 
-  async precompileHeaders(files: Record<string, string>): Promise<void> {
-    await this.compiler.precompileHeaders(new Map(Object.entries(files)));
-  }
-
   async compile(files: Record<string, string>): Promise<Uint8Array> {
     return this.compiler.compile(new Map(Object.entries(files)));
   }
 
   async dumpAst(files: Record<string, string>, mainFile: string): Promise<{ ok: boolean; ast: unknown; stdout: string; stderr: string }> {
     return this.compiler.dumpAst(new Map(Object.entries(files)), mainFile);
-  }
-
-  async emitAst(files: Record<string, string>, mainFile: string): Promise<{ ok: boolean; astText: string; stdout: string; stderr: string }> {
-    return this.compiler.emitAst(new Map(Object.entries(files)), mainFile);
   }
 }
 
@@ -53,10 +45,6 @@ attachWorker(async (data): Promise<WorkerResponse> => {
     await session.init();
     return { id: data.id, type: "ok" };
   }
-  if (data.type === "precompile-headers") {
-    await session.precompileHeaders(data.files);
-    return { id: data.id, type: "ok" };
-  }
   if (data.type === "compile") {
     const wasm = await session.compile(data.files);
     return { id: data.id, type: "ok", files: { "/work/a.wasm": wasm } };
@@ -64,10 +52,6 @@ attachWorker(async (data): Promise<WorkerResponse> => {
   if (data.type === "dump-ast") {
     const dump = await session.dumpAst(data.files, data.mainFile);
     return { id: data.id, type: "ok", result: dump.ok ? 0 : 1, ast: dump.ast, stdout: dump.stdout, stderr: dump.stderr };
-  }
-  if (data.type === "emit-ast") {
-    const dump = await session.emitAst(data.files, data.mainFile);
-    return { id: data.id, type: "ok", result: dump.ok ? 0 : 1, astText: dump.astText, stdout: dump.stdout, stderr: dump.stderr };
   }
   throw new Error(`unknown compiler worker message ${(data as { type?: string }).type}`);
 });

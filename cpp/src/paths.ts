@@ -15,9 +15,14 @@ export function workPath(relative: string): string {
 
 export function objectPathFor(relative: string): string {
   const normalized = normalizeRelativePath(relative);
-  const dot = normalized.lastIndexOf(".");
-  const stem = dot === -1 ? normalized : normalized.slice(0, dot);
-  return `/work/${stem}.o`;
+  const basename = normalized.slice(normalized.lastIndexOf("/") + 1);
+  const dot = basename.lastIndexOf(".");
+  const stem = dot === -1 ? basename : basename.slice(0, dot);
+  return `/work/build/${stem}.o`;
+}
+
+export function astPathFor(relative: string): string {
+  return objectPathFor(relative).replace(/\.o$/, ".json");
 }
 
 export function isCppSource(relative: string): boolean {

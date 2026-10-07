@@ -240,11 +240,10 @@ test("a subsequent job cannot include a header from a previous job", async () =>
   expect(message).toMatch(/old.h.*file not found/);
 });
 
-test("PCH-backed ASTs omit header declarations and changed headers rebuild correctly", async () => {
+test("JSON AST analysis reads main-file declarations and changed headers compile correctly", async () => {
   const result = await page.evaluate(async () => {
     const header = "#pragma once\nstruct HeaderOnly { int value; };\nconstexpr int value = 41;";
-    const files = { "value.hpp": header, "main.cpp": 'extern "C" int answer() { auto port = value; return port; }' };
-    await window.cpp.precompileHeaders(files);
+    const files = { "value.hpp": header, "main.cpp": '#include "value.hpp"\nextern "C" int answer() { auto port = value; return port; }' };
     const dump = await window.cpp.dumpAst(files, "main.cpp");
     const ast = dump.ast as { inner?: { name?: string }[] };
     const first = await window.cpp.compileAndInvoke(files, "answer", []);
@@ -266,7 +265,6 @@ test("links multiple nested translation units across fresh clang instances", asy
       "shared/helper.cpp": '#include "shared/value.hpp"\nint helper() { return value; }',
       "main.cpp": '#include "shared/value.hpp"\nextern "C" int answer() { return helper() + 2; }',
     };
-    await window.cpp.precompileHeaders(files);
     const first = await window.cpp.compileAndInvoke(files, "answer", []);
     const second = await window.cpp.compileAndInvoke({
       ...files,

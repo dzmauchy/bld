@@ -45,11 +45,6 @@ export class CppWasmCompiler implements ICppCompiler {
     this.linker.useResourceDir(resourceDir);
   }
 
-  /** Precompile shared headers once; source changes reuse the cached PCH. */
-  async precompileHeaders(files: Map<string, string>): Promise<void> {
-    await this.clang.precompileHeaders(files);
-  }
-
   async compile(files: Map<string, string>): Promise<Uint8Array> {
     const objects = await this.clang.compile(files);
     return this.linker.link(objects);
@@ -60,13 +55,6 @@ export class CppWasmCompiler implements ICppCompiler {
     mainFile: string,
   ): Promise<{ ok: boolean; ast: unknown; stdout: string; stderr: string }> {
     return this.clang.dumpAst(files, mainFile);
-  }
-
-  async emitAst(
-    files: Map<string, string>,
-    mainFile: string,
-  ): Promise<{ ok: boolean; astText: string; stdout: string; stderr: string }> {
-    return this.clang.emitAst(files, mainFile);
   }
 
   private async fetchSysroot(): Promise<ArrayBuffer> {
@@ -97,12 +85,6 @@ export class WorkerCppWasmCompiler implements ICppCompiler {
     await this.ready;
   }
 
-  /** Precompile shared headers once; source changes reuse the cached PCH. */
-  async precompileHeaders(files: Map<string, string>): Promise<void> {
-    await this.warmup();
-    await this.client.request({ type: "precompile-headers", files: Object.fromEntries(files) });
-  }
-
   async compile(files: Map<string, string>): Promise<Uint8Array> {
     await this.warmup();
     const response = await this.client.request({
@@ -127,24 +109,6 @@ export class WorkerCppWasmCompiler implements ICppCompiler {
     return {
       ok: (response.result ?? 1) === 0,
       ast: response.ast,
-      stdout: response.stdout ?? "",
-      stderr: response.stderr ?? "",
-    };
-  }
-
-  async emitAst(
-    files: Map<string, string>,
-    mainFile: string,
-  ): Promise<{ ok: boolean; astText: string; stdout: string; stderr: string }> {
-    await this.warmup();
-    const response = await this.client.request({
-      type: "emit-ast",
-      files: Object.fromEntries(files),
-      mainFile,
-    });
-    return {
-      ok: (response.result ?? 1) === 0,
-      astText: response.astText ?? response.stdout ?? "",
       stdout: response.stdout ?? "",
       stderr: response.stderr ?? "",
     };

@@ -4,7 +4,7 @@ import { isCppSource, isHeader, objectPathFor, workPath } from "../../src/paths.
 describe("virtual source paths", () => {
   test("places user files under /work", () => {
     expect(workPath("src/add.cpp")).toBe("/work/src/add.cpp");
-    expect(objectPathFor("src/add.cpp")).toBe("/work/src/add.o");
+    expect(objectPathFor("src/add.cpp")).toBe("/work/build/add.o");
   });
 
   test("classifies sources and headers", () => {

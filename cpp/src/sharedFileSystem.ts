@@ -155,10 +155,10 @@ class SharedStream {
 /**
  * Worker-owned storage implementing the synchronous owner API used by PROXYFS.
  * It retains no clang/lld runtime or Wasm heap. Fresh tool instances mount the
- * same directories, so sysroot, PCH and object files survive tool disposal.
+ * same directories, so sysroot, JSON dumps and object files survive tool disposal.
  */
 export class SharedToolchainFileSystem extends VirtualFileSystem {
-  static readonly mountPaths = ["/sysroot", "/work", "/pch"] as const;
+  static readonly mountPaths = ["/sysroot", "/work"] as const;
   private nextInode = 1;
   private readonly root = new SharedDirectory(this.nextInode++);
 

@@ -41,7 +41,6 @@ test.beforeAll(async ({ cpp }) => {
   const library = await Library.load("base.json");
   palette = library.palette;
   builder = new CppDiagramBuilder(library.compilationModel.getFiles());
-  await cpp.precompileHeaders(builder.build(new Diagram("headers", "Headers", palette)));
 });
 
 test.afterEach(async ({ cpp }) => {
@@ -483,7 +482,7 @@ test("browser AST reports incompatible ports with endpoint IDs", async ({ cpp })
   expect(result.diagnostics.find((d) => d.severity === "error")).toMatchObject({ blockId: "constant", inputId: "downstream", outputId: "channels", connectionId: "incompatible" });
 });
 
-test("diagram AST excludes precompiled library declarations", async ({ cpp }) => {
+test("diagram AST analysis reads main-file declarations without precompiled headers", async ({ cpp }) => {
   const diagram = new Diagram("compact_ast", "Compact AST", palette);
   diagram.addBlock("ScopeF32", { x: 0, y: 0 }, "scope");
   diagram.addBlock("ConstF32", { x: 1, y: 0 }, "constant");
@@ -496,6 +495,6 @@ test("diagram AST excludes precompiled library declarations", async ({ cpp }) =>
   expect(JSON.stringify(dump.ast)).toContain('"name":"mount"');
   expect(ast.inner?.some((node) => node.kind === "NamespaceDecl" && node.name === "push")).toBe(false);
   const bytes = new TextEncoder().encode(JSON.stringify(dump.ast)).byteLength;
-  expect(bytes).toBeLessThan(250_000);
+  expect(bytes).toBeLessThan(2_000_000);
   test.info().annotations.push({ type: "AST bytes", description: String(bytes) });
 });
