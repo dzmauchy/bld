@@ -126,7 +126,7 @@ describe("E2E diagram C++ generation", () => {
       new DiagramJsonBuilder().addScope("s").addConstant("c", 42.5).connect("c", "v", 0, "s", "sink", 0).build(),
     );
     expect(cpp).toContain("ConstF32");
-    expect(cpp).toContain("42.5f");
+    expect(cpp).toContain("static_cast<decltype(value)>(42.5)");
   });
 
   test("cos_gen and sin_gen to a multi-channel scope", () => {
@@ -157,7 +157,7 @@ describe("E2E diagram C++ generation", () => {
     expect(cpp).toContain("void mount()");
     expect(cpp).toContain("RandGenF32");
     expect(cpp).toContain("PulseGenF32");
-    expect(cpp).toContain("0.25f");
+    expect(cpp).toContain("static_cast<decltype(dutyCycle)>(0.25)");
   });
 
   test("unary chain const -> cos -> sin -> scope", () => {
@@ -307,7 +307,8 @@ describe("E2E diagram C++ generation", () => {
         .build(),
     );
     expect(cpp).toContain("void mount()");
-    expect(cpp).toContain("register_gpio_block(2u");
-    expect(cpp).toContain("register_gpio_block(3u");
+    expect(cpp.match(/register_gpio_block\(blockId/g)).toHaveLength(2);
+    expect(cpp).toContain("bld_factory_2(2u)");
+    expect(cpp).toContain("bld_factory_3(3u)");
   });
 });

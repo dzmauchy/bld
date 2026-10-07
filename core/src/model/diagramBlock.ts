@@ -97,6 +97,10 @@ export class DiagramBlock extends DiagramElement {
     return Object.assign(this.definition.getDefaultConfig(), Object.fromEntries(this.confValues));
   }
 
+  getExplicitConfig(): Record<string, unknown> {
+    return Object.fromEntries(this.confValues);
+  }
+
   isDefault(key: string): boolean {
     return isEqual(this.getConf(key), this.definition.getConfig(key)?.defaultValue);
   }

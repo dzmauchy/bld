@@ -7,6 +7,7 @@ export const modelAssetFiles = [
   "connection.ts",
   "cppBlockCatalog.ts",
   "cppBuilder.ts",
+  "cppFactoryAdapter.ts",
   "diagram.ts",
   "diagramBlock.ts",
   "endpoint.ts",

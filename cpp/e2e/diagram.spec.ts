@@ -11,6 +11,7 @@ import {
   registerAppAssets,
 } from "core";
 import "../src/hostClangAstDumper.ts";
+import { ClangFunctionCatalog } from "../../core/src/model/clangFunctionCatalog.ts";
 
 const here = dirname(fileURLToPath(import.meta.url));
 const coreAssets = join(here, "../../core/assets");
@@ -493,7 +494,9 @@ test("diagram AST analysis reads main-file declarations with lazy precompiled he
   expect(dump.ok, dump.diagnostics).toBe(true);
   const ast = dump.ast as { inner?: { kind?: string; name?: string }[] };
   expect(JSON.stringify(dump.ast)).toContain('"name":"mount"');
-  expect(ast.inner?.some((node) => node.kind === "NamespaceDecl" && node.name === "push")).toBe(false);
+  const factories = ClangFunctionCatalog.fromAst(ast);
+  expect(factories.parametersFor("push::f_32::sinks::ScopeF32")).toBeUndefined();
+  expect(factories.parametersFor("push::f_32::sinks::bld_factory_0")?.map((param) => param.defaultValue)).toEqual([60, 10]);
   const bytes = new TextEncoder().encode(JSON.stringify(dump.ast)).byteLength;
   expect(bytes).toBeLessThan(2_000_000);
   test.info().annotations.push({ type: "AST bytes", description: String(bytes) });

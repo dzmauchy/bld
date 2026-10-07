@@ -7,6 +7,7 @@ import compilerContext from "core/model/compilerContext.ts?raw";
 import connection from "core/model/connection.ts?raw";
 import cppBlockCatalog from "core/model/cppBlockCatalog.ts?raw";
 import cppBuilder from "core/model/cppBuilder.ts?raw";
+import cppFactoryAdapter from "core/model/cppFactoryAdapter.ts?raw";
 import diagram from "core/model/diagram.ts?raw";
 import diagramBlock from "core/model/diagramBlock.ts?raw";
 import endpoint from "core/model/endpoint.ts?raw";
@@ -28,6 +29,7 @@ export const modelAssets = {
   "connection.ts": connection,
   "cppBlockCatalog.ts": cppBlockCatalog,
   "cppBuilder.ts": cppBuilder,
+  "cppFactoryAdapter.ts": cppFactoryAdapter,
   "diagram.ts": diagram,
   "diagramBlock.ts": diagramBlock,
   "endpoint.ts": endpoint,

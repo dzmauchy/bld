@@ -5,6 +5,7 @@ import { CppDiagramBuilder } from "../../src/model/cppBuilder";
 import { PortEndpoint } from "../../src/model/endpoint";
 import { ClangAstDumper, ClangTranslationUnit } from "cpp";
 import { ClangFunctionCatalog } from "../../src/model/clangFunctionCatalog";
+import { Palette } from "../../src/model/palette";
 
 let library: Library;
 let builder: CppDiagramBuilder;
@@ -17,6 +18,58 @@ function connect(d: Diagram, source: string, target: string) {
   d.connect(new PortEndpoint(source, "output", "channels"), new PortEndpoint(target, "input", "downstream"), "wire");
 }
 describe("release metadata and diagram AST", () => {
+  test("source-local adapters preserve defaults for factories with the same name in different namespaces", async () => {
+    const files = { ...library.compilationModel.getFiles(), "custom.hpp": `#pragma once
+#include <base/f32_blocks.hpp>
+// Same(const u32 blockId, const f32 value = 123) is only a comment.
+namespace other {
+inline auto Same(const u32 blockId, const f32 value = 99) {
+  return push::f_32::sources::ConstF32(blockId, value);
+}
+}
+namespace custom {
+inline auto Same(const u32 blockId, const f32 value = f32{0.5}) {
+  return push::f_32::sources::ConstF32(blockId, value);
+}
+}` };
+    const palette = Palette.fromCatalog({ Custom: {
+      cpp: "custom::Same", inputs: { downstream: { type: "auto", vector: true } },
+      conf: { value: { type: "auto" } },
+    } }, {});
+    const d = new Diagram("custom", "Custom", palette);
+    const block = d.addBlock("Custom", { x: 0, y: 0 }, "custom", { value: 3.5 });
+    const result = await new CppDiagramBuilder(files).analyze(d);
+    expect(result.ok, JSON.stringify(result.diagnostics)).toBe(true);
+    expect(block.getConf("value")).toBe(3.5);
+    expect(block.definition.getConfig("value")?.defaultValue).toBe(0.5);
+    expect(result.types.require("custom", "input", "downstream").desugaredQualType).toContain("float");
+  });
+  test("one full-source invocation resolves defaults and validates configured connections", async () => {
+    const freshLibrary = await Library.load("base.json");
+    const singlePassBuilder = new CppDiagramBuilder(freshLibrary.compilationModel.getFiles());
+    const d = new Diagram("single_pass", "Single pass", freshLibrary.palette);
+    const scope = d.addBlock("ScopeF32", { x: 0, y: 0 }, "scope", { precision: 25 });
+    const constant = d.addBlock("ConstF32", { x: 1, y: 0 }, "constant", { value: 1 });
+    connect(d, "scope", "constant");
+    const files = singlePassBuilder.build(d);
+    const dumps: Map<string, string>[] = [];
+    const host = ClangAstDumper.defaultDumper();
+    class RecordingDumper extends ClangAstDumper {
+      override dump(inputs: Map<string, string>, mainFile: string) {
+        dumps.push(inputs);
+        return host.dump(inputs, mainFile);
+      }
+    }
+    const analysis = await singlePassBuilder.analyze(d, new RecordingDumper());
+    expect(analysis.ok, JSON.stringify(analysis.diagnostics)).toBe(true);
+    expect(dumps).toHaveLength(1);
+    expect(dumps[0]?.get("diagram.cpp")).toBe(files.get("diagram.cpp"));
+    expect(scope.getConf("period")).toBe(60);
+    expect(scope.getConf("precision")).toBe(25);
+    expect(scope.definition.getConfig("precision")?.defaultValue).toBe(10);
+    expect(constant.toJSON().conf).toBeUndefined();
+    expect(analysis.types.require("constant", "input", "downstream").desugaredQualType).toContain("float");
+  });
   test("Clang resolves fixed-size array defaults as pin lists", async () => {
     const files = new Map(Object.entries(library.compilationModel.getFiles()));
     files.set("defaults.cpp", `#include <core/types.hpp>
@@ -59,7 +112,7 @@ void Pins(u32 blockId, core::array<u8> empty = {},
       const result = await builder.analyze(d);
       expect(result.ok, JSON.stringify(result.diagnostics)).toBe(true);
       expect(gpio.toJSON().conf?.pins).toEqual(pins);
-      expect(builder.emitDiagram(d)).toContain(`bld_array<unsigned char>(${pins.join(", ")})`);
+      expect(builder.emitDiagram(d)).toContain(`bld_config_array<decltype(pins)>(${pins.join(", ")})`);
     }
     gpio.setConf("pins", [0]);
     expect(gpio.toJSON().conf).toBeUndefined();
@@ -72,7 +125,7 @@ void Pins(u32 blockId, core::array<u8> empty = {},
     const result = await builder.analyze(d);
     expect(result.diagnostics.filter((d) => d.severity === "error")).toEqual([]);
     expect(result.ok).toBe(true);
-    expect(builder.emitDiagram(d)).toContain("(1u, 2.5f)");
+    expect(builder.emitDiagram(d)).toContain("static_cast<decltype(value)>(2.5)");
     c.setConf("value", 1);
     expect(c.toJSON().conf).toBeUndefined();
   });

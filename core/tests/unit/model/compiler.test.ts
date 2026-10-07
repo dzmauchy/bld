@@ -52,8 +52,8 @@ describe("DiagramCompiler C++ generation", () => {
     expect(cpp).toContain("push::f_32::sources::ConstF32");
     expect(cpp).toContain("void mount()");
     expect(cpp).not.toContain("start(");
-    expect(cpp).toContain("3.14f");
-    expect(cpp).toContain("static auto b0 = push::f_32::sinks::ScopeF32(");
+    expect(cpp).toContain("static_cast<decltype(value)>(3.14)");
+    expect(cpp).toContain("static auto b0 = push::f_32::sinks::bld_factory_0(");
     expect(cpp).toContain("b1(core::detail::move(i1))");
   });
 

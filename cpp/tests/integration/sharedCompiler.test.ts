@@ -26,6 +26,22 @@ class RecordingFiles extends SharedToolchainFileSystem {
 }
 
 describe("shared clang/lld storage", () => {
+  test("reuses the analyzed object when discovered defaults only change diagram metadata", async () => {
+    const files = new RecordingFiles();
+    const factory = new DisposableToolFactory(files, (_options, fs, args) => {
+      writeClangOutputs(fs, args);
+      return 0;
+    });
+    const clang = new ClangFrontend(factory.create, "clang.wasm", files);
+    const before = '/*{"blocks":{"c":{"conf":{"value":1}}},"connections":{}}*/\nextern "C" void mount() {}\n';
+    const after = '/*{"blocks":{"c":{}},"connections":{}}*/\nextern "C" void mount() {}\n';
+    expect((await clang.dumpAst(new Map([["diagram.cpp", before]]), "diagram.cpp")).ok).toBe(true);
+    await clang.compile(new Map([["diagram.cpp", after]]));
+    expect(factory.runs).toHaveLength(1);
+    expect(files.writeCount("/work/build/diagram.o")).toBe(1);
+    await clang.compile(new Map([["diagram.cpp", after.replace("mount() {}", "mount() { int value = 2; }")]]));
+    expect(factory.runs).toHaveLength(2);
+  });
   test("keeps sysroot in place across disposable tools and links object paths without copies", async () => {
     const files = new RecordingFiles();
     const clangFactory = new DisposableToolFactory(files, (_options, fs, args) => {

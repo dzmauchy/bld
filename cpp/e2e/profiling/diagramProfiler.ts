@@ -110,40 +110,27 @@ export class SingleDiagramTestProfiler extends BaseDiagramTestProfiler {
 
     const analysis = await this.session.measure(
       "2. AST Analysis",
-      "builder.analyze (Probe AST dump + Full AST dump + Type inference)",
+      "builder.analyze (Full AST/object generation + Type inference)",
       async () => builder.analyze(diagram, profilingDumper),
     );
 
     expect(analysis.ok, JSON.stringify(analysis.diagnostics)).toBe(true);
+    expect(profilingDumper.records).toHaveLength(1);
 
     // Sub-metrics from AST dumper
-    if (profilingDumper.records.length >= 2) {
-      const probeRecord = profilingDumper.records[0]!;
-      const fullRecord = profilingDumper.records[1]!;
+    if (profilingDumper.records.length === 1) {
+      const fullRecord = profilingDumper.records[0]!;
       const totalAnalyze = this.session
         .metricsForPhase("2. AST Analysis")
         .find((m) => m.name.includes("builder.analyze"))?.durationMs ?? 0;
       const jsAnalysisOverhead = Math.max(
         0,
-        totalAnalyze - (probeRecord.durationMs + fullRecord.durationMs),
+        totalAnalyze - fullRecord.durationMs,
       );
 
       this.session.record(
         "2. AST Analysis (Breakdown)",
-        "Step 2a: Clang Probe AST Dump",
-        probeRecord.durationMs,
-        true,
-        {
-          mainFile: probeRecord.mainFile,
-          files: probeRecord.fileCount,
-          sourceChars: probeRecord.mainFileSizeChars,
-          astJsonBytes: probeRecord.astJsonSizeChars,
-        },
-      );
-
-      this.session.record(
-        "2. AST Analysis (Breakdown)",
-        "Step 2b: Clang Full Diagram AST Dump",
+        "Step 2a: Clang Full Diagram AST/Object Generation",
         fullRecord.durationMs,
         true,
         {
@@ -156,7 +143,7 @@ export class SingleDiagramTestProfiler extends BaseDiagramTestProfiler {
 
       this.session.record(
         "2. AST Analysis (Breakdown)",
-        "Step 2c: TypeScript Type Resolution & Validation",
+        "Step 2b: TypeScript Type Resolution & Validation",
         jsAnalysisOverhead,
         true,
       );
@@ -185,7 +172,7 @@ export class SingleDiagramTestProfiler extends BaseDiagramTestProfiler {
     // 4. Wasm Compilation
     const wasmBytes = await this.session.measure(
       "4. Wasm Compilation",
-      "cpp.compileOnly (clang++ C++ to .o, wasm-ld to .wasm)",
+      "cpp.compileOnly (Reuse analyzed object + wasm-ld to .wasm)",
       async () => cpp.compileOnly(builtFiles),
     );
 

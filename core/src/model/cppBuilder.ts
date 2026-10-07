@@ -8,6 +8,7 @@ import { ConfigPropertyDefinition } from "./blockDefinition";
 import { ClangFunctionCatalog, type FunctionParameter } from "./clangFunctionCatalog";
 import { InferredPortType } from "./inferredPortType";
 import { browserHost } from "./browserHost";
+import { CppFactoryAdapter } from "./cppFactoryAdapter";
 
 export type { ICppCompiler };
 export abstract class DiagramSourceBuilder {
@@ -128,6 +129,16 @@ core::array<T> bld_array(Values... values) {
     return core::array<T>{elements};
   }
 }
+template <typename Parameter, typename... Values>
+auto bld_config_array(Values... values) {
+  using T = core::detail::value_type<Parameter>;
+  if constexpr (requires { typename T::value_type; }) {
+    return bld_array<typename T::value_type>(values...);
+  } else {
+    static_assert(sizeof...(Values) == 1, "Scalar configuration requires one value");
+    return (static_cast<T>(values), ...);
+  }
+}
 `;
 
 export class CppDiagramBuilder extends DiagramSourceBuilder {
@@ -142,9 +153,10 @@ export class CppDiagramBuilder extends DiagramSourceBuilder {
     return files;
   }
 
-  emitDiagram(diagram: Diagram, probe = false): string {
+  emitDiagram(diagram: Diagram): string {
     const blocks = diagram.getBlocks();
-    const connections = probe ? [] : diagram.getConnections();
+    const connections = diagram.getConnections();
+    const adapter = new CppFactoryAdapter(this.libraryFiles);
     const order = this.order(blocks, connections);
     const index = (id: string) => blocks.findIndex((block) => block.id === id);
     const headers = Object.keys(this.libraryFiles).filter((name) => /\.(h|hpp|hh|hxx)$/.test(name)).sort();
@@ -157,24 +169,16 @@ export class CppDiagramBuilder extends DiagramSourceBuilder {
       ] : []),
       ...headers.map((name) => `#include <${name}>`),
       '#include "wasm_host.hpp"', helpers,
+      ...blocks.map((block, i) => adapter.emit(block, i)),
       ...JSON.stringify(diagram.toJSON(), null, 2).split("\n").map((line) => `// ${line}`),
       'extern "C" void mount() {',
     ];
     for (const block of order) {
       const i = index(block.id);
-      const config = block.getAllConf();
-      if (!probe) for (const key of Object.keys(config)) {
-        if (!block.definition.getConfig(key)) {
-          throw new Error(`Analyze the diagram before emitting configuration ${block.id}.${key}`);
-        }
-      }
       const args = [`${i}u`];
-      if (!probe) for (const prop of block.definition.config.values()) {
-        args.push(literal(prop.type.raw, config[prop.id] ?? prop.defaultValue));
-      }
       const hasInput = block.definition.inputs.size > 0;
       const hasOutput = block.definition.outputs.size > 0;
-      lines.push(`#line 1 "block_${i}"`, `static auto b${i} = ${block.definition.cppFactory}(${args.join(", ")});`);
+      lines.push(`#line 1 "block_${i}"`, `static auto b${i} = ${adapter.name(block, i)}(${args.join(", ")});`);
       if (hasInput) {
         lines.push(`auto i${i} = typename BldCallable<decltype(b${i})>::InputType{};`);
         for (const port of block.getInputPorts()) {
@@ -209,10 +213,6 @@ export class CppDiagramBuilder extends DiagramSourceBuilder {
         lines.push(`#line 1 "output_${i}_${port.id}"`, `auto port_${i}_output_${port.id} = o${i}.${port.id};`,
           `auto taken_${i}_${port.id} = bld_take(port_${i}_output_${port.id}, ${width}u);`);
       }
-      if (!probe && block.definition.getInput("pins") && block.definition.getConfig("pins")) {
-        const pins = block.definition.getConfig("pins")!;
-        lines.push(`register_gpio_block(${i}u, ${literal(block.definition.getConfig("port")?.type.raw ?? "u16", block.getConf("port"))}, ${literal(pins.type.raw, block.getConf("pins"))});`);
-      }
     }
     lines.push("}", "");
     return lines.join("\n");
@@ -220,38 +220,39 @@ export class CppDiagramBuilder extends DiagramSourceBuilder {
 
   async analyze(diagram: Diagram, dumper = ClangAstDumper.defaultDumper()): Promise<DiagramAnalysis> {
     const snapshot = Diagram.fromJSON(structuredClone(diagram.toJSON()), diagram.palette);
-    const probe = await dumper.dumpAsync(this.probeFiles(snapshot), "diagram.cpp");
-    const analysis = !probe.ok ? this.result(snapshot, probe)
-      : this.prepareAnalysis(snapshot, probe)
-        ?? this.result(snapshot, await dumper.dumpAsync(this.build(snapshot), "diagram.cpp"));
+    const analysis = this.validateConfig(diagram)
+      ?? this.completeAnalysis(snapshot, await dumper.dumpAsync(this.build(diagram), "diagram.cpp"));
     analysis.assignTo(diagram);
     return analysis;
   }
 
   analyzeSync(diagram: Diagram, dumper = ClangAstDumper.defaultDumper()): DiagramAnalysis {
-    const probe = dumper.dump(this.probeFiles(diagram), "diagram.cpp");
-    const analysis = !probe.ok ? this.result(diagram, probe)
-      : this.prepareAnalysis(diagram, probe)
-        ?? this.result(diagram, dumper.dump(this.build(diagram), "diagram.cpp"));
+    const analysis = this.validateConfig(diagram)
+      ?? this.completeAnalysis(diagram, dumper.dump(this.build(diagram), "diagram.cpp"));
     analysis.assignTo(diagram);
     return analysis;
   }
 
-  private prepareAnalysis(diagram: Diagram, probe: ClangDumpResult): DiagramAnalysis | undefined {
-    this.readConfigs(diagram, probe.ast as ClangAstJson);
-    const inferred = this.result(diagram, probe);
+  private validateConfig(diagram: Diagram): DiagramAnalysis | undefined {
     const diagnostics: DiagramDiagnostic[] = [];
     for (const block of diagram.getBlocks()) {
-      for (const [id, value] of Object.entries(block.getAllConf())) {
+      for (const [id, value] of Object.entries(block.getExplicitConfig())) {
         const prop = block.definition.getConfig(id);
         try {
           if (!prop) throw new Error(`Unknown configuration property "${id}"`);
-          literal(prop.type.raw, value);
+          literal(prop.type.raw === "auto" ? "core::array<double>" : prop.type.raw, value);
         } catch (error) {
           diagnostics.push({ severity: "error", blockId: block.id, configId: id, message: error instanceof Error ? error.message : String(error) });
         }
       }
     }
+    return diagnostics.length ? new DiagramAnalysis(false, new DiagramPortTypes(), diagnostics) : undefined;
+  }
+
+  private completeAnalysis(diagram: Diagram, dump: ClangDumpResult): DiagramAnalysis {
+    if (dump.ast) this.readConfigs(diagram, dump.ast as ClangAstJson);
+    const inferred = this.result(diagram, dump);
+    const diagnostics = [...(this.validateConfig(diagram)?.diagnostics ?? [])];
     for (const c of diagram.getConnections()) {
       const sourceType = inferred.types.get(c.from.blockId, "output", c.from.portId);
       const targetType = inferred.types.get(c.to.blockId, "input", c.to.portId);
@@ -265,14 +266,7 @@ export class CppDiagramBuilder extends DiagramSourceBuilder {
       if (!targetType?.isVector && diagram.getConnections().filter((other) => other.to.equals(c.to)).length > 1) message = "Scalar inputs accept one connection";
       if (message) diagnostics.push({ severity: "error", message, blockId: c.to.blockId, inputId: c.to.portId, outputId: c.from.portId, connectionId: c.id, from: c.from.toJSON(), to: c.to.toJSON() });
     }
-    return diagnostics.length ? new DiagramAnalysis(false, inferred.types, diagnostics) : undefined;
-  }
-
-  private probeFiles(diagram: Diagram): Map<string, string> {
-    const files = new Map(Object.entries(this.libraryFiles));
-    files.set("wasm_host.hpp", browserHost);
-    files.set("diagram.cpp", this.emitDiagram(diagram, true));
-    return files;
+    return diagnostics.length ? new DiagramAnalysis(false, inferred.types, [...diagnostics, ...inferred.diagnostics]) : inferred;
   }
 
   private order(blocks: DiagramBlock[], connections: Connection[]): DiagramBlock[] {
@@ -317,7 +311,9 @@ export class CppDiagramBuilder extends DiagramSourceBuilder {
       const definition = block.definition;
       if (seen.has(definition)) continue;
       seen.add(definition);
-      const resolved = this.resolvedParameters(catalog, definition, `b${diagram.getBlocks().indexOf(block)}`);
+      const index = diagram.getBlocks().indexOf(block);
+      const resolved = catalog.parametersFor(new CppFactoryAdapter(this.libraryFiles).name(block, index))
+        ?? this.resolvedParameters(catalog, definition, `b${index}`);
       if (!resolved) continue;
       const properties = resolved.map((param) => {
         const existing = definition.getConfig(param.name);
@@ -355,10 +351,14 @@ export class CppDiagramBuilder extends DiagramSourceBuilder {
       const [, file = "", severity, message = ""] = match;
       const diagnostic: DiagramDiagnostic = { severity: severity as DiagramDiagnostic["severity"], message };
       const connectionMatch = file.match(/^connection_(\d+)$/);
+      const configMatch = file.match(/^config_(\d+)_(.*)$/);
       const blockMatch = file.match(/^(?:block|input|output)_(\d+)(?:_(.*))?$/);
       if (connectionMatch) {
         const c = diagram.getConnections()[Number(connectionMatch[1])];
         if (c) Object.assign(diagnostic, { blockId: c.to.blockId, inputId: c.to.portId, outputId: c.from.portId, connectionId: c.id, from: c.from.toJSON(), to: c.to.toJSON() });
+      } else if (configMatch) {
+        diagnostic.blockId = diagram.getBlocks()[Number(configMatch[1])]?.id;
+        diagnostic.configId = configMatch[2];
       } else if (blockMatch) {
         diagnostic.blockId = diagram.getBlocks()[Number(blockMatch[1])]?.id;
         if (file.startsWith("input_")) diagnostic.inputId = blockMatch[2];
@@ -366,13 +366,13 @@ export class CppDiagramBuilder extends DiagramSourceBuilder {
       }
       diagnostics.push(diagnostic);
     }
-    // Template failures point to the helper; their instantiation note carries the connection.
+    // Template failures point to the helper; their instantiation note carries the diagram location.
     for (let i = 0; i < diagnostics.length; i++) {
       const error = diagnostics[i]!;
-      if (error.severity !== "error" || error.connectionId) continue;
+      if (error.severity !== "error" || error.connectionId || error.configId) continue;
       for (let j = i + 1; j < diagnostics.length && diagnostics[j]!.severity !== "error"; j++) {
         const note = diagnostics[j]!;
-        if (note.connectionId) { Object.assign(error, { ...note, severity: error.severity, message: error.message }); break; }
+        if (note.connectionId || note.configId) { Object.assign(error, { ...note, severity: error.severity, message: error.message }); break; }
       }
     }
     if (!dump.ok && !diagnostics.some((d) => d.severity === "error")) diagnostics.push({ severity: "error", message: dump.diagnostics || "Clang produced no AST" });

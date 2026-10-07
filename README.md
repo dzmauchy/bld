@@ -320,7 +320,7 @@ classDiagram
 
 ## Type System
 
-`CppDiagramBuilder.analyze()` assembles C++23 with `auto` variables for each input and output field, then asks Clang for its JSON AST. A first pass discovers factory parameter types and defaults; a second pass checks the connected program with the chosen configuration. The same builder produces the sources for wasm compilation.
+`CppDiagramBuilder.analyze()` assembles the connected C++23 program with `auto` variables for each input and output field, then asks Clang for its JSON AST and object in one invocation. Source-local factory adapters retain the release headers' parameter declarations and default expressions, letting Clang resolve defaults and check the chosen configuration in that same invocation. Compilation reuses the resulting object.
 
 ```ts
 const result = await diagram.analyze();
@@ -332,7 +332,7 @@ const errors = result.diagnostics.filter(d => d.severity === "error");
 
 Use `canConnect()` for immediate structural checks (endpoints, direction, duplicates, and cycles). Use `await canConnectAsync()` to check a proposed connection with Clang without changing the diagram. `DiagramCompiler.compile()` performs analysis and throws `DiagramCompilationError` with structured diagnostics if it fails. Synchronous inference is available for host Clang tests; browser clients use the asynchronous API.
 
-Parameter ids, titles, descriptions, icons, and controls come from the release `parameters` array. Clang fills each parameter's C++ type and default during analysis. Run analysis before emitting configured sources directly with `builder.build()`. `compile()` handles this automatically. Default configuration values are omitted from JSON after the definitions have been discovered.
+Parameter ids, titles, descriptions, icons, and controls come from the release `parameters` array. Clang fills each parameter's C++ type and default during analysis. Configured sources can be emitted directly with `builder.build()`; the generated adapters preserve omitted factory defaults. Default configuration values are omitted from JSON after the definitions have been discovered.
 
 ## Standard Block Library (`base`)
 

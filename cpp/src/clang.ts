@@ -3,6 +3,7 @@ import { EmscriptenTool, type EmscriptenModuleFactory } from "./emscripten.ts";
 import { ObjectFile } from "./object-file.ts";
 import { astPathFor, isCppSource, objectPathFor, workPath } from "./paths.ts";
 import type { SharedToolchainFileSystem } from "./sharedFileSystem.ts";
+import { DiagramMetaCommentFilter } from "./commentFilter.ts";
 
 export class ClangFrontend extends EmscriptenTool {
   private cachedInputs: ReadonlyMap<string, string> | undefined;
@@ -23,7 +24,7 @@ export class ClangFrontend extends EmscriptenTool {
       const sources = [...files.keys()].filter(isCppSource);
       if (sources.length === 0) throw new Error("no C or C++ source files to compile");
       this.validateOutputs(sources);
-      this.prepareInputs(files);
+      this.prepareInputs(files, true);
       const pending = sources.filter((source) => !this.cachedSources.has(source));
       if (pending.length > 0) {
         await this.runJob(async () => {
@@ -77,8 +78,13 @@ export class ClangFrontend extends EmscriptenTool {
     }
   }
 
-  private prepareInputs(files: ReadonlyMap<string, string>): void {
-    if (this.cachedInputs?.size === files.size && [...files].every(([name, text]) => this.cachedInputs?.get(name) === text)) return;
+  private prepareInputs(files: ReadonlyMap<string, string>, ignoreDiagramMetadata = false): void {
+    const filter = new DiagramMetaCommentFilter();
+    if (this.cachedInputs?.size === files.size && [...files].every(([name, text]) => {
+      const cached = this.cachedInputs?.get(name);
+      return cached === text || (ignoreDiagramMetadata && isCppSource(name) && cached !== undefined
+        && filter.apply(cached) === filter.apply(text));
+    })) return;
     this.invalidate();
     this.sharedFileSystem.prepareInputs(files);
     this.cachedInputs = new Map(files);
