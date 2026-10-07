@@ -103,7 +103,7 @@ export class BlockDefinition {
     readonly inputs: ReadonlyMap<string, PortDefinition>,
     readonly outputs: ReadonlyMap<string, PortDefinition>,
     config: ReadonlyMap<string, ConfigPropertyDefinition>,
-    readonly cppClass: string = "",
+    readonly cppFactory: string = "",
   ) {
     this.configProperties = new Map(config);
   }
@@ -112,7 +112,7 @@ export class BlockDefinition {
     this.configProperties.set(property.id, property);
   }
 
-  /** Replaces constructor parameters in call order after Clang resolves types and defaults. */
+  /** Replaces factory parameters in call order after Clang resolves types and defaults. */
   assignParameters(properties: readonly ConfigPropertyDefinition[]): void {
     this.configProperties.clear();
     for (const property of properties) this.configProperties.set(property.id, property);

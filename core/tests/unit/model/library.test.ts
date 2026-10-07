@@ -63,8 +63,8 @@ describe("Library and Asset Loader", () => {
     const gpio = lib.palette.getBlock("GpioInF32");
     expect(gpio).toBeDefined();
     expect(gpio?.category).toBe("sources");
-    expect(gpio?.cppClass).toBe("push::f_32::sources::GpioInF32");
-    expect(scope?.cppClass).toBe("push::f_32::sinks::ScopeF32");
+    expect(gpio?.cppFactory).toBe("push::f_32::sources::GpioInF32");
+    expect(scope?.cppFactory).toBe("push::f_32::sinks::ScopeF32");
     expect([...scope?.config.keys() ?? []]).toEqual(["period", "precision"]);
     expect(scope?.getConfig("period")?.title).toBe("Period");
     expect(scope?.getConfig("period")?.description).toContain("seconds");
@@ -127,7 +127,7 @@ describe("Library and Asset Loader", () => {
 
       expect(fetchMock).toHaveBeenCalledWith("https://my-plugin.org/dsp/library.json");
       expect(fetchMock).toHaveBeenCalledWith("https://my-plugin.org/dsp/plugin.tar.gz");
-      expect(lib.palette.getBlock("CustomBlock")?.cppClass).toBe("custom_ns::CustomBlock");
+      expect(lib.palette.getBlock("CustomBlock")?.cppFactory).toBe("custom_ns::CustomBlock");
       expect(lib.compilationModel.getFile("plugin.hpp")).toContain("class CustomBlock");
     } finally {
       globalThis.fetch = originalFetch;
@@ -256,10 +256,10 @@ describe("Library and Asset Loader", () => {
     expect(archive.files()).toEqual({ "include/bld.hpp": "namespace bld {}" });
   });
 
-  test("header block classes match the C++ catalog", async () => {
+  test("header block factories match the C++ catalog", async () => {
     const lib = await Library.loadBase();
     for (const [id, raw] of Object.entries(lib.blocks)) {
-      expect(raw.cpp, id).toBe(lib.palette.getBlock(id)?.cppClass);
+      expect(raw.cpp, id).toBe(lib.palette.getBlock(id)?.cppFactory);
     }
   });
 });

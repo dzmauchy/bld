@@ -53,7 +53,8 @@ describe("DiagramCompiler C++ generation", () => {
     expect(cpp).toContain("void mount()");
     expect(cpp).not.toContain("start(");
     expect(cpp).toContain("3.14f");
-    expect(cpp).toContain("->apply(");
+    expect(cpp).toContain("static auto b0 = push::f_32::sinks::ScopeF32(");
+    expect(cpp).toContain("b1(std::move(i1))");
   });
 
   test("BrowserCompiler specializes the browser profile", () => {
@@ -93,7 +94,7 @@ describe("DiagramCompiler C++ generation", () => {
     const files = captured[0];
     expect(files?.get("diagram.cpp")).toContain("void mount()");
     expect(files?.get("diagram.cpp")).toContain("#include \"wasm_host.hpp\"");
-    expect(files?.get("base/f32_blocks.hpp")).toContain("using ScopeF32");
+    expect(files?.get("base/f32_blocks.hpp")).toContain("ScopeF32(const u32 blockId");
     expect(files?.get("wasm_host.hpp")).toContain("void start()");
     expect(files?.get("wasm_host.cpp")).toBeUndefined();
   });
@@ -125,7 +126,7 @@ describe("DiagramCompiler C++ generation", () => {
   test("Diagram.emitText uses the default browser compiler files when provided", () => {
     const diagram = createTestDiagram();
     const cpp = diagram.emitText(new BrowserCompiler(libraryFiles));
-    expect(cpp).toContain("new push::f_32::sources::ConstF32");
+    expect(cpp).toContain("push::f_32::sources::ConstF32(");
   });
 
   test("setContext switches a compiler onto a registered target", () => {

@@ -14,10 +14,10 @@ describe("CppBlockCatalog", () => {
   });
 
   test("reads C++ class names from metadata", () => {
-    expect(catalog.require("ScopeF32").cppClass).toBe("push::f_32::sinks::ScopeF32");
-    expect(catalog.require("CosF32").cppClass).toBe("push::f_32::transformers::CosF32");
-    expect(catalog.require("GpioInF32").cppClass).toBe("push::f_32::sources::GpioInF32");
-    expect(defaultCppBlockCatalog.require("ScopeF32").cppClass).toBe(catalog.require("ScopeF32").cppClass);
+    expect(catalog.require("ScopeF32").cppFactory).toBe("push::f_32::sinks::ScopeF32");
+    expect(catalog.require("CosF32").cppFactory).toBe("push::f_32::transformers::CosF32");
+    expect(catalog.require("GpioInF32").cppFactory).toBe("push::f_32::sources::GpioInF32");
+    expect(defaultCppBlockCatalog.require("ScopeF32").cppFactory).toBe(catalog.require("ScopeF32").cppFactory);
   });
 
   test("rejects unknown refs", () => {

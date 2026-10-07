@@ -211,6 +211,40 @@ test("GpioInF32 routes multiple pins onto independent scope channels", async ({ 
   expect(await cpp.invoke("lastPin", [0, 1])).toBe(0);
 });
 
+test("GPIO span groups preserve disconnected pins and fan out one pin", async ({ cpp }) => {
+  const diagram = new Diagram("sparse_gpio", "Sparse GPIO", palette);
+  diagram.addBlock("ScopeF32", { x: 0, y: 0 }, "s");
+  diagram.addBlock("GpioInF32", { x: 1, y: 0 }, "g", { port: 2, pins: [3, 4, 5] });
+  connect(diagram, "g", "pin", 2, "s", "sink", 0);
+  connect(diagram, "g", "pin", 2, "s", "sink", 1);
+  await compileDiagram(cpp, diagram);
+  await cpp.invoke("emitGpioIn", [1, 0, 1]);
+  expect(await cpp.invoke("pinWriteCount")).toBe(0);
+  await cpp.invoke("emitGpioIn", [1, 2, 1]);
+  expect(await cpp.invoke("lastPin", [0, 0])).toBe(1);
+  expect(await cpp.invoke("lastPin", [0, 1])).toBe(1);
+  await cpp.invoke("emitGpioIn", [1, 2, 0]);
+  expect(await cpp.invoke("lastPin", [0, 0])).toBe(0);
+  expect(await cpp.invoke("lastPin", [0, 1])).toBe(0);
+  expect(await cpp.invoke("pinWriteCount")).toBe(4);
+});
+
+test("browser factory analysis discovers defaults for all released blocks", async ({ cpp }) => {
+  const diagram = new Diagram("factories", "Factories", palette);
+  for (const definition of palette.getBlocks()) diagram.addBlock(definition, { x: 0, y: 0 });
+  const analysis = await builder.analyze(diagram, cpp.astDumper);
+  expect(analysis.ok, JSON.stringify(analysis.diagnostics)).toBe(true);
+  for (const precision of ["F32", "F64"]) {
+    expect(palette.getBlock(`GpioIn${precision}`)?.getDefaultConfig()).toEqual({ port: 0, pins: [0] });
+    expect(palette.getBlock(`Scope${precision}`)?.getDefaultConfig()).toEqual({ period: 60, precision: 10 });
+    expect(palette.getBlock(`PulseGen${precision}`)?.getDefaultConfig()).toEqual({ dutyCycle: 0.5, amplitude: 1, frequency: 1, phase: 0 });
+  }
+  const gpio = diagram.getBlocks().find((block) => block.definition.id === "GpioInF32")!;
+  gpio.setConf("pins", []);
+  await compileDiagram(cpp, diagram);
+  expect(await cpp.invoke("activeGpioListenerCount")).toBe(1); // Only GpioInF64 keeps its default pin.
+});
+
 test("GpioInF32 close stops listening", async ({ cpp }) => {
   const diagram = new Diagram("gpio_close", "gpio_close", palette);
   diagram.addBlock("ScopeF32", { x: 0, y: 0 }, "s");
@@ -454,6 +488,8 @@ test("diagram AST excludes precompiled library declarations", async ({ cpp }) =>
   diagram.addBlock("ScopeF32", { x: 0, y: 0 }, "scope");
   diagram.addBlock("ConstF32", { x: 1, y: 0 }, "constant");
   connect(diagram, "constant", "v", 0, "scope", "sink", 0);
+  const analysis = await builder.analyze(diagram, cpp.astDumper);
+  expect(analysis.ok, JSON.stringify(analysis.diagnostics)).toBe(true);
   const dump = await cpp.astDumper.dumpAsync(builder.build(diagram), "diagram.cpp");
   expect(dump.ok, dump.diagnostics).toBe(true);
   const ast = dump.ast as { inner?: { kind?: string; name?: string }[] };

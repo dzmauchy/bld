@@ -129,7 +129,7 @@ test("routes a connector around a block with the avoid router", async ({ page })
   expect(geometry!.points.length).toBeGreaterThan(2);
   expect(segmentHitsRect(geometry!.points, geometry!.rect)).toBe(false);
 
-  await page.screenshot({ path: "/opt/cursor/artifacts/diagram-routed.png" });
+  await page.screenshot({ path: test.info().outputPath("diagram-routed.png") });
 });
 
 function segmentHitsRect(

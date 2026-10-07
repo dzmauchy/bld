@@ -8,6 +8,7 @@ import { spawnSync } from "node:child_process";
 import { existsSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
+import { PrecompiledHeaders } from "./precompiledHeaders.ts";
 import { ClangAstDumper, ClangDumpResult } from "./clangAstDumper.ts";
 
 export class HostClangAstDumper extends ClangAstDumper {
@@ -16,11 +17,14 @@ export class HostClangAstDumper extends ClangAstDumper {
     return (this.instance ??= new HostClangAstDumper());
   }
 
+  private cached: { dir: string; headers: PrecompiledHeaders } | undefined;
+
   constructor(
     private readonly clangxx = "clang++",
     private readonly extraArgs: readonly string[] = HostClangAstDumper.detectStdlibArgs(),
   ) {
     super();
+    process.once("exit", () => { if (this.cached) rmSync(this.cached.dir, { recursive: true, force: true }); });
   }
 
   static detectStdlibArgs(): string[] {
@@ -36,28 +40,38 @@ export class HostClangAstDumper extends ClangAstDumper {
   }
 
   override dump(files: Map<string, string>, mainFile: string): ClangDumpResult {
-    const dir = mkdtempSync(join(tmpdir(), "bld-clang-ast-"));
+    if (this.cached && !this.cached.headers.matches(files)) {
+      rmSync(this.cached.dir, { recursive: true, force: true });
+      this.cached = undefined;
+    }
+    const reused = Boolean(this.cached);
+    const dir = this.cached?.dir ?? mkdtempSync(join(tmpdir(), "bld-clang-ast-"));
     try {
-      for (const [name, text] of files) {
+      const write = (name: string, text: string): void => {
         const path = join(dir, name);
         mkdirSync(dirname(path), { recursive: true });
         writeFileSync(path, text);
+      };
+      for (const [name, text] of files) {
+        if (!reused || !/\.(h|hpp|hh|hxx|inc)$/.test(name)) write(name, text);
+      }
+      const common = [
+        "-std=c++23", "-fno-exceptions", "-fno-rtti", "-fno-color-diagnostics",
+        "-fmessage-length=0", "-ferror-limit=0", "-fparse-all-comments",
+        ...this.extraArgs, "-I", dir,
+      ];
+      const headers = this.cached?.headers ?? new PrecompiledHeaders(files);
+      const pch = join(dir, "headers.pch");
+      if (!headers.empty && !reused) {
+        const includes = [...files.keys()].filter((name) => /\.(h|hpp|hh|hxx)$/.test(name)).sort();
+        write("headers.hpp", includes.map((name) => `#include "${name}"`).join("\n"));
+        const prepared = spawnSync(this.clangxx, [...common, "-x", "c++-header", join(dir, "headers.hpp"), "-o", pch], { encoding: "utf8" });
+        if (prepared.status !== 0) return new ClangDumpResult(false, undefined, "", prepared.stderr ?? prepared.error?.message ?? "PCH failed");
+        this.cached = { dir, headers };
       }
       const args = [
-        "-fsyntax-only",
-        "-Xclang",
-        "-ast-dump=json",
-        "-std=c++23",
-        "-fno-exceptions",
-        "-fno-rtti",
-        "-fno-color-diagnostics",
-      "-fmessage-length=0",
-      "-ferror-limit=0",
-        "-fparse-all-comments",
-        ...this.extraArgs,
-        "-I",
-        dir,
-        join(dir, mainFile),
+        ...common, ...(!headers.empty ? ["-include-pch", pch] : []),
+        "-fsyntax-only", "-Xclang", "-ast-dump=json", join(dir, mainFile),
       ];
       const spawned = spawnSync(this.clangxx, args, { encoding: "utf8", maxBuffer: 64 * 1024 * 1024 });
       const stdout = spawned.stdout ?? "";
@@ -70,7 +84,7 @@ export class HostClangAstDumper extends ClangAstDumper {
       }
       return new ClangDumpResult(spawned.status === 0, ast, stdout, stderr);
     } finally {
-      rmSync(dir, { recursive: true, force: true });
+      if (this.cached?.dir !== dir) rmSync(dir, { recursive: true, force: true });
     }
   }
 }

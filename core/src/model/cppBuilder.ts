@@ -5,7 +5,7 @@ import type { DiagramBlock } from "./diagramBlock";
 import type { Connection } from "./connection";
 import type { PortEndpoint } from "./endpoint";
 import { ConfigPropertyDefinition } from "./blockDefinition";
-import { ClangConstructorCatalog, type ConstructorParameter } from "./clangConstructorCatalog";
+import { ClangFunctionCatalog, type FunctionParameter } from "./clangFunctionCatalog";
 import { InferredPortType } from "./inferredPortType";
 import { browserHost } from "./browserHost";
 
@@ -66,13 +66,60 @@ auto bld_at(Taken taken, unsigned index) {
   if constexpr (requires { taken.size(); taken[index]; }) return taken[index];
   else return taken;
 }
+template <typename Callable> struct BldCallable;
+template <typename Result, typename Input>
+struct BldCallable<std::function<Result(Input)>> { using InputType = Input; };
+
+// Own pointer lists while span inputs borrow them. Blocks copy these lists when wired.
+template <typename Port> class BldInput {
+ public:
+  void connect(unsigned, Port value) { value_ = value; }
+  Port view() { return value_; }
+ private:
+  Port value_{};
+};
+template <typename T, std::size_t Extent> class BldInput<std::span<T, Extent>> {
+ public:
+  void connect(unsigned, std::remove_const_t<T> value) { values_.push_back(value); }
+  std::span<T, Extent> view() { return std::span<T, Extent>{values_}; }
+ private:
+  std::vector<std::remove_const_t<T>> values_;
+};
+template <typename Port> class BldInput<std::vector<Port>> {
+ public:
+  template <typename Value> void connect(unsigned index, Value value) {
+    if (groups_.size() <= index) groups_.resize(index + 1);
+    groups_[index].connect(0, value);
+  }
+  std::vector<Port> view() {
+    std::vector<Port> ports;
+    for (auto& group : groups_) ports.push_back(group.view());
+    return ports;
+  }
+ private:
+  std::vector<BldInput<Port>> groups_;
+};
 template <typename Input, typename Value>
 void bld_connect(Input& input, unsigned index, Value value) {
-  if constexpr (requires { input.push_back(value); }) input.push_back(value);
-  else if constexpr (requires { input[index].push_back(value); }) {
-    while (input.size() <= index) input.emplace_back();
-    input[index].push_back(value);
-  } else input = value;
+  // Borrowed spans and scalar pointers are already connected by bld_input.
+  if constexpr (requires { input.view(); }) input.connect(index, value);
+}
+template <typename Port>
+auto bld_input(Port) { return BldInput<Port>{}; }
+template <typename Port, typename Taken>
+auto bld_input(Port port, Taken taken, unsigned sourceIndex) {
+  if constexpr (requires { port = taken.subspan(sourceIndex, 1); }) {
+    return taken.subspan(sourceIndex, 1);
+  } else if constexpr (requires { port = taken; }) {
+    return taken;
+  } else {
+    return bld_input(port);
+  }
+}
+template <typename Input>
+auto bld_view(Input& input) {
+  if constexpr (requires { input.view(); }) return input.view();
+  else return input;
 }
 `;
 
@@ -113,24 +160,34 @@ export class CppDiagramBuilder extends DiagramSourceBuilder {
       }
       const hasInput = block.definition.inputs.size > 0;
       const hasOutput = block.definition.outputs.size > 0;
-      lines.push(`#line 1 "block_${i}"`, `auto* b${i} = new ${block.definition.cppClass}(${args.join(", ")});`);
+      lines.push(`#line 1 "block_${i}"`, `static auto b${i} = ${block.definition.cppFactory}(${args.join(", ")});`);
       if (hasInput) {
-        lines.push(`auto i${i} = typename std::remove_pointer_t<decltype(b${i})>::Input{};`);
-        for (const connection of connections.filter((c) => c.to.blockId === block.id)) {
-          const source = index(connection.from.blockId);
-          const ci = connections.indexOf(connection);
-          lines.push(`#line 1 "connection_${ci}"`,
-            `bld_connect(i${i}.${connection.to.portId}, ${connection.to.vectorIndex}u, bld_at(taken_${source}_${connection.from.portId}, ${connection.from.vectorIndex}u));`);
-        }
+        lines.push(`auto i${i} = typename BldCallable<decltype(b${i})>::InputType{};`);
         for (const port of block.getInputPorts()) {
-          lines.push(`#line 1 "input_${i}_${port.id}"`, `auto port_${i}_input_${port.id} = i${i}.${port.id};`);
+          const incoming = connections.filter((c) => c.to.blockId === block.id && c.to.portId === port.id);
+          const input = `input_${i}_${port.id}`;
+          if (incoming.length === 1) {
+            const connection = incoming[0]!;
+            const source = index(connection.from.blockId);
+            lines.push(`#line 1 "connection_${connections.indexOf(connection)}"`,
+              `auto ${input} = bld_input(i${i}.${port.id}, taken_${source}_${connection.from.portId}, ${connection.from.vectorIndex}u);`,
+              `bld_connect(${input}, ${connection.to.vectorIndex}u, bld_at(taken_${source}_${connection.from.portId}, ${connection.from.vectorIndex}u));`);
+          } else {
+            lines.push(`#line 1 "input_${i}_${port.id}"`, `auto ${input} = bld_input(i${i}.${port.id});`);
+            for (const connection of incoming) {
+              const source = index(connection.from.blockId);
+              lines.push(`#line 1 "connection_${connections.indexOf(connection)}"`,
+                `bld_connect(${input}, ${connection.to.vectorIndex}u, bld_at(taken_${source}_${connection.from.portId}, ${connection.from.vectorIndex}u));`);
+            }
+          }
+          lines.push(`#line 1 "input_${i}_${port.id}"`, `i${i}.${port.id} = bld_view(${input});`, `auto port_${i}_input_${port.id} = i${i}.${port.id};`);
         }
       }
       lines.push(`#line 1 "block_${i}"`);
-      if (hasOutput && hasInput) lines.push(`auto o${i} = b${i}->apply(move(i${i}));`);
-      else if (hasOutput) lines.push(`auto o${i} = b${i}->apply();`);
-      else if (hasInput) lines.push(`b${i}->apply(move(i${i}));`);
-      else lines.push(`b${i}->apply();`);
+      if (hasOutput && hasInput) lines.push(`auto o${i} = b${i}(std::move(i${i}));`);
+      else if (hasOutput) lines.push(`auto o${i} = b${i}();`);
+      else if (hasInput) lines.push(`b${i}(std::move(i${i}));`);
+      else lines.push(`b${i}();`);
       for (const port of block.getOutputPorts()) {
         const width = Math.max(1, ...connections.filter((c) => c.from.blockId === block.id && c.from.portId === port.id).map((c) => c.from.vectorIndex + 1));
         lines.push(`#line 1 "output_${i}_${port.id}"`, `auto port_${i}_output_${port.id} = o${i}.${port.id};`,
@@ -224,26 +281,27 @@ export class CppDiagramBuilder extends DiagramSourceBuilder {
   }
 
   private resolvedParameters(
-    catalog: ClangConstructorCatalog,
+    catalog: ClangFunctionCatalog,
     definition: DiagramBlock["definition"],
-  ): readonly ConstructorParameter[] | undefined {
-    const declared = catalog.parametersFor(definition.cppClass);
+    variable: string,
+  ): readonly FunctionParameter[] | undefined {
+    const declared = catalog.parametersFor(definition.cppFactory);
     if (declared) return declared;
-    const constructed = catalog.constructedParameters(definition.cppClass);
-    if (!constructed) return undefined;
+    const called = catalog.calledParameters(variable);
+    if (!called) return undefined;
     const names = [...definition.config.keys()];
-    if (constructed.length !== names.length) return undefined;
-    return constructed.map((param, index) => ({ ...param, name: names[index]! }));
+    if (called.length !== names.length) return undefined;
+    return called.map((param, index) => ({ ...param, name: names[index]! }));
   }
 
   private readConfigs(diagram: Diagram, ast: ClangAstJson): void {
-    const catalog = ClangConstructorCatalog.fromAst(ast);
+    const catalog = ClangFunctionCatalog.fromAst(ast);
     const seen = new Set<DiagramBlock["definition"]>();
     for (const block of diagram.getBlocks()) {
       const definition = block.definition;
       if (seen.has(definition)) continue;
       seen.add(definition);
-      const resolved = this.resolvedParameters(catalog, definition);
+      const resolved = this.resolvedParameters(catalog, definition, `b${diagram.getBlocks().indexOf(block)}`);
       if (!resolved) continue;
       const properties = resolved.map((param) => {
         const existing = definition.getConfig(param.name);
@@ -308,7 +366,7 @@ export class CppDiagramBuilder extends DiagramSourceBuilder {
 
 function literal(type: string, value: unknown): string {
   if (Array.isArray(value)) {
-    if (!/\bArray\s*</.test(type)) {
+    if (!/\bvector\s*</.test(type)) {
       if (value.length === 1) return literal(type, value[0]);
       throw new Error(`Invalid C++ config value ${JSON.stringify(value)}`);
     }
@@ -320,4 +378,3 @@ function literal(type: string, value: unknown): string {
   if (typeof value === "number" && !Number.isFinite(value)) throw new Error("Config values must be finite");
   return CppTypeNames.literalFromClang(type, value);
 }
-

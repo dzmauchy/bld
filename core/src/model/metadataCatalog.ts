@@ -9,6 +9,7 @@ interface MetadataEntry {
   inputs?: MetadataEntry[];
   outputs?: MetadataEntry[];
   parameters?: MetadataParameter[];
+  vectorized?: boolean;
 }
 
 interface MetadataParameter extends MetadataEntry {
@@ -70,7 +71,7 @@ export class MetadataCatalog {
   private ports(entries: MetadataEntry[]): Record<string, RawPortCatalogEntry> {
     return Object.fromEntries(entries.map((entry) => {
       if (!/^[A-Za-z_]\w*$/.test(entry.id)) throw new Error(`Invalid port ${entry.id}`);
-      return [entry.id, { type: "auto" }];
+      return [entry.id, { type: "auto", vector: Boolean(entry.vectorized) }];
     }));
   }
 }

@@ -1,7 +1,7 @@
 import browserHost from "core/model/browserHost.ts?raw";
 import appAssets from "core/model/appAssets.ts?raw";
 import blockDefinition from "core/model/blockDefinition.ts?raw";
-import clangConstructorCatalog from "core/model/clangConstructorCatalog.ts?raw";
+import clangFunctionCatalog from "core/model/clangFunctionCatalog.ts?raw";
 import compiler from "core/model/compiler.ts?raw";
 import compilerContext from "core/model/compilerContext.ts?raw";
 import connection from "core/model/connection.ts?raw";
@@ -22,7 +22,7 @@ export const modelAssets = {
   "appAssets.ts": appAssets,
   "browserHost.ts": browserHost,
   "blockDefinition.ts": blockDefinition,
-  "clangConstructorCatalog.ts": clangConstructorCatalog,
+  "clangFunctionCatalog.ts": clangFunctionCatalog,
   "compiler.ts": compiler,
   "compilerContext.ts": compilerContext,
   "connection.ts": connection,

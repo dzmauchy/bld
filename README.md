@@ -164,7 +164,7 @@ flowchart TD
     A["Diagram C++ / mount()"] --> B["CppDiagramBuilder"]
     
     subgraph Emit["C++ Generation"]
-        B --> B1["Map release metadata to push::f_32 classes"]
+        B --> B1["Map release metadata to push::f_32 factories"]
         B1 --> B2["Reverse-topo apply order (sinks before sources)"]
         B2 --> B3["Emit diagram.cpp mount() plus native headers"]
     end
@@ -320,7 +320,7 @@ classDiagram
 
 ## Type System
 
-`CppDiagramBuilder.analyze()` assembles C++23 with `auto` variables for each input and output field, then asks Clang for its JSON AST. A first pass discovers constructor types and defaults; a second pass checks the connected program with the chosen configuration. The same builder produces the sources for wasm compilation.
+`CppDiagramBuilder.analyze()` assembles C++23 with `auto` variables for each input and output field, then asks Clang for its JSON AST. A first pass discovers factory parameter types and defaults; a second pass checks the connected program with the chosen configuration. The same builder produces the sources for wasm compilation.
 
 ```ts
 const result = await diagram.analyze();
@@ -336,7 +336,7 @@ Parameter ids, titles, descriptions, icons, and controls come from the release `
 
 ## Standard Block Library (`base`)
 
-The [base v0.1.0 archive](https://github.com/dzmauchy/bld-base/releases/download/v0.1.0/base-0.1.0.tar.gz) contains 22 blocks in `push::f_32` and `push::f_64`. References use the exact metadata IDs, such as `ConstF32`, `ScopeF32`, and `ScopeF64`. Header directory paths are preserved. Block types are concrete classes and aliases, constructed as `push::f_32::sinks::ScopeF32(blockId, ...)`.
+The [base v0.1.0 archive](https://github.com/dzmauchy/bld-base/releases/download/v0.1.0/base-0.1.0.tar.gz) contains 22 blocks in `push::f_32` and `push::f_64`. References use the exact metadata IDs, such as `ConstF32`, `ScopeF32`, and `ScopeF64`. Header directory paths are preserved. Blocks are factory functions returning `std::function`, called as `push::f_32::sinks::ScopeF32(blockId, ...)`.
 
 | Block family | Input fields | Output fields | Parameters |
 |---|---|---|---|
@@ -349,7 +349,7 @@ The [base v0.1.0 archive](https://github.com/dzmauchy/bld-base/releases/download
 | Sum, Product | `downstream` | `channels` | `precision` |
 | Scope | none | `channels` | `period`, `precision` |
 
-Connections pass consumer handles from output fields to input fields. Scope, sum, and product expose `channels` as a vectorized function: `scope->apply().channels(count)`. For example, `ScopeF32.channels[0]` connects to `ConstF32.downstream`. Signals subsequently flow from the constant to the scope. Sinks such as Scope take no input, so `apply()` is called without arguments. Inferred types come from the C++ fields, including both numeric precisions.
+Connections pass `std::function` consumer pointers from output fields to input fields. Inputs borrow pointer lists through `std::span`; generated storage remains valid during wiring, and the built-in blocks copy these lists. Static factory results keep their captured state alive after `mount()` returns. Scope, sum, and product expose `channels` as a vectorized function: `scope().channels(count)`. For example, `ScopeF32.channels[0]` connects to `ConstF32.downstream`. Signals subsequently flow from the constant to the scope. Sinks such as Scope take no input, so the returned function is called without arguments. Inferred types come from the C++ fields, including both numeric precisions.
 
 ## Diagram File
 

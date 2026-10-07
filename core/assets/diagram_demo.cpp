@@ -7,8 +7,8 @@
 // "connections":{"wire":{"from":{"block":"scope","port":{"type":"output","id":"channels"}},
 // "to":{"block":"cosine","port":{"type":"input","id":"downstream"}}}}}
 extern "C" void mount() {
-  auto* scope = new push::f_32::sinks::ScopeF32(0u);
-  auto* cosine = new push::f_32::sources::CosGenF32(1u);
-  auto channels = scope->apply().channels(1);
-  cosine->apply({.downstream = {channels[0]}});
+  static auto scope = push::f_32::sinks::ScopeF32(0u);
+  static auto cosine = push::f_32::sources::CosGenF32(1u);
+  auto channels = scope().channels(1);
+  cosine({.downstream = channels});
 }

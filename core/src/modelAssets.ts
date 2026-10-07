@@ -1,7 +1,7 @@
 export const modelAssetFiles = [
   "appAssets.ts",
   "blockDefinition.ts",
-  "clangConstructorCatalog.ts",
+  "clangFunctionCatalog.ts",
   "compiler.ts",
   "compilerContext.ts",
   "connection.ts",

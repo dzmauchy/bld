@@ -29,7 +29,7 @@ export class CppBlockCatalog {
 
   get(ref: string): BlockDefinition | undefined {
     const def = this._palette.getBlock(ref);
-    return def?.cppClass ? def : undefined;
+    return def?.cppFactory ? def : undefined;
   }
 
   require(ref: string): BlockDefinition {
@@ -39,7 +39,7 @@ export class CppBlockCatalog {
   }
 
   refs(): string[] {
-    return this._palette.getBlocks().filter((block) => Boolean(block.cppClass)).map((block) => block.id);
+    return this._palette.getBlocks().filter((block) => Boolean(block.cppFactory)).map((block) => block.id);
   }
 
   has(ref: string): boolean {
