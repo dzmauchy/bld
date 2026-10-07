@@ -9,11 +9,15 @@ test("the bundled base release exposes callable factories", async () => {
   expect(await isCurrentBaseRelease(bytes)).toBe(true);
 });
 
-test("asset validation rejects the former class release under the same version", async () => {
+for (const [kind, factory] of [
+  ["class", "using ScopeF32 = Scope<float>;"],
+  ["standard-library", "inline std::function<void()> ScopeF32(unsigned blockId) { return [] {}; }"],
+]) test(`asset validation rejects the former ${kind} release under the same version`, async () => {
   const encoder = new TextEncoder();
   const files = {
     "meta.json": JSON.stringify({ namespaces: [], blocks: [{ id: "ScopeF32", parameters: [] }] }),
-    "./base/f32_blocks.hpp": "using ScopeF32 = Scope<float>;",
+    "./base/f32_blocks.hpp": factory,
+    "core/lib.hpp": "#pragma once",
   };
   const tar = await packTar(Object.entries(files).map(([name, text]) => {
     const body = encoder.encode(text);

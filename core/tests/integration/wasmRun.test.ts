@@ -10,6 +10,28 @@ const counterModule = new Uint8Array([
   0, 35, 0, 65, 1, 106, 36, 0, 35, 0, 11,
 ]);
 
+test("initializes freestanding constructors before starting the diagram", async () => {
+  const section = (id: number, bytes: number[]) => [id, bytes.length, ...bytes];
+  const exported = (name: string, index: number) => [name.length, ...new TextEncoder().encode(name), 0, index];
+  const initialize = [0, 35, 1, 69, 4, 64, 65, 1, 36, 1, 65, 40, 36, 0, 11, 11];
+  const start = [0, 35, 0, 65, 2, 106, 36, 0, 11];
+  const bump = [0, 35, 0, 65, 1, 106, 36, 0, 35, 0, 11];
+  const wasm = new Uint8Array([
+    0, 97, 115, 109, 1, 0, 0, 0,
+    ...section(1, [2, 96, 0, 0, 96, 0, 1, 127]),
+    ...section(3, [3, 0, 0, 1]),
+    ...section(6, [2, 127, 1, 65, 0, 11, 127, 1, 65, 0, 11]),
+    ...section(7, [3, ...exported("wasm_initialize", 0), ...exported("start", 1), ...exported("bump", 2)]),
+    ...section(10, [3, initialize.length, ...initialize, start.length, ...start, bump.length, ...bump]),
+  ]);
+  const first = await instantiateWasm(wasm);
+  expect((first.exports.bump as () => number)()).toBe(43);
+  (first.exports.wasm_initialize as () => void)();
+  expect((first.exports.bump as () => number)()).toBe(44);
+  const second = await instantiateWasm(wasm);
+  expect((second.exports.bump as () => number)()).toBe(43);
+});
+
 test("instantiates bounded wasm views without a second copy and resets program state for each run", async () => {
   const padded = new Uint8Array(counterModule.byteLength + 16);
   padded.set(counterModule, 8);

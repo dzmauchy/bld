@@ -57,7 +57,7 @@ function factoryCall(node: ClangAstJson): ClangAstJson | undefined {
 function parameter(node: ClangAstJson, name: string): FunctionParameter {
   const type = node.type?.desugaredQualType ?? node.type?.qualType ?? "auto";
   let value = defaultValue(node);
-  if (Array.isArray(value) && !/\bvector\s*</.test(type) && value.length === 1) value = value[0];
+  if (Array.isArray(value) && !/\barray\s*</.test(type) && value.length === 1) value = value[0];
   return { name, type, defaultValue: value };
 }
 
@@ -65,6 +65,16 @@ function defaultValue(node: ClangAstJson): unknown {
   const literal = node as ClangAstJson & { value?: string | boolean; opcode?: string };
   if (literal.kind === "IntegerLiteral" || literal.kind === "FloatingLiteral") return Number(literal.value);
   if (literal.kind === "CXXBoolLiteralExpr") return literal.value;
+  if ((literal.kind === "CXXConstructExpr" || literal.kind === "CXXTemporaryObjectExpr")
+    && /\bcore::array\s*</.test(literal.type?.desugaredQualType ?? literal.type?.qualType ?? "")) {
+    const args = (literal.inner ?? []).map(defaultValue);
+    if (args.length === 0) return [];
+    if (Array.isArray(args[0])) return args[0];
+    const count = args[0];
+    const value = Array.isArray(args[1]) && args[1].length === 1 ? args[1][0] : args[1] ?? 0;
+    if (typeof count === "number" && Number.isInteger(count) && count >= 0) return Array(count).fill(value);
+    return undefined;
+  }
   if (literal.kind === "InitListExpr") return literal.inner?.map(defaultValue) ?? [];
   if (literal.kind === "UnaryOperator" && literal.opcode === "-") {
     const inner = literal.inner?.[0];

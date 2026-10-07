@@ -297,11 +297,11 @@ describe("Diagram port type inference", () => {
     const sink = diagram.inferPortType(scope.id, "channels", "output");
     expect(sink.isVector).toBe(true);
     expect(sink.qualType).toContain("Vectorized");
-    expect(sink.desugaredQualType).toContain("std::function<void (float)>");
+    expect(sink.desugaredQualType).toContain("core::function<void (float)>");
 
     const cosOut = diagram.inferPortType(cosine.id, "consumer", "output");
     expect(cosOut.isVector).toBe(false);
-    expect(cosOut.qualType).toMatch(/std::function<void \((?:f32|float)\)> \*/);
+    expect(cosOut.qualType).toMatch(/core::function<void \((?:f32|float)\)> \*/);
 
     const cosIn = diagram.inferPortType(cosine.id, "downstream", "input");
     expect(cosIn.isVector).toBe(true);
@@ -313,7 +313,7 @@ describe("Diagram port type inference", () => {
     const pin = diagram.inferPortType(gpio.id, "pins", "input");
     expect(pin.isVector).toBe(true);
     expect(pin.vectorLength).toBe(3);
-    expect(pin.qualType).toContain("std::vector");
+    expect(pin.qualType).toContain("core::array");
   });
 
   test("uses clang++ to accept compatible connections and reject type errors", () => {

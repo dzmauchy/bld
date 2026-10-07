@@ -1,4 +1,4 @@
-export type { SysrootInstallKind, FilePayload, WorkerOk, WorkerErr, WorkerResponse } from "./messages.ts";
+export type { FilePayload, WorkerOk, WorkerErr, WorkerResponse } from "./messages.ts";
 export { filePayload, messageId } from "./messages.ts";
 export { ClangArgumentBuilder, LldArgumentBuilder } from "./args.ts";
 export { WasmExecutor, ExecutedWasm } from "./executor.ts";

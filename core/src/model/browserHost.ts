@@ -2,11 +2,9 @@
 export const browserHost = String.raw`#pragma once
 
 #include <core/hal.hpp>
-#include <functional>
-#include <limits>
-#include <vector>
+#include <core/math.hpp>
 
-void register_gpio_block(u32 blockId, u16 port, const std::vector<u8>& pins);
+void register_gpio_block(u32 blockId, u16 port, const core::array<u8>& pins);
 
 extern "C" void mount();
 
@@ -19,7 +17,7 @@ namespace {
 constexpr u32 kCap = 64;
 constexpr u32 kMaxPins = 8;
 
-void invoke(std::function<void()>* callback) {
+void invoke(core::function<void()>* callback) {
   if (callback) {
     (*callback)();
   }
@@ -30,11 +28,11 @@ class WasmHost {
   static WasmHost instanceHost;
   static WasmHost& instance() { return instanceHost; }
 
-  void onStart(std::function<void()>* callback) { pushCallback(start_, startCount_, callback); }
-  void onClose(std::function<void()>* callback) { pushCallback(close_, closeCount_, callback); }
-  void onStop(std::function<void()>* callback) { pushCallback(stop_, stopCount_, callback); }
+  void onStart(core::function<void()>* callback) { pushCallback(start_, startCount_, callback); }
+  void onClose(core::function<void()>* callback) { pushCallback(close_, closeCount_, callback); }
+  void onStop(core::function<void()>* callback) { pushCallback(stop_, stopCount_, callback); }
 
-  u32 setInterval(u32 milliseconds, std::function<void()>* callback) {
+  u32 setInterval(u32 milliseconds, core::function<void()>* callback) {
     if (intervalCount_ >= kCap) {
       return 0;
     }
@@ -60,7 +58,7 @@ class WasmHost {
     return false;
   }
 
-  u32 setGpio(u32 port, u8 pin, std::function<void()>* callback) {
+  u32 setGpio(u32 port, u8 pin, core::function<void()>* callback) {
     if (gpioCount_ >= kCap) {
       return 0;
     }
@@ -137,7 +135,7 @@ class WasmHost {
     }
   }
 
-  void registerGpioBlock(u32 blockId, u16 port, const std::vector<u8>& pins) {
+  void registerGpioBlock(u32 blockId, u16 port, const core::array<u8>& pins) {
     if (gpioBlockCount_ >= kCap) {
       return;
     }
@@ -165,7 +163,7 @@ class WasmHost {
         return valuesF32_[i].value;
       }
     }
-    return std::numeric_limits<f32>::quiet_NaN();
+    return core::quiet_nan<f32>();
   }
 
   bool hasF64(u32 blockId, u8 channel) const {
@@ -179,7 +177,7 @@ class WasmHost {
     for (const auto& value : valuesF64_) {
       if (value.used && value.blockId == blockId && value.channel == channel) return value.value;
     }
-    return std::numeric_limits<f64>::quiet_NaN();
+    return core::quiet_nan<f64>();
   }
 
   u32 activeIntervalCount() const {
@@ -230,7 +228,7 @@ class WasmHost {
   struct Interval {
     u32 id;
     u32 period;
-    std::function<void()>* callback;
+    core::function<void()>* callback;
     bool active;
   };
 
@@ -238,7 +236,7 @@ class WasmHost {
     u32 id;
     u32 port;
     u8 pin;
-    std::function<void()>* callback;
+    core::function<void()>* callback;
     bool active;
   };
 
@@ -270,7 +268,7 @@ class WasmHost {
     bool used;
   };
 
-  static void pushCallback(std::function<void()>** list, u32& count, std::function<void()>* callback) {
+  static void pushCallback(core::function<void()>** list, u32& count, core::function<void()>* callback) {
     if (count < kCap) {
       list[count++] = callback;
     }
@@ -331,11 +329,11 @@ class WasmHost {
     }
   }
 
-  std::function<void()>* start_[kCap]{};
+  core::function<void()>* start_[kCap]{};
   u32 startCount_{0};
-  std::function<void()>* close_[kCap]{};
+  core::function<void()>* close_[kCap]{};
   u32 closeCount_{0};
-  std::function<void()>* stop_[kCap]{};
+  core::function<void()>* stop_[kCap]{};
   u32 stopCount_{0};
   Interval intervals_[kCap]{};
   u32 intervalCount_{0};
@@ -359,21 +357,21 @@ WasmHost WasmHost::instanceHost{};
 
 }  // namespace
 
-void register_gpio_block(u32 blockId, u16 port, const std::vector<u8>& pins) {
+void register_gpio_block(u32 blockId, u16 port, const core::array<u8>& pins) {
   WasmHost::instance().registerGpioBlock(blockId, port, pins);
 }
 
 extern "C" {
 
-void on_close(std::function<void()>* cbk) { WasmHost::instance().onClose(cbk); }
-void on_start(std::function<void()>* cbk) { WasmHost::instance().onStart(cbk); }
-void on_stop(std::function<void()>* cbk) { WasmHost::instance().onStop(cbk); }
+void on_close(core::function<void()>* cbk) { WasmHost::instance().onClose(cbk); }
+void on_start(core::function<void()>* cbk) { WasmHost::instance().onStart(cbk); }
+void on_stop(core::function<void()>* cbk) { WasmHost::instance().onStop(cbk); }
 
-u32 set_interval(u32 milliseconds, std::function<void()>* cbk) { return WasmHost::instance().setInterval(milliseconds, cbk); }
+u32 set_interval(u32 milliseconds, core::function<void()>* cbk) { return WasmHost::instance().setInterval(milliseconds, cbk); }
 void clear_interval(u32 intervalId) { WasmHost::instance().clearInterval(intervalId); }
 
 bool read_gpio(u32 port, u8 pin) { return WasmHost::instance().readGpio(port, pin); }
-u32 set_gpio(u32 port, u8 pin, std::function<void()>* cbk) { return WasmHost::instance().setGpio(port, pin, cbk); }
+u32 set_gpio(u32 port, u8 pin, core::function<void()>* cbk) { return WasmHost::instance().setGpio(port, pin, cbk); }
 void clear_gpio(u32 gpio_id) { WasmHost::instance().clearGpio(gpio_id); }
 void send_gpio(u32 port, u8 pin, bool value) { WasmHost::instance().sendGpio(port, pin, value); }
 

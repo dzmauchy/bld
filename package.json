@@ -11,7 +11,7 @@
     "@rstest/core": "^0.12.3",
     "@types/node": "^24",
     "typescript": "^7.0.2",
-    "wrangler": "^4.147.0"
+    "wrangler": "^4.148.0"
   },
   "allowScripts": {
     "esbuild": true,

@@ -3,7 +3,7 @@ export type HostEnvCallbacks = {
   printChar?: (character: number) => void;
 };
 
-/** Browser imports for the LLVM libc sysroot. */
+/** Browser imports for the freestanding runtime and base library. */
 export class DefaultWasmBindings {
   private readonly outputDecoder = new TextDecoder();
   private outputLine = "";
@@ -12,6 +12,9 @@ export class DefaultWasmBindings {
 
   env(): WebAssembly.ModuleImports {
     return {
+      sin: Math.sin,
+      cos: Math.cos,
+      fmod: (value: number, divisor: number) => value % divisor,
       js_print_char: (character: number) => this.printChar(character),
       js_now: () => performance.now(),
       js_time: () => Date.now(),

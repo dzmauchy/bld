@@ -4,6 +4,7 @@ import { Diagram } from "../../src/model/diagram";
 import { CppDiagramBuilder } from "../../src/model/cppBuilder";
 import { PortEndpoint } from "../../src/model/endpoint";
 import { ClangAstDumper, ClangTranslationUnit } from "cpp";
+import { ClangFunctionCatalog } from "../../src/model/clangFunctionCatalog";
 
 let library: Library;
 let builder: CppDiagramBuilder;
@@ -16,10 +17,21 @@ function connect(d: Diagram, source: string, target: string) {
   d.connect(new PortEndpoint(source, "output", "channels"), new PortEndpoint(target, "input", "downstream"), "wire");
 }
 describe("release metadata and diagram AST", () => {
+  test("Clang resolves fixed-size array defaults as pin lists", async () => {
+    const files = new Map(Object.entries(library.compilationModel.getFiles()));
+    files.set("defaults.cpp", `#include <core/types.hpp>
+void Pins(u32 blockId, core::array<u8> empty = {},
+          core::array<u8> zeroed = core::array<u8>(2),
+          core::array<u8> repeated = core::array<u8>(3, u8{7})) {}`);
+    const dump = await ClangAstDumper.defaultDumper().dumpAsync(files, "defaults.cpp");
+    expect(dump.ok, dump.diagnostics).toBe(true);
+    const parameters = ClangFunctionCatalog.fromAst(dump.ast!).parametersFor("Pins");
+    expect(parameters?.map((parameter) => parameter.defaultValue)).toEqual([[], [0, 0], [7, 7, 7]]);
+  });
   test("metadata exposes both precisions without header comment parsing", () => {
     expect(library.palette.getBlocks()).toHaveLength(22);
     expect(library.palette.getBlock("ScopeF64")?.getOutput("channels")).toBeDefined();
-    expect(library.compilationModel.getFile("core/types.hpp")).toContain("std::span");
+    expect(library.compilationModel.getFile("core/types.hpp")).toContain("core::span");
     expect(library.palette.getBlock("ScopeF32")?.getOutput("channels")?.vector).toBe(true);
     expect(library.palette.getBlock("ConstF32")?.getInput("downstream")?.vector).toBe(true);
     expect(library.palette.getBlock("CosF32")?.getOutput("consumer")?.vector).toBe(false);
@@ -30,13 +42,13 @@ describe("release metadata and diagram AST", () => {
     const result = await builder.analyze(d);
     expect(result.diagnostics.filter((d) => d.severity === "error")).toEqual([]);
     expect(result.ok).toBe(true);
-    expect(result.types.require("ScopeF32_0", "output", "channels").desugaredQualType).toContain("function<std::span<std::function<void (float)> *const>");
-    expect(result.types.require("ScopeF64_0", "output", "channels").desugaredQualType).toContain("function<std::span<std::function<void (double)> *const>");
+    expect(result.types.require("ScopeF32_0", "output", "channels").desugaredQualType).toContain("function<core::span<core::function<void (float)> *const>");
+    expect(result.types.require("ScopeF64_0", "output", "channels").desugaredQualType).toContain("function<core::span<core::function<void (double)> *const>");
     for (const precision of ["F32", "F64"]) {
       expect(library.palette.getBlock(`Scope${precision}`)?.getDefaultConfig()).toEqual({ period: 60, precision: 10 });
       expect(library.palette.getBlock(`PulseGen${precision}`)?.getDefaultConfig()).toEqual({ dutyCycle: 0.5, amplitude: 1, frequency: 1, phase: 0 });
       expect(library.palette.getBlock(`GpioIn${precision}`)?.getDefaultConfig()).toEqual({ port: 0, pins: [0] });
-      expect(library.palette.getBlock(`GpioIn${precision}`)?.getConfig("pins")?.type.raw).toContain("std::vector");
+      expect(library.palette.getBlock(`GpioIn${precision}`)?.getConfig("pins")?.type.raw).toContain("core::array");
     }
   });
   test("GPIO vector configuration preserves empty, single and multiple pin lists", async () => {
@@ -47,7 +59,7 @@ describe("release metadata and diagram AST", () => {
       const result = await builder.analyze(d);
       expect(result.ok, JSON.stringify(result.diagnostics)).toBe(true);
       expect(gpio.toJSON().conf?.pins).toEqual(pins);
-      expect(builder.emitDiagram(d)).toContain(`std::vector<unsigned char>{${pins.join(", ")}}`);
+      expect(builder.emitDiagram(d)).toContain(`bld_array<unsigned char>(${pins.join(", ")})`);
     }
     gpio.setConf("pins", [0]);
     expect(gpio.toJSON().conf).toBeUndefined();
@@ -78,7 +90,7 @@ describe("release metadata and diagram AST", () => {
     const dump = await ClangAstDumper.defaultDumper().dumpAsync(builder.build(d), "diagram.cpp");
     expect(dump.ok, dump.diagnostics).toBe(true);
     const unit = ClangTranslationUnit.parse(dump.ast);
-    expect(unit.varType("input_2_downstream")?.canonical).toMatch(/^std::span</);
+    expect(unit.varType("input_2_downstream")?.canonical).toMatch(/^core::span</);
     expect(unit.varType("input_3_downstream")?.canonical).toMatch(/^BldInput</);
   });
   test("incompatible precision identifies the exact connection and endpoints", async () => {

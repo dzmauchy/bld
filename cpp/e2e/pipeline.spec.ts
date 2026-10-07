@@ -24,8 +24,8 @@ extern "C" int scale(int value) {
 }
 `;
 
-const CSTDINT_CPP = `
-#include <cstdint>
+const STDINT_CPP = `
+#include <stdint.h>
 extern "C" int32_t add32(int32_t a, int32_t b) {
   return a + b;
 }
@@ -73,11 +73,11 @@ test("compiles a header plus source map without creating new workers", async () 
 test("compiles against sysroot headers", async () => {
   const result = await page.evaluate(async (source) => {
     return window.cpp.compileAndInvoke({ "add32.cpp": source }, "add32", [40, 2]);
-  }, CSTDINT_CPP);
+  }, STDINT_CPP);
   expect(result).toBe(42);
 });
 
-test("bare wasm uses LLVM libc, initializes C++ state once, and imports browser output and clocks", async () => {
+test("bare wasm uses the freestanding runtime, initializes C++ state once, and imports browser output and clocks", async () => {
   const output: string[] = [];
   const collectOutput = (message: import("@playwright/test").ConsoleMessage) => output.push(message.text());
   page.on("console", collectOutput);
@@ -88,28 +88,26 @@ test("bare wasm uses LLVM libc, initializes C++ state once, and imports browser 
 #error Expected wasm32-unknown-unknown
 #endif
 #include <browser.hpp>
-#include <chrono>
-#include <cmath>
-#include <cstdio>
-#include <string>
-#include <vector>
+extern "C" __attribute__((import_module("env"), import_name("sin"))) double host_sin(double);
 
 int constructions = 0;
 struct Startup {
-  std::vector<int> values{40, 2};
+  int* values = new int[2]{40, 2};
   Startup() { ++constructions; }
 } startup;
 
 extern "C" int answer() {
-  static std::string label = "bare wasm π";
-  static std::vector<int> calls{0};
-  std::printf("%s\\n", label.c_str());
-  return startup.values[0] + startup.values[1] + 100 * constructions + ++calls[0];
+  static int calls = 0;
+  puts("bare wasm π");
+  int* values = new int[2]{startup.values[0], startup.values[1]};
+  int result = values[0] + values[1] + 100 * constructions + ++calls;
+  delete[] values;
+  return result;
 }
-extern "C" double sine(double value) { return std::sin(value); }
+extern "C" double sine(double value) { return host_sin(value); }
 extern "C" double monotonic() { return browser::now(); }
 extern "C" double utc() {
-  return std::chrono::duration<double, std::milli>(std::chrono::system_clock::now().time_since_epoch()).count();
+  return js_time();
 }
 `;
       // Inspect the actual module sent to the execution worker.
@@ -124,6 +122,8 @@ extern "C" double utc() {
       };
       try {
         await window.cpp.compile({ "runtime.cpp": source });
+        await window.cpp.invoke("wasm_initialize", []);
+        await window.cpp.invoke("wasm_initialize", []);
         const first = await window.cpp.invoke("answer", []);
         const second = await window.cpp.invoke("answer", []);
         const sine = await window.cpp.invoke("sine", [0.5]);
@@ -138,7 +138,7 @@ extern "C" double utc() {
       }
     });
     expect(result.imports.map(({ module, name }) => `${module}.${name}`).sort()).toEqual([
-      "env.js_now", "env.js_print_char", "env.js_time",
+      "env.js_now", "env.js_print_char", "env.js_time", "env.sin",
     ]);
     expect([result.first, result.second, result.restarted]).toEqual([143, 144, 143]);
     expect(result.sine).toBeCloseTo(Math.sin(0.5));
@@ -261,7 +261,7 @@ test("JSON AST analysis reads main-file declarations and changed headers compile
 test("links multiple nested translation units across fresh clang instances", async () => {
   const result = await page.evaluate(async () => {
     const files = {
-      "shared/value.hpp": "#pragma once\n#include <cstdint>\nconstexpr int32_t value = 40;\nint helper();",
+      "shared/value.hpp": "#pragma once\n#include <stdint.h>\nconstexpr int32_t value = 40;\nint helper();",
       "shared/helper.cpp": '#include "shared/value.hpp"\nint helper() { return value; }',
       "main.cpp": '#include "shared/value.hpp"\nextern "C" int answer() { return helper() + 2; }',
     };

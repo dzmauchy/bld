@@ -37,7 +37,7 @@ export async function instantiateWasm(
     env.sendPinF32 ? { sendPinF32: env.sendPinF32 } : {},
   );
   const instance = await WebAssembly.instantiate(module, bindings.fill(module));
-  callExport(instance, "__wasm_call_ctors");
+  callExport(instance, "wasm_initialize");
   callExport(instance, "start");
   return instance;
 }

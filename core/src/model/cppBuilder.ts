@@ -68,58 +68,65 @@ auto bld_at(Taken taken, unsigned index) {
 }
 template <typename Callable> struct BldCallable;
 template <typename Result, typename Input>
-struct BldCallable<std::function<Result(Input)>> { using InputType = Input; };
+struct BldCallable<core::function<Result(Input)>> { using InputType = Input; };
 
-// Own pointer lists while span inputs borrow them. Blocks copy these lists when wired.
-template <typename Port> class BldInput {
+// Pointer lists live through the wiring call; blocks copy them into their state.
+template <typename Port, unsigned Count, unsigned Width = 0> class BldInput {
  public:
   void connect(unsigned, Port value) { value_ = value; }
   Port view() { return value_; }
  private:
   Port value_{};
 };
-template <typename T, std::size_t Extent> class BldInput<std::span<T, Extent>> {
+template <typename T, unsigned Count, unsigned Width> class BldInput<core::span<T* const>, Count, Width> {
  public:
-  void connect(unsigned, std::remove_const_t<T> value) { values_.push_back(value); }
-  std::span<T, Extent> view() { return std::span<T, Extent>{values_}; }
+  void connect(unsigned, T* value) { values_[size_++] = value; }
+  core::span<T* const> view() { return {values_, size_}; }
  private:
-  std::vector<std::remove_const_t<T>> values_;
+  T* values_[Count ? Count : 1]{};
+  unsigned size_ = 0;
 };
-template <typename Port> class BldInput<std::vector<Port>> {
+template <typename Port, unsigned Count, unsigned Width> class BldInput<core::array<Port>, Count, Width> {
  public:
   template <typename Value> void connect(unsigned index, Value value) {
-    if (groups_.size() <= index) groups_.resize(index + 1);
     groups_[index].connect(0, value);
   }
-  std::vector<Port> view() {
-    std::vector<Port> ports;
-    for (auto& group : groups_) ports.push_back(group.view());
+  core::array<Port> view() {
+    core::array<Port> ports(Width);
+    for (unsigned i = 0; i < Width; ++i) ports[i] = groups_[i].view();
     return ports;
   }
  private:
-  std::vector<BldInput<Port>> groups_;
+  BldInput<Port, Count> groups_[Width ? Width : 1];
 };
 template <typename Input, typename Value>
 void bld_connect(Input& input, unsigned index, Value value) {
-  // Borrowed spans and scalar pointers are already connected by bld_input.
   if constexpr (requires { input.view(); }) input.connect(index, value);
 }
-template <typename Port>
-auto bld_input(Port) { return BldInput<Port>{}; }
-template <typename Port, typename Taken>
-auto bld_input(Port port, Taken taken, unsigned sourceIndex) {
-  if constexpr (requires { port = taken.subspan(sourceIndex, 1); }) {
-    return taken.subspan(sourceIndex, 1);
-  } else if constexpr (requires { port = taken; }) {
+template <unsigned Count = 0, unsigned Width = 0, typename Port>
+auto bld_input(const Port&) { return BldInput<Port, Count, Width>{}; }
+template <unsigned Count, unsigned Width, typename Port, typename Taken>
+auto bld_input(const Port&, Taken taken, unsigned sourceIndex) {
+  if constexpr (requires { Port{taken.data() + sourceIndex, 1}; }) {
+    return Port{taken.data() + sourceIndex, 1};
+  } else if constexpr (requires(Port port) { port = taken; }) {
     return taken;
   } else {
-    return bld_input(port);
+    return BldInput<Port, Count, Width>{};
   }
 }
 template <typename Input>
 auto bld_view(Input& input) {
   if constexpr (requires { input.view(); }) return input.view();
   else return input;
+}
+template <typename T, typename... Values>
+core::array<T> bld_array(Values... values) {
+  if constexpr (sizeof...(Values) == 0) return {};
+  else {
+    const T elements[]{static_cast<T>(values)...};
+    return core::array<T>{elements};
+  }
 }
 `;
 
@@ -140,8 +147,15 @@ export class CppDiagramBuilder extends DiagramSourceBuilder {
     const connections = probe ? [] : diagram.getConnections();
     const order = this.order(blocks, connections);
     const index = (id: string) => blocks.findIndex((block) => block.id === id);
+    const headers = Object.keys(this.libraryFiles).filter((name) => /\.(h|hpp|hh|hxx)$/.test(name)).sort();
     const lines = [
-      ...Object.keys(this.libraryFiles).filter((name) => /\.(h|hpp|hh|hxx)$/.test(name)).sort().map((name) => `#include <${name}>`),
+      // The pinned clang-wasm loop vectorizer stalls on the GPIO factory.
+      // Load its dependencies first so only GPIO declarations get optnone.
+      ...(headers.includes("base/gpio_in.hpp") ? [
+        '#include <core/hal.hpp>', '#pragma clang optimize off',
+        '#include <base/gpio_in.hpp>', '#pragma clang optimize on',
+      ] : []),
+      ...headers.map((name) => `#include <${name}>`),
       '#include "wasm_host.hpp"', helpers,
       ...JSON.stringify(diagram.toJSON(), null, 2).split("\n").map((line) => `// ${line}`),
       'extern "C" void mount() {',
@@ -166,14 +180,16 @@ export class CppDiagramBuilder extends DiagramSourceBuilder {
         for (const port of block.getInputPorts()) {
           const incoming = connections.filter((c) => c.to.blockId === block.id && c.to.portId === port.id);
           const input = `input_${i}_${port.id}`;
+          const width = Math.max(0, ...incoming.map((c) => c.to.vectorIndex + 1));
+          const makeInput = `bld_input<${incoming.length}, ${width}>`;
           if (incoming.length === 1) {
             const connection = incoming[0]!;
             const source = index(connection.from.blockId);
             lines.push(`#line 1 "connection_${connections.indexOf(connection)}"`,
-              `auto ${input} = bld_input(i${i}.${port.id}, taken_${source}_${connection.from.portId}, ${connection.from.vectorIndex}u);`,
+              `auto ${input} = ${makeInput}(i${i}.${port.id}, taken_${source}_${connection.from.portId}, ${connection.from.vectorIndex}u);`,
               `bld_connect(${input}, ${connection.to.vectorIndex}u, bld_at(taken_${source}_${connection.from.portId}, ${connection.from.vectorIndex}u));`);
           } else {
-            lines.push(`#line 1 "input_${i}_${port.id}"`, `auto ${input} = bld_input(i${i}.${port.id});`);
+            lines.push(`#line 1 "input_${i}_${port.id}"`, `auto ${input} = ${makeInput}(i${i}.${port.id});`);
             for (const connection of incoming) {
               const source = index(connection.from.blockId);
               lines.push(`#line 1 "connection_${connections.indexOf(connection)}"`,
@@ -184,9 +200,9 @@ export class CppDiagramBuilder extends DiagramSourceBuilder {
         }
       }
       lines.push(`#line 1 "block_${i}"`);
-      if (hasOutput && hasInput) lines.push(`auto o${i} = b${i}(std::move(i${i}));`);
+      if (hasOutput && hasInput) lines.push(`auto o${i} = b${i}(core::detail::move(i${i}));`);
       else if (hasOutput) lines.push(`auto o${i} = b${i}();`);
-      else if (hasInput) lines.push(`b${i}(std::move(i${i}));`);
+      else if (hasInput) lines.push(`b${i}(core::detail::move(i${i}));`);
       else lines.push(`b${i}();`);
       for (const port of block.getOutputPorts()) {
         const width = Math.max(1, ...connections.filter((c) => c.from.blockId === block.id && c.from.portId === port.id).map((c) => c.from.vectorIndex + 1));
@@ -366,12 +382,12 @@ export class CppDiagramBuilder extends DiagramSourceBuilder {
 
 function literal(type: string, value: unknown): string {
   if (Array.isArray(value)) {
-    if (!/\bvector\s*</.test(type)) {
+    if (!/\barray\s*</.test(type)) {
       if (value.length === 1) return literal(type, value[0]);
       throw new Error(`Invalid C++ config value ${JSON.stringify(value)}`);
     }
     const inner = type.slice(type.indexOf("<") + 1, type.lastIndexOf(">"));
-    return `${type}{${value.map((v) => literal(inner, v)).join(", ")}}`;
+    return `bld_array<${inner}>(${value.map((v) => literal(inner, v)).join(", ")})`;
   }
   if (value === undefined) return `${type}{}`;
   if (typeof value !== "number" && typeof value !== "boolean") throw new Error(`Invalid C++ config value ${String(value)}`);

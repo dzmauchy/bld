@@ -54,7 +54,7 @@ describe("DiagramCompiler C++ generation", () => {
     expect(cpp).not.toContain("start(");
     expect(cpp).toContain("3.14f");
     expect(cpp).toContain("static auto b0 = push::f_32::sinks::ScopeF32(");
-    expect(cpp).toContain("b1(std::move(i1))");
+    expect(cpp).toContain("b1(core::detail::move(i1))");
   });
 
   test("BrowserCompiler specializes the browser profile", () => {

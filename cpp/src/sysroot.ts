@@ -1,8 +1,6 @@
 import { unpackTar } from "modern-tar";
 import type { VirtualFileSystem } from "./filesystem.ts";
-import type { SysrootInstallKind } from "./messages.ts";
 
-const HEADER_NAME = /\.(h|hh|hpp|hxx|inc|def)$/;
 const LIBRARY_NAME = /\.(a|o)$/;
 
 export function tarPathToMemfs(name: string): string {
@@ -10,14 +8,11 @@ export function tarPathToMemfs(name: string): string {
   return cleaned.startsWith("/") ? cleaned : `/${cleaned}`;
 }
 
-export function shouldInstallSysrootEntry(name: string, kind: SysrootInstallKind): boolean {
-  const normalized = name.replaceAll("\\", "/");
-  if (!normalized.startsWith("sysroot/") || normalized.endsWith("/")) return false;
-  if (kind === "all") return shouldInstallSysrootEntry(name, "headers") || shouldInstallSysrootEntry(name, "libraries");
-  if (kind === "headers") {
-    return normalized.includes("/include/") || HEADER_NAME.test(normalized);
-  }
-  return normalized.startsWith("sysroot/lib/") && LIBRARY_NAME.test(normalized);
+export function shouldInstallSysrootEntry(name: string): boolean {
+  const normalized = name.replaceAll("\\", "/").replace(/^\.\/+/, "");
+  return normalized.startsWith("sysroot/") && !normalized.split("/").includes("..")
+    && !normalized.endsWith("/")
+    && (normalized.includes("/include/") || LIBRARY_NAME.test(normalized));
 }
 
 export class SysrootInstaller {
@@ -25,49 +20,23 @@ export class SysrootInstaller {
 
   async install(
     archive: ArrayBuffer | Uint8Array | ReadableStream<Uint8Array>,
-    kind: SysrootInstallKind,
     compressed = true,
-  ): Promise<{ files: number; resourceDir: string; entries: { path: string; data: Uint8Array }[] }> {
-    const source = compressed ? await inflateGzip(archive) : await readBytes(archive);
+  ): Promise<number> {
+    const input = asByteStream(archive);
+    const gzip = new DecompressionStream("gzip") as unknown as ReadableWritablePair<Uint8Array, Uint8Array>;
+    const source = compressed ? input.pipeThrough(gzip) : input;
     const unpacked = await unpackTar(source, {
-      filter: (header) => header.type !== "directory" && shouldInstallSysrootEntry(header.name, kind),
+      filter: (header) => header.type !== "directory" && shouldInstallSysrootEntry(header.name),
     });
     let files = 0;
-    const entries: { path: string; data: Uint8Array }[] = [];
     for (const entry of unpacked) {
       if (!entry.data) continue;
       const path = tarPathToMemfs(entry.header.name);
-      const data = new Uint8Array(entry.data.byteLength);
-      data.set(entry.data);
-      this.fs.writeTree(path, data);
-      entries.push({ path, data });
+      this.fs.writeTree(path, entry.data);
       files += 1;
     }
-    return { files, resourceDir: this.detectResourceDir(), entries };
+    return files;
   }
-
-  detectResourceDir(): string {
-    const base = "/sysroot/lib/clang";
-    if (!this.fs.exists(base) || !this.fs.isDirectory(base)) return base;
-    const versions = this.fs.list(base).filter((name) => name !== "." && name !== "..");
-    const version = versions[0];
-    return version ? `${base}/${version}` : base;
-  }
-}
-
-async function inflateGzip(
-  archive: ArrayBuffer | Uint8Array | ReadableStream<Uint8Array>,
-): Promise<Uint8Array> {
-  const input = asByteStream(archive);
-  const decompressor = new DecompressionStream("gzip") as unknown as ReadableWritablePair<Uint8Array, Uint8Array>;
-  return new Uint8Array(await new Response(input.pipeThrough(decompressor)).arrayBuffer());
-}
-
-async function readBytes(
-  archive: ArrayBuffer | Uint8Array | ReadableStream<Uint8Array>,
-): Promise<Uint8Array> {
-  if (archive instanceof ReadableStream) return new Uint8Array(await new Response(archive).arrayBuffer());
-  return copyBytes(archive);
 }
 
 function asByteStream(

@@ -41,6 +41,7 @@ describe("shared clang/lld storage", () => {
         const name = `lib${library.slice(2)}.a`;
         expect(searchPaths.some((path) => fs.exists(`${path}/${name}`)), `linker must find ${name}`).toBe(true);
       }
+      expect(fs.exists("/sysroot/lib/clang/23/lib/wasi/libclang_rt.builtins-wasm32.a")).toBe(true);
       for (const path of ["/work/build/main.o", "/work/build/other.o"]) {
         const stream = fs.open(path, 0);
         const bytes = new Uint8Array(1);
@@ -58,14 +59,10 @@ describe("shared clang/lld storage", () => {
     );
     const tar = await packTar([
       { header: { name: "sysroot/include/test.h", size: 5 }, body: "hello" },
-      { header: { name: "sysroot/lib/clang/24/include/stddef.h", size: 5 }, body: "hello" },
+      { header: { name: "sysroot/lib/clang/23/include/stddef.h", size: 5 }, body: "hello" },
       ...[
         "sysroot/lib/libbrowser.a",
-        "sysroot/lib/libc++.a",
-        "sysroot/lib/libc++abi.a",
-        "sysroot/lib/wasm32-unknown-unknown/libc.a",
-        "sysroot/lib/wasm32-unknown-unknown/libm.a",
-        "sysroot/lib/clang/24/lib/wasi/libclang_rt.builtins-wasm32.a",
+        "sysroot/lib/clang/23/lib/wasi/libclang_rt.builtins-wasm32.a",
       ].map((name) => ({ header: { name, size: 3 }, body: "lib" })),
     ]);
     const gzip = await new Response(new Blob([tar]).stream().pipeThrough(new CompressionStream("gzip"))).arrayBuffer();
@@ -84,7 +81,7 @@ describe("shared clang/lld storage", () => {
       await compiler.compile(sources);
       expect(fetches).toBe(1);
       expect(files.writeCount("/sysroot/include/test.h")).toBe(1);
-      expect(files.writeCount("/sysroot/lib/wasm32-unknown-unknown/libc.a")).toBe(1);
+      expect(files.writeCount("/sysroot/lib/clang/23/lib/wasi/libclang_rt.builtins-wasm32.a")).toBe(1);
       expect(files.copiedObjects).toBe(0);
       expect(clangFactory.boots).toBe(2);
       expect(linkerFactory.boots).toBe(2);

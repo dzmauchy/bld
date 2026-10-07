@@ -15,7 +15,8 @@ export async function isCurrentBaseRelease(bytes) {
     return Array.isArray(parsed.blocks) && Array.isArray(parsed.namespaces)
       && parsed.blocks.every((block) => Array.isArray(block.parameters))
       && entries.some((entry) => entry.header.name.replace(/^\.\//, "") === "base/f32_blocks.hpp"
-        && /std::function<[^;]*\bScopeF32\(/.test(new TextDecoder().decode(entry.data)));
+        && /core::function<[^;]*\bScopeF32\(/.test(new TextDecoder().decode(entry.data)))
+      && entries.some((entry) => entry.header.name.replace(/^\.\//, "") === "core/lib.hpp");
   } catch { return false; }
 }
 async function fetchBaseRelease() {

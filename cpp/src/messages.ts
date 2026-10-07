@@ -1,10 +1,7 @@
-export type SysrootInstallKind = "headers" | "libraries" | "all";
-
 export type WorkerOk = {
   id: number;
   type: "ok";
   files?: Record<string, Uint8Array>;
-  resourceDir?: string;
   result?: number;
   stdout?: string;
   stderr?: string;

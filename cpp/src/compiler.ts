@@ -2,6 +2,7 @@ import { ClangFrontend } from "./clang.ts";
 import { WasmLinker } from "./linker.ts";
 import { RpcClient } from "./rpc.ts";
 import type { Thread } from "./thread.ts";
+import { SysrootInstaller } from "./sysroot.ts";
 
 /** Compiles C++ sources to wasm. Callers pass files; the compiler does not know the diagram model. */
 export interface ICppCompiler {
@@ -41,8 +42,7 @@ export class CppWasmCompiler implements ICppCompiler {
       if (boot.status === "rejected") throw boot.reason;
     }
     const archive = await this.fetchSysroot();
-    const resourceDir = await this.clang.installSysroot(archive, "all");
-    this.linker.useResourceDir(resourceDir);
+    await new SysrootInstaller(this.clang.sharedFileSystem).install(archive);
   }
 
   async compile(files: Map<string, string>): Promise<Uint8Array> {

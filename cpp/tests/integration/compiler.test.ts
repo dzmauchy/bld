@@ -73,7 +73,7 @@ describe("combined JSON and object compilation", () => {
       ["nested/other.cpp", '#include "value.hpp"\nint other() { return value + 1; }'],
     ]);
     const objects = await clang.compile(files);
-    expect(factory.runs).toEqual([["-dump", "--output-dir", "/work/build", "/work/main.cpp", "/work/nested/other.cpp"]]);
+    expect(factory.runs).toEqual([["-o", "/work/build", "/work/main.cpp", "/work/nested/other.cpp"]]);
     expect(objects.map((object) => object.ast)).toEqual([{ kind: "TranslationUnitDecl" }, { kind: "TranslationUnitDecl" }]);
     expect((await clang.dumpAst(files, "main.cpp")).ok).toBe(true);
     expect(factory.runs).toHaveLength(1);

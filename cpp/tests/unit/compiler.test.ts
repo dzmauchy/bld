@@ -62,7 +62,7 @@ describe("CppWasmCompiler", () => {
     expect(wasm).toEqual(wasmBytes);
     expect(clang.runs).toHaveLength(1);
     expect(clang.runs[0]).toContain("/work/add.cpp");
-    expect(clang.runs[0]).toContain("-dump");
+    expect(clang.runs[0]).toContain("-o");
     expect(lld.runs).toHaveLength(1);
     expect(lld.runs[0]).toContain("/work/build/add.o");
     expect(files.exists("/work/build/add.o")).toBe(true);
@@ -82,7 +82,7 @@ describe("CppWasmCompiler", () => {
     const source = '/*{"blocks":{},"connections":{}}*/\nextern "C" void mount() {}';
     const json = await compiler.dumpAst(new Map([["demo.cpp", source]]), "demo.cpp");
     expect(json.ok).toBe(true);
-    expect(clang.runs.at(-1)).toContain("-dump");
+    expect(clang.runs.at(-1)).toContain("-o");
     expect(json.ast).toMatchObject({ kind: "TranslationUnitDecl" });
     expect(new TextDecoder().decode(files.readFile("/work/demo.cpp"))).toContain('"blocks"');
   });

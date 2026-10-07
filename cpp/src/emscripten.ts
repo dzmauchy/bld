@@ -1,7 +1,5 @@
 import { formatUnknownError, exitStatus, isAbortError } from "./errors.ts";
 import { EmscriptenFileSystem, type EmscriptenFsApi } from "./filesystem.ts";
-import type { SysrootInstallKind } from "./messages.ts";
-import { SysrootInstaller } from "./sysroot.ts";
 import { SharedToolchainFileSystem } from "./sharedFileSystem.ts";
 
 export type EmscriptenModuleOptions = {
@@ -77,12 +75,6 @@ export abstract class EmscriptenTool {
     }
   }
 
-  async installSysroot(archive: ArrayBuffer, kind: SysrootInstallKind): Promise<string> {
-    const installed = await new SysrootInstaller(this.sharedFiles).install(archive, kind, true);
-    this.useResourceDir(installed.resourceDir);
-    return installed.resourceDir;
-  }
-
   async recycle(): Promise<void> {
     // Instantiate only when the next invocation needs it. The shared owner
     // retains files, never a disposable tool runtime or its Wasm heap.
@@ -100,10 +92,6 @@ export abstract class EmscriptenTool {
 
   readCopy(path: string): Uint8Array {
     return this.sharedFiles.readFile(path);
-  }
-
-  useResourceDir(resourceDir: string): void {
-    this.onSysrootInstalled(resourceDir);
   }
 
   async runMainAsync(args: string[]): Promise<void> {
@@ -131,8 +119,6 @@ export abstract class EmscriptenTool {
       stderr: this.stderr.join("\n"),
     };
   }
-
-  protected onSysrootInstalled(_resourceDir: string): void {}
 
   protected async runJob<T>(job: () => Promise<T>): Promise<T> {
     try {

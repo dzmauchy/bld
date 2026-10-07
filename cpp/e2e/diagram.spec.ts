@@ -482,7 +482,7 @@ test("browser AST reports incompatible ports with endpoint IDs", async ({ cpp })
   expect(result.diagnostics.find((d) => d.severity === "error")).toMatchObject({ blockId: "constant", inputId: "downstream", outputId: "channels", connectionId: "incompatible" });
 });
 
-test("diagram AST analysis reads main-file declarations without precompiled headers", async ({ cpp }) => {
+test("diagram AST analysis reads main-file declarations with lazy precompiled headers", async ({ cpp }) => {
   const diagram = new Diagram("compact_ast", "Compact AST", palette);
   diagram.addBlock("ScopeF32", { x: 0, y: 0 }, "scope");
   diagram.addBlock("ConstF32", { x: 1, y: 0 }, "constant");
