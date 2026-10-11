@@ -64,9 +64,19 @@ test("drags a palette block, arms another with a fade blink, and inserts it on a
   await expect(stamped).toHaveCount(2);
 });
 
-test("routes a connector around a block with the avoid router", async ({ page }) => {
+test("routes a connector around a block without deprecated Wasm exceptions", async ({ page }) => {
+  const routerAsset = page.waitForResponse("**/libavoid.wasm");
   await page.goto("/");
   await expect(page.locator("[data-splash]")).toBeHidden();
+  const { default: binaryen } = await import("binaryen");
+  const module = binaryen.readBinary(await (await routerAsset).body());
+  try {
+    const text = module.emitText();
+    expect(/\(try_table\b/.test(text)).toBe(true);
+    expect(text.match(/^\s*\((?:try|catch|catch_all|rethrow|delegate)\b/gm) ?? []).toEqual([]);
+  } finally {
+    module.dispose();
+  }
   const palette = page.locator("[data-region=palette]");
   const canvas = page.locator("[data-diagram-canvas]");
   const canvasBox = await canvas.boundingBox();
