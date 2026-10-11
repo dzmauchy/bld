@@ -32,6 +32,8 @@ export function DiagramCanvas(props: { editor: DiagramEditor; board: ScopeCaptur
       <div
         class={`diagram-canvas${props.editor.armedId() ? " is-armed" : ""}${props.editor.receiving() ? " is-receiving" : ""}`}
         data-diagram-canvas
+        tabindex={0}
+        aria-label="Diagram canvas"
         data-armed={props.editor.armedId() ?? ""}
         ref={(element) => props.editor.attachCanvas(element)}
         onPointerDown={(event) => props.editor.canvasPointerDown(event)}
@@ -45,13 +47,17 @@ export function DiagramCanvas(props: { editor: DiagramEditor; board: ScopeCaptur
           </defs>
           <For each={props.editor.routes()} keyed={(route) => route.connectionId}>
             {(route) => (
-              <polyline
-                class="diagram-wire"
-                data-connection={route().connectionId}
-                data-route-origin={route().origin}
-                points={route().pointsAttribute}
-                marker-end="url(#diagram-wire-arrow)"
-              />
+              <g data-wire-id={route().connectionId}>
+                <polyline class="diagram-wire-hit" points={route().pointsAttribute} />
+                <polyline
+                  class={`diagram-wire${props.editor.selection().hasConnection(route().connectionId) ? " is-selected" : ""}`}
+                  data-connection={route().connectionId}
+                  data-selected={props.editor.selection().hasConnection(route().connectionId) ? "true" : "false"}
+                  data-route-origin={route().origin}
+                  points={route().pointsAttribute}
+                  marker-end="url(#diagram-wire-arrow)"
+                />
+              </g>
             )}
           </For>
           <Show when={props.editor.draft()}>
@@ -61,9 +67,10 @@ export function DiagramCanvas(props: { editor: DiagramEditor; board: ScopeCaptur
         <For each={props.editor.placed()} keyed={(block) => block.id}>
           {(block) => (
             <article
-              class={`diagram-block ${BlockAccent.forCategory(block().category).className}${props.editor.movingId() === block().id ? " is-moving" : ""}`}
+              class={`diagram-block ${BlockAccent.forCategory(block().category).className}${props.editor.movingId() === block().id ? " is-moving" : ""}${props.editor.selection().hasBlock(block().id) ? " is-selected" : ""}`}
               data-diagram-block={block().id}
               data-block-ref={block().ref}
+              data-selected={props.editor.selection().hasBlock(block().id) ? "true" : "false"}
               data-inspected={props.editor.inspectedId() === block().id ? "true" : "false"}
               style={{
                 left: `${block().x}px`,

@@ -9,6 +9,7 @@ import { BlockMoveGesture, PaletteDragGesture, PointerGesture, PortWireGesture, 
 import { PaletteArm } from "./paletteArm.js";
 import { ScopeBlock } from "../scope/scopeBlock.js";
 import { WireRoute } from "./wireRoute.js";
+import { DiagramSelection } from "./diagramSelection.js";
 
 /** Canvas session: palette drag, click-to-insert, block moves, and connector drags. */
 export class DiagramEditor implements DiagramGestureHost {
@@ -16,6 +17,9 @@ export class DiagramEditor implements DiagramGestureHost {
   private readonly arm = new PaletteArm();
   private canvas: HTMLElement | undefined;
   private gesture: PointerGesture | undefined;
+
+  readonly selection: Accessor<DiagramSelection>;
+  private readonly setSelection: (selection: DiagramSelection) => void;
 
   readonly placed: Accessor<readonly PlacedBlock[]>;
   private readonly setPlaced: (blocks: readonly PlacedBlock[]) => void;
@@ -45,8 +49,12 @@ export class DiagramEditor implements DiagramGestureHost {
   constructor(
     private readonly diagram: Diagram,
     router?: WireRouter,
+    private readonly onDelete?: () => void,
   ) {
     this.connector = new DiagramConnector(diagram);
+    const selection = createSignal(DiagramSelection.empty());
+    this.selection = selection[0];
+    this.setSelection = selection[1];
     const placed = createSignal<readonly PlacedBlock[]>([]);
     this.placed = placed[0];
     this.setPlaced = placed[1];
@@ -103,11 +111,20 @@ export class DiagramEditor implements DiagramGestureHost {
 
   palettePointerDown(definition: BlockDefinition, event: PointerEvent): void {
     if (event.button !== 0 || this.gesture) return;
+    this.clearSelection();
     this.begin(new PaletteDragGesture(this, definition, event));
   }
 
   canvasPointerDown(event: PointerEvent): void {
     if (event.button !== 0 || this.gesture) return;
+    this.canvas?.focus({ preventScroll: true });
+    const wire = event.target instanceof Element ? event.target.closest("[data-wire-id]") : undefined;
+    const connectionId = wire?.getAttribute("data-wire-id");
+    if (connectionId) {
+      event.preventDefault();
+      this.selectConnection(connectionId, event.shiftKey || event.ctrlKey || event.metaKey);
+      return;
+    }
     const port = PortHit.fromTarget(event.target);
     if (port) {
       event.preventDefault();
@@ -122,6 +139,7 @@ export class DiagramEditor implements DiagramGestureHost {
     }
     if (PortHit.isBackground(event.target)) {
       event.preventDefault();
+      this.clearSelection();
       this.begin(new StampGesture(this, event));
     }
   }
@@ -172,10 +190,70 @@ export class DiagramEditor implements DiagramGestureHost {
     this.setMovingId(blockId);
   }
 
-  selectBlock(blockId: string): void {
+  selectBlock(blockId: string, additive = false): void {
     const block = this.diagram.getBlock(blockId);
-    if (!block || !ScopeBlock.isScope(block)) return;
-    this.setInspectedId(blockId);
+    if (!block) return;
+    this.disarmPalette();
+    this.setSelection(this.selection().selectBlock(blockId, additive));
+    if (ScopeBlock.isScope(block)) this.setInspectedId(blockId);
+  }
+
+  selectConnection(connectionId: string, additive = false): void {
+    if (!this.diagram.getConnection(connectionId)) return;
+    this.disarmPalette();
+    this.setSelection(this.selection().selectConnection(connectionId, additive));
+  }
+
+  clearSelection(): void {
+    this.setSelection(DiagramSelection.empty());
+  }
+
+  deleteSelected(): void {
+    const selection = this.selection();
+    if (selection.size === 0) return;
+    this.onDelete?.();
+    this.clearGesture();
+    this.setMoving(undefined);
+    this.setDraft(undefined);
+    this.showGhost(undefined);
+    this.setReceiving(false);
+    const connections = new Set(selection.connections());
+    for (const connection of this.diagram.getConnections()) {
+      if (selection.hasBlock(connection.from.blockId) || selection.hasBlock(connection.to.blockId)) connections.add(connection.id);
+    }
+    for (const id of connections) {
+      this.diagram.disconnect(id);
+      this.router.removeLink(id);
+      this.routeMap.delete(id);
+    }
+    for (const id of selection.blocks()) {
+      this.diagram.removeBlock(id);
+      this.router.removeBlock(id);
+      if (this.inspectedId() === id) this.closeInspection();
+      if (this.configuredId() === id) this.closeConfiguration();
+    }
+    this.clearSelection();
+    for (const block of this.diagram.getBlocks()) this.router.upsertBlock(block);
+    this.setRoutes([...this.routeMap.values()]);
+    this.publishPlaced();
+  }
+
+  keyDown(event: KeyboardEvent): void {
+    if (event.defaultPrevented || this.configuredId()) return;
+    if (event.composedPath().some((target) => target instanceof HTMLElement
+      && (target.isContentEditable || target.matches("input, textarea, select, [role=textbox]")))) return;
+    if (event.key === "Escape") {
+      this.clearSelection();
+      this.disarmPalette();
+    } else if ((event.key === "Delete" || event.key === "Backspace") && this.selection().size > 0) {
+      event.preventDefault();
+      this.deleteSelected();
+    }
+  }
+
+  private disarmPalette(): void {
+    this.arm.clear();
+    this.setArmedId(undefined);
   }
 
   closeInspection(): void {
@@ -240,6 +318,7 @@ export class DiagramEditor implements DiagramGestureHost {
   }
 
   private acceptRoute(route: WireRoute): void {
+    if (!this.diagram.getConnection(route.connectionId)) return;
     this.routeMap.set(route.connectionId, route);
     this.setRoutes([...this.routeMap.values()]);
   }

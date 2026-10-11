@@ -13,6 +13,10 @@ export class PaletteArm {
     return this.current;
   }
 
+  clear(): void {
+    this.current = undefined;
+  }
+
   isArmed(id: string): boolean {
     return this.current?.id === id;
   }

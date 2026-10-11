@@ -50,6 +50,25 @@ export class MaxGraphWireRouter extends WireRouter {
     this.touch();
   }
 
+  override removeLink(connectionId: string): void {
+    this.connections.delete(connectionId);
+    const cell = this.edgeCells.get(connectionId);
+    if (cell) this.graph?.removeCells([cell], false);
+    this.edgeCells.delete(connectionId);
+    this.touch();
+  }
+
+  override removeBlock(blockId: string): void {
+    for (const connection of this.connections.values()) {
+      if (connection.connectsBlock(blockId)) this.removeLink(connection.id);
+    }
+    this.models.delete(blockId);
+    const cell = this.blockCells.get(blockId);
+    if (cell) this.graph?.removeCells([cell], false);
+    this.blockCells.delete(blockId);
+    this.touch();
+  }
+
   override destroy(): void {
     this.destroyed = true;
     this.graph?.destroy();

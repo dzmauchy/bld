@@ -14,7 +14,7 @@ export interface DiagramGestureHost {
   moveBlock(blockId: string, x: number, y: number): void;
   blockOrigin(blockId: string): WirePoint | undefined;
   setMoving(blockId: string | undefined): void;
-  selectBlock(blockId: string): void;
+  selectBlock(blockId: string, additive?: boolean): void;
   connect(from: PortHit, to: PortHit): void;
   setDraft(points: readonly WirePoint[] | undefined): void;
   anchor(blockId: string, side: "input" | "output", portId: string): WirePoint | undefined;
@@ -93,9 +93,9 @@ export class BlockMoveGesture extends PointerGesture {
     this.host.moveBlock(this.blockId, this.origin.x + event.clientX - this.pointerX, this.origin.y + event.clientY - this.pointerY);
   }
 
-  override finish(): void {
+  override finish(event?: PointerEvent): void {
     this.host.setMoving(undefined);
-    if (!this.dragged) this.host.selectBlock(this.blockId);
+    if (!this.dragged) this.host.selectBlock(this.blockId, Boolean(event?.shiftKey || event?.ctrlKey || event?.metaKey));
   }
 }
 

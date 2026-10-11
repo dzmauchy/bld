@@ -15,9 +15,11 @@ interface SplitPanelElement extends HTMLElement {
 
 export function Workspace(props: { libraries: readonly Library[] }) {
   const diagram = new Diagram("diagram", "Diagram", combinedPalette(props.libraries));
-  const editor = new DiagramEditor(diagram);
   const board = new ScopeCaptureBoard();
   const runner = BrowserDiagramRunner.create(diagram, props.libraries, board);
+  const editor = new DiagramEditor(diagram, undefined, () => {
+    if (runner.phase() !== "idle") void runner.stop();
+  });
   editor.start();
   onCleanup(() => {
     editor.destroy();
@@ -25,8 +27,8 @@ export function Workspace(props: { libraries: readonly Library[] }) {
   });
 
   return (
-    <div class="workspace-shell">
-      <WorkspaceToolbar runner={runner} />
+    <div class="workspace-shell" onKeyDown={(event) => editor.keyDown(event)}>
+      <WorkspaceToolbar runner={runner} editor={editor} />
       <wa-split-panel class="workspace" ref={bindSplitPanel}>
         <PalettePanel
           libraries={props.libraries}

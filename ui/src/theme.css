@@ -78,7 +78,8 @@ wa-split-panel::part(panel) {
   border-bottom: 1px solid #2b2b2b;
 }
 
-.toolbar-run {
+.toolbar-run,
+.toolbar-delete {
   appearance: none;
   border: 1px solid #3d5f99;
   background: #163056;
@@ -90,6 +91,16 @@ wa-split-panel::part(panel) {
   font-size: 13px;
   font-weight: 600;
   cursor: pointer;
+}
+
+.toolbar-delete {
+  background: #24282e;
+  border-color: #515965;
+}
+
+.toolbar-delete:disabled {
+  opacity: 0.4;
+  cursor: default;
 }
 
 .toolbar-run[data-run-state="running"],
@@ -493,6 +504,24 @@ wa-split-panel::part(panel) {
 .diagram-wire.is-draft {
   stroke: #c5c5c5;
   stroke-dasharray: 5 4;
+}
+
+.diagram-wire-hit {
+  fill: none;
+  stroke: transparent;
+  stroke-width: 14;
+  pointer-events: stroke;
+  cursor: pointer;
+}
+
+@keyframes diagram-selection-pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.3; }
+}
+
+.diagram-block.is-selected,
+.diagram-wire.is-selected {
+  animation: diagram-selection-pulse 1.2s ease-in-out infinite;
 }
 
 #diagram-wire-arrow {
