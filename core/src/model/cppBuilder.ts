@@ -116,10 +116,14 @@ export class CppDiagramBuilder extends DiagramSourceBuilder {
       }
       lines.push(`#line 1 "block_${i}"`, `static auto o${i} = core::bind_block(b${i}, core::detail::move(i${i}));`);
       for (const port of block.getOutputPorts()) {
-        const width = Math.max(port.vector ? 0 : 1,
-          ...connections.filter((c) => c.from.blockId === block.id && c.from.portId === port.id).map((c) => c.from.vectorIndex + 1));
+        const outgoing = connections.filter((c) => c.from.blockId === block.id && c.from.portId === port.id);
+        const width = Math.max(port.vector ? 0 : 1, ...outgoing.map((c) => c.from.vectorIndex + 1));
         lines.push(`#line 1 "output_${i}_${port.id}"`, `auto port_${i}_output_${port.id} = o${i}.${port.id};`,
           `static auto taken_${i}_${port.id} = core::output_channels<${port.vector}, ${width}>(port_${i}_output_${port.id});`);
+        // An open transformer input is zero, so a downstream sum can still emit.
+        if (!port.vector && outgoing.length === 0) {
+          lines.push(`if (auto *open_${i}_${port.id} = taken_${i}_${port.id}.at(0)) (*open_${i}_${port.id})(0);`);
+        }
       }
     }
     lines.push("}", "");

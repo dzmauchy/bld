@@ -1,5 +1,4 @@
-import type { BlockDefinition } from "core";
-import type { DiagramBlock } from "core";
+import type { BlockDefinition, Connection, DiagramBlock } from "core";
 import { WirePoint } from "./geometry.js";
 
 interface PortSpec {
@@ -7,7 +6,62 @@ interface PortSpec {
   vector: boolean;
 }
 
-/** One connector on a placed block. */
+/** Channels already wired to one port, in ascending vector-index order. */
+class ChannelFan {
+  readonly indexes: readonly number[];
+
+  constructor(
+    readonly vector: boolean,
+    indexes: readonly number[],
+  ) {
+    this.indexes = [...new Set(indexes)].sort((left, right) => left - right);
+  }
+
+  /** A vector port keeps one lane before anything is connected, then one per channel. */
+  get lanes(): number {
+    return this.vector ? Math.max(1, this.indexes.length) : 1;
+  }
+
+  /** Vertical size of the port mark. Scalar ports keep the fixed hit target. */
+  get span(): number {
+    return this.vector ? this.lanes * DiagramBlockFrame.lanePitch : 0;
+  }
+}
+
+/** Incoming and outgoing channel indexes for every port on one block. */
+class ChannelLayout {
+  private constructor(
+    private readonly incoming: ReadonlyMap<string, readonly number[]>,
+    private readonly outgoing: ReadonlyMap<string, readonly number[]>,
+  ) {}
+
+  static empty(): ChannelLayout {
+    return new ChannelLayout(new Map(), new Map());
+  }
+
+  static forBlock(blockId: string, connections: readonly Connection[]): ChannelLayout {
+    const incoming = new Map<string, number[]>();
+    const outgoing = new Map<string, number[]>();
+    for (const connection of connections) {
+      if (connection.to.blockId === blockId) ChannelLayout.collect(incoming, connection.to.portId, connection.to.vectorIndex);
+      if (connection.from.blockId === blockId) ChannelLayout.collect(outgoing, connection.from.portId, connection.from.vectorIndex);
+    }
+    return new ChannelLayout(incoming, outgoing);
+  }
+
+  fan(side: "input" | "output", spec: PortSpec): ChannelFan {
+    const table = side === "input" ? this.incoming : this.outgoing;
+    return new ChannelFan(spec.vector, table.get(spec.id) ?? []);
+  }
+
+  private static collect(table: Map<string, number[]>, portId: string, index: number): void {
+    const indexes = table.get(portId) ?? [];
+    indexes.push(index);
+    table.set(portId, indexes);
+  }
+}
+
+/** One connector on a placed block. Vector ports stack one lane per connection. */
 export class FramePort {
   constructor(
     readonly id: string,
@@ -15,18 +69,53 @@ export class FramePort {
     readonly x: number,
     readonly y: number,
     readonly vector: boolean,
+    readonly lanes: number,
+    private readonly channelIndexes: readonly number[],
   ) {}
+
+  /** Height of the port mark. Scalar ports use the stylesheet hit target. */
+  get span(): number {
+    return this.vector ? this.lanes * DiagramBlockFrame.lanePitch : 0;
+  }
+
+  /**
+   * Canvas Y of one channel.
+   * Omitting the index returns the port center, which is where a new wire starts.
+   */
+  anchorY(vectorIndex?: number): number {
+    if (!this.vector || vectorIndex === undefined || this.lanes <= 1) return this.y;
+    const slot = this.slot(vectorIndex);
+    return this.y + (slot - (this.lanes - 1) / 2) * DiagramBlockFrame.lanePitch;
+  }
+
+  /** Pin centers measured from the top of the port mark. */
+  pins(): { index: number; top: number }[] {
+    if (!this.vector) return [];
+    const indexes = this.channelIndexes.length > 0 ? this.channelIndexes : [0];
+    return indexes.map((index, slot) => ({
+      index,
+      top: this.span / 2 + (slot - (this.lanes - 1) / 2) * DiagramBlockFrame.lanePitch,
+    }));
+  }
+
+  private slot(vectorIndex: number): number {
+    const found = this.channelIndexes.indexOf(vectorIndex);
+    return found >= 0 ? found : 0;
+  }
 }
 
 /**
  * Size and port anchors for a diagram block.
- * Each side is distributed across the full element height at
- * `(index + 0.5) / count`.
+ * Distinct ports share the block height. A multiplexed port grows its own
+ * lanes as connections are added, and the block grows once those lanes no
+ * longer fit.
  */
 export class DiagramBlockFrame {
   static readonly width = 156;
   static readonly minHeight = 72;
   static readonly portPitch = 28;
+  static readonly lanePitch = 18;
+  static readonly lanePadding = 20;
 
   private constructor(
     readonly width: number,
@@ -34,10 +123,11 @@ export class DiagramBlockFrame {
     readonly ports: readonly FramePort[],
   ) {}
 
-  static of(block: DiagramBlock): DiagramBlockFrame {
+  static of(block: DiagramBlock, connections: readonly Connection[] = []): DiagramBlockFrame {
     return DiagramBlockFrame.create(
       block.getInputPorts().map((port) => ({ id: port.id, vector: port.vector })),
       block.getOutputPorts().map((port) => ({ id: port.id, vector: port.vector })),
+      ChannelLayout.forBlock(block.id, connections),
     );
   }
 
@@ -45,6 +135,7 @@ export class DiagramBlockFrame {
     return DiagramBlockFrame.create(
       [...definition.inputs.values()].map((port) => ({ id: port.id, vector: port.vector })),
       [...definition.outputs.values()].map((port) => ({ id: port.id, vector: port.vector })),
+      ChannelLayout.empty(),
     );
   }
 
@@ -52,6 +143,7 @@ export class DiagramBlockFrame {
     return DiagramBlockFrame.create(
       inputs.map((id) => ({ id, vector: false })),
       outputs.map((id) => ({ id, vector: false })),
+      ChannelLayout.empty(),
     );
   }
 
@@ -59,21 +151,29 @@ export class DiagramBlockFrame {
     return this.ports.find((port) => port.side === side && port.id === portId);
   }
 
-  private static create(inputs: readonly PortSpec[], outputs: readonly PortSpec[]): DiagramBlockFrame {
+  private static create(inputs: readonly PortSpec[], outputs: readonly PortSpec[], layout: ChannelLayout): DiagramBlockFrame {
+    const inputFans = inputs.map((spec) => layout.fan("input", spec));
+    const outputFans = outputs.map((spec) => layout.fan("output", spec));
+    const tallest = Math.max(0, ...inputFans.map((fan) => fan.span), ...outputFans.map((fan) => fan.span));
     const count = Math.max(inputs.length, outputs.length, 1);
-    const height = Math.max(DiagramBlockFrame.minHeight, count * DiagramBlockFrame.portPitch);
+    const height = Math.max(
+      DiagramBlockFrame.minHeight,
+      count * DiagramBlockFrame.portPitch,
+      tallest + DiagramBlockFrame.lanePadding,
+    );
     const ports = [
-      ...DiagramBlockFrame.along("input", inputs, height),
-      ...DiagramBlockFrame.along("output", outputs, height),
+      ...DiagramBlockFrame.along("input", inputs, inputFans, height),
+      ...DiagramBlockFrame.along("output", outputs, outputFans, height),
     ];
     return new DiagramBlockFrame(DiagramBlockFrame.width, height, ports);
   }
 
-  private static along(side: "input" | "output", specs: readonly PortSpec[], height: number): FramePort[] {
+  private static along(side: "input" | "output", specs: readonly PortSpec[], fans: readonly ChannelFan[], height: number): FramePort[] {
     const x = side === "input" ? 0 : DiagramBlockFrame.width;
     return specs.map((spec, index) => {
+      const fan = fans[index] ?? new ChannelFan(spec.vector, []);
       const y = Math.round((height * (index + 0.5)) / specs.length);
-      return new FramePort(spec.id, side, x, y, spec.vector);
+      return new FramePort(spec.id, side, x, y, spec.vector, fan.lanes, fan.indexes);
     });
   }
 }
@@ -91,7 +191,7 @@ export class PlacedBlock {
     readonly frame: DiagramBlockFrame,
   ) {}
 
-  static from(block: DiagramBlock): PlacedBlock {
+  static from(block: DiagramBlock, connections: readonly Connection[] = []): PlacedBlock {
     return new PlacedBlock(
       block.id,
       block.ref,
@@ -100,13 +200,13 @@ export class PlacedBlock {
       block.definition.category,
       block.x,
       block.y,
-      DiagramBlockFrame.of(block),
+      DiagramBlockFrame.of(block, connections),
     );
   }
 
-  anchor(side: "input" | "output", portId: string): WirePoint | undefined {
+  anchor(side: "input" | "output", portId: string, vectorIndex?: number): WirePoint | undefined {
     const port = this.frame.port(side, portId);
     if (!port) return undefined;
-    return new WirePoint(this.x + port.x, this.y + port.y);
+    return new WirePoint(this.x + port.x, this.y + port.anchorY(vectorIndex));
   }
 }

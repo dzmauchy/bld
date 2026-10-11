@@ -1,7 +1,7 @@
 import { expect, test } from "@rstest/core";
 import { Diagram, Library, type BlockDefinition, type PackageManifest } from "core";
 import { CanvasPoint, OrthogonalRoute, PointerTravel, WirePoint } from "../../src/view/diagram/geometry.js";
-import { DiagramBlockFrame } from "../../src/view/diagram/diagramBlockFrame.js";
+import { DiagramBlockFrame, PlacedBlock } from "../../src/view/diagram/diagramBlockFrame.js";
 import { DiagramConnector, PortHit } from "../../src/view/diagram/diagramConnector.js";
 import { BlockMoveGesture, type DiagramGestureHost } from "../../src/view/diagram/diagramGestures.js";
 import { PaletteArm } from "../../src/view/diagram/paletteArm.js";
@@ -69,6 +69,61 @@ test("centers a dropped block on the pointer and keeps it on the canvas", () => 
     [20, 30],
     [40, 30],
   ]);
+});
+
+test("gives every multiplexed connection its own lane and grows only that side", () => {
+  const library = Library.fromManifest(manifest, {
+    blocks: {
+      ScopeF32: {
+        ns: ["push", "f32", "sinks"],
+        title: "Scope",
+        outputs: { channels: { type: "f32", vector: true } },
+      },
+      ConstF32: {
+        ns: ["push", "f32", "sources"],
+        title: "Constant",
+        inputs: { downstream: { type: "f32", vector: true } },
+      },
+      SumF32: {
+        ns: ["push", "f32", "transformers"],
+        title: "Sum",
+        inputs: { downstream: { type: "f32", vector: true } },
+        outputs: { channels: { type: "f32", vector: true } },
+      },
+    },
+  });
+  const diagram = new Diagram("diagram", "Diagram", library.palette);
+  const scope = diagram.addBlock("ScopeF32", { x: 0, y: 40 });
+  const sum = diagram.addBlock("SumF32", { x: 220, y: 40 });
+  const upper = diagram.addBlock("ConstF32", { x: 460, y: 0 });
+  const lower = diagram.addBlock("ConstF32", { x: 460, y: 140 });
+  const connector = new DiagramConnector(diagram);
+  connector.tryConnect(new PortHit(scope.id, "channels", "output"), new PortHit(sum.id, "downstream", "input"));
+  connector.tryConnect(new PortHit(sum.id, "channels", "output"), new PortHit(upper.id, "downstream", "input"));
+  connector.tryConnect(new PortHit(sum.id, "channels", "output"), new PortHit(lower.id, "downstream", "input"));
+
+  const placed = PlacedBlock.from(sum, diagram.getConnections());
+  const output = placed.frame.port("output", "channels");
+  const input = placed.frame.port("input", "downstream");
+  expect(output?.lanes).toBe(2);
+  expect(output?.span).toBe(2 * DiagramBlockFrame.lanePitch);
+  expect(output?.pins().map((pin) => pin.index)).toEqual([0, 1]);
+  expect(input?.lanes).toBe(1);
+  expect(placed.frame.height).toBe(DiagramBlockFrame.minHeight);
+  const first = placed.anchor("output", "channels", 0);
+  const second = placed.anchor("output", "channels", 1);
+  expect(second && first && second.y - first.y).toBe(DiagramBlockFrame.lanePitch);
+  expect(first?.x).toBe(placed.x + placed.frame.width);
+  expect(placed.anchor("output", "channels")?.y).toBe(placed.y + (output?.y ?? 0));
+
+  const extra = diagram.addBlock("ScopeF32", { x: 0, y: 200 });
+  connector.tryConnect(new PortHit(extra.id, "channels", "output"), new PortHit(upper.id, "downstream", "input"));
+  const grown = PlacedBlock.from(upper, diagram.getConnections());
+  expect(grown.frame.port("input", "downstream")?.lanes).toBe(2);
+  const low = grown.anchor("input", "downstream", 0);
+  const high = grown.anchor("input", "downstream", 1);
+  expect(high && low && high.y - low.y).toBe(DiagramBlockFrame.lanePitch);
+  expect(low?.x).toBe(grown.x);
 });
 
 test("connects an output to an input from either drag direction", () => {

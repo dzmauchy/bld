@@ -13,7 +13,7 @@ class RoutingCellRenderer extends CellRenderer {
 /** Uses maxGraph's Manhattan connector to route between ports around every block. */
 export class MaxGraphWireRouter extends WireRouter {
   private graph: BaseGraph | undefined;
-  private readonly blocks = new Map<string, PlacedBlock>();
+  private readonly models = new Map<string, DiagramBlock>();
   private readonly connections = new Map<string, Connection>();
   private readonly blockCells = new Map<string, Cell>();
   private readonly edgeCells = new Map<string, Cell>();
@@ -40,7 +40,7 @@ export class MaxGraphWireRouter extends WireRouter {
 
   override upsertBlock(block: DiagramBlock): void {
     if (this.destroyed) return;
-    this.blocks.set(block.id, PlacedBlock.from(block));
+    this.models.set(block.id, block);
     this.touch();
   }
 
@@ -54,7 +54,7 @@ export class MaxGraphWireRouter extends WireRouter {
     this.destroyed = true;
     this.graph?.destroy();
     this.graph = undefined;
-    this.blocks.clear();
+    this.models.clear();
     this.connections.clear();
     this.blockCells.clear();
     this.edgeCells.clear();
@@ -72,9 +72,10 @@ export class MaxGraphWireRouter extends WireRouter {
   private route(): void {
     const graph = this.graph;
     if (!graph) return;
+    const placed = this.placedBlocks();
     graph.batchUpdate(() => {
-      for (const block of this.blocks.values()) this.updateBlock(graph, block);
-      for (const connection of this.connections.values()) this.updateEdge(graph, connection);
+      for (const block of placed.values()) this.updateBlock(graph, block);
+      for (const connection of this.connections.values()) this.updateEdge(graph, connection, placed);
     });
     const view = graph.getView();
     // Validate all obstacles before edges, including blocks inserted after a
@@ -111,9 +112,14 @@ export class MaxGraphWireRouter extends WireRouter {
     graph.getDataModel().setGeometry(cell, updated);
   }
 
-  private updateEdge(graph: BaseGraph, connection: Connection): void {
-    const source = this.blocks.get(connection.from.blockId);
-    const target = this.blocks.get(connection.to.blockId);
+  private placedBlocks(): Map<string, PlacedBlock> {
+    const connections = [...this.connections.values()];
+    return new Map([...this.models].map(([id, block]) => [id, PlacedBlock.from(block, connections)]));
+  }
+
+  private updateEdge(graph: BaseGraph, connection: Connection, placed: ReadonlyMap<string, PlacedBlock>): void {
+    const source = placed.get(connection.from.blockId);
+    const target = placed.get(connection.to.blockId);
     const output = source?.frame.port("output", connection.from.portId);
     const input = target?.frame.port("input", connection.to.portId);
     const sourceCell = source && this.blockCells.get(source.id);
@@ -123,10 +129,10 @@ export class MaxGraphWireRouter extends WireRouter {
       edgeStyle: EdgeStyle.ManhattanConnector,
       orthogonal: true,
       exitX: 1,
-      exitY: output.y / source.frame.height,
+      exitY: output.anchorY(connection.from.vectorIndex) / source.frame.height,
       exitPerimeter: false,
       entryX: 0,
-      entryY: input.y / target.frame.height,
+      entryY: input.anchorY(connection.to.vectorIndex) / target.frame.height,
       entryPerimeter: false,
     };
     const existing = this.edgeCells.get(connection.id);
