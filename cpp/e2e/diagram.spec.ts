@@ -204,6 +204,38 @@ test("SinGenF32 at a quarter period is one", async ({ cpp }) => {
   expect(await cpp.invoke("lastPin", [0, 0])).toBeCloseTo(1, 3);
 });
 
+test("constant plus sine generator emits 1 + sin(t) without compiler stimulus", async ({ cpp }) => {
+  const diagram = new Diagram("sine_sum", "1 + sin(t)", palette);
+  diagram.addBlock("ScopeF32", { x: 0, y: 0 }, "scope");
+  diagram.addBlock("SumF32", { x: 1, y: 0 }, "sum");
+  diagram.addBlock("ConstF32", { x: 2, y: 0 }, "constant", { value: 1 });
+  diagram.addBlock("SinGenF32", { x: 2, y: 1 }, "sine");
+  connect(diagram, "sum", "s", 0, "scope", "sink", 0);
+  connect(diagram, "constant", "v", 0, "sum", "v", 0);
+  connect(diagram, "sine", "v", 0, "sum", "v", 1);
+  await compileDiagram(cpp, diagram);
+  expect(await cpp.invoke("activeIntervalCount")).toBe(2);
+  for (const milliseconds of [0, 250, 500, 750, 1000, 1250]) {
+    await cpp.invoke("setNow", [milliseconds]);
+    await cpp.invoke("tick");
+    expect(await cpp.invoke("lastPin", [0, 0])).toBeCloseTo(1 + Math.sin(milliseconds * 0.001 * 2 * Math.PI), 3);
+  }
+  await cpp.invoke("close");
+  expect(await cpp.invoke("activeIntervalCount")).toBe(0);
+});
+
+test("unconnected sine transformer stays idle", async ({ cpp }) => {
+  const diagram = new Diagram("open_sine", "Open sine", palette);
+  diagram.addBlock("ScopeF32", { x: 0, y: 0 }, "scope");
+  diagram.addBlock("SinF32", { x: 1, y: 0 }, "sine");
+  connect(diagram, "sine", "sin", 0, "scope", "sink", 0);
+  await compileDiagram(cpp, diagram);
+  expect(await cpp.invoke("activeIntervalCount")).toBe(0);
+  await cpp.invoke("setNow", [250]);
+  await cpp.invoke("tick");
+  expect(await cpp.invoke("pinWriteCount")).toBe(0);
+});
+
 test("RandGenF32 uses injected random scaled by amplitude", async ({ cpp }) => {
   const diagram = new Diagram("rand", "rand", palette);
   diagram.addBlock("ScopeF32", { x: 0, y: 0 }, "s");
@@ -371,7 +403,7 @@ test("sum of three constants", async ({ cpp }) => {
   expect(await cpp.invoke("lastPin", [0, 0])).toBe(6);
 });
 
-test("sum of a constant and an open cosine follows the cosine", async ({ cpp }) => {
+test("sum waits for an unconnected cosine term instead of inventing its input", async ({ cpp }) => {
   const diagram = new Diagram("sum_open_cos", "sum_open_cos", palette);
   diagram.addBlock("ScopeF32", { x: 0, y: 0 }, "s");
   diagram.addBlock("SumF32", { x: 1, y: 0 }, "sum");
@@ -381,14 +413,12 @@ test("sum of a constant and an open cosine follows the cosine", async ({ cpp }) 
   connect(diagram, "c", "v", 0, "sum", "v", 0);
   connect(diagram, "cs", "cos", 0, "sum", "v", 1);
   await compileDiagram(cpp, diagram);
-  await cpp.invoke("setNow", [250]);
-  await cpp.invoke("tickThenObserve");
-  await cpp.invoke("tickThenObserve");
-  expect(await cpp.invoke("lastPin", [0, 0])).toBeCloseTo(1, 2);
-  await cpp.invoke("setNow", [500]);
-  await cpp.invoke("tickThenObserve");
-  await cpp.invoke("tickThenObserve");
-  expect(await cpp.invoke("lastPin", [0, 0])).toBeCloseTo(0, 2);
+  expect(await cpp.invoke("activeIntervalCount")).toBe(1);
+  for (const milliseconds of [250, 500]) {
+    await cpp.invoke("setNow", [milliseconds]);
+    await cpp.invoke("tick");
+    expect(await cpp.invoke("hasPin", [0, 0])).toBe(0);
+  }
 });
 
 test("sum of a constant and a cosine generator follows the wave", async ({ cpp }) => {

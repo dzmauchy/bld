@@ -120,8 +120,6 @@ export class CppDiagramBuilder extends DiagramSourceBuilder {
         const width = Math.max(port.vector ? 0 : 1, ...outgoing.map((c) => c.from.vectorIndex + 1));
         lines.push(`#line 1 "output_${i}_${port.id}"`, `auto port_${i}_output_${port.id} = o${i}.${port.id};`,
           `static auto taken_${i}_${port.id} = core::output_channels<${port.vector}, ${width}>(port_${i}_output_${port.id});`);
-        // An open sine or cosine otherwise stays at a single sample and the sum looks constant.
-        if (!port.vector && outgoing.length === 0) this.driveOpenInput(lines, i, port.id);
       }
     }
     lines.push("}", "");
@@ -184,32 +182,6 @@ export class CppDiagramBuilder extends DiagramSourceBuilder {
     const analysis = this.result(diagram, new ClangDumpResult(false, undefined, "", message));
     analysis.assignTo(diagram);
     return analysis;
-  }
-
-  /**
-   * Pushes a 1 Hz angle into an unconnected scalar consumer.
-   * Sine and cosine then keep moving, and a downstream sum can still emit.
-   */
-  private driveOpenInput(lines: string[], blockIndex: number, portId: string): void {
-    const open = `open_${blockIndex}_${portId}`;
-    lines.push(
-      `if (auto *${open} = taken_${blockIndex}_${portId}.at(0)) {`,
-      `  static auto started_${open} = core::make_shared<u64>(0);`,
-      `  static auto close_${open} = core::make_shared<core::function<void()>>();`,
-      `  static auto tick_${open} = core::make_shared<core::function<void()>>([${open}] {`,
-      `    const auto angle_${open} = static_cast<double>(get_time() - *started_${open}) * 0.001 * 2.0 * core::pi_v<double>;`,
-      `    (*${open})(angle_${open});`,
-      `  });`,
-      `  static auto start_${open} = core::make_shared<core::function<void()>>([] {`,
-      `    *started_${open} = get_time();`,
-      `    const auto timer_${open} = set_interval(10, tick_${open}.get());`,
-      `    *close_${open} = [timer_${open}] { clear_interval(timer_${open}); };`,
-      `    on_close(close_${open}.get());`,
-      `    (*tick_${open})();`,
-      `  });`,
-      `  on_start(start_${open}.get());`,
-      `}`,
-    );
   }
 
   private channelLimit(block: DiagramBlock, port: PortDefinition): number | undefined {

@@ -191,23 +191,29 @@ describe("E2E diagram C++ generation", () => {
     expect(cpp).toContain("ProductF32");
   });
 
-  test("sum of a constant and an open sine drives that sine with time", () => {
+  test("sum of a constant and a sine generator uses only library behavior", () => {
     const cpp = cppOf(
       new DiagramJsonBuilder()
         .addScope("s")
         .addSum("sum")
         .addConstant("c", 1)
-        .addSin("sn")
+        .addSinGen("sn")
         .connect("c", "v", 0, "sum", "v", 0)
         .connect("sn", "sin", 0, "sum", "v", 1)
         .connect("sum", "s", 0, "s", "sink", 0)
         .build(),
     );
-    expect(cpp).toContain("(*open_");
-    expect(cpp).toContain("set_interval(10");
-    expect(cpp).toContain("core::pi_v<double>");
-    expect(cpp).not.toContain(")(0);");
+    expect(cpp).toContain("::push::f_32::sources::SinGenF32(");
+    expect(cpp).not.toContain("set_interval(");
+    expect(cpp).not.toContain("get_time()");
     expect(cpp).toContain("core::output_channels<true, 2>");
+  });
+
+  test("unconnected scalar consumers receive no generated stimulus", () => {
+    const cpp = cppOf(new DiagramJsonBuilder().addSin("sin").addCos("cos").build());
+    expect(cpp).not.toContain("set_interval(");
+    expect(cpp).not.toContain("get_time()");
+    expect(cpp).not.toContain("on_start(");
   });
 
   test("sum of three constants", () => {

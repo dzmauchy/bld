@@ -114,9 +114,12 @@ class WasmHost {
 
   void tick() {
     const u32 count = intervalCount_;
-    for (u32 i = 0; i < count; ++i) {
-      if (intervals_[i].active) {
-        invoke(intervals_[i].callback);
+    // Blocks are mounted downstream first so their consumers exist before wiring.
+    // Run upstream timers first so downstream blocks observe this tick's values.
+    for (u32 remaining = count; remaining > 0; --remaining) {
+      auto& interval = intervals_[remaining - 1];
+      if (interval.active) {
+        invoke(interval.callback);
       }
     }
   }

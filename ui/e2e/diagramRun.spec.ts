@@ -89,7 +89,7 @@ test("removes the diagram caption, runs from the toolbar, and plots every scope 
   await expect(run).toHaveAttribute("data-run-state", "idle");
 });
 
-test("plots the sum of a constant and the blocks wired into its term channels", async ({ page }) => {
+test("plots a sliding 1 + sin(t) trace from a constant and a sine generator", async ({ page }) => {
   test.setTimeout(180_000);
   await page.goto("/");
   await expect(page.locator("[data-splash]")).toBeHidden();
@@ -127,20 +127,32 @@ test("plots the sum of a constant and the blocks wired into its term channels", 
   await drop("ScopeF32", canvasBox!.x + 140, y);
   await drop("SumF32", canvasBox!.x + 380, y);
   await drop("ConstF32", canvasBox!.x + 640, y - 110);
-  await drop("CosF32", canvasBox!.x + 640, y + 110);
+  await drop("SinGenF32", canvasBox!.x + 640, y + 110);
   await expect(canvas.locator("[data-block-ref=ConstF32] [data-block-config]")).toHaveCount(1);
   await expect(canvas.locator("[data-block-ref=SumF32] [data-block-config]")).toHaveCount(1);
   await expect(canvas.locator("[data-block-ref=ScopeF32] [data-block-config]")).toHaveCount(1);
-  await expect(canvas.locator("[data-block-ref=CosF32] [data-block-config]")).toHaveCount(0);
+  await expect(canvas.locator("[data-block-ref=SinGenF32] [data-block-config]")).toHaveCount(1);
   await connect("ScopeF32", "SumF32");
   await connect("SumF32", "ConstF32");
-  await connect("SumF32", "CosF32");
+  await connect("SumF32", "SinGenF32");
   await expect(canvas.locator("[data-block-ref=SumF32] [data-port-side=output]")).toHaveAttribute("data-port-lanes", "2");
+
+  await canvas.locator("[data-block-ref=ScopeF32] [data-block-config]").click();
+  const configuration = page.locator("[data-block-config-dialog]");
+  const dialog = page.getByRole("dialog", { name: "Scope", exact: true });
+  await expect(dialog).toBeVisible({ timeout: 10_000 });
+  await configuration.locator("[data-config-field=period] input").evaluate((element) => {
+    (element as HTMLInputElement).value = "1";
+    element.dispatchEvent(new Event("input", { bubbles: true }));
+  });
+  await page.keyboard.press("Escape");
+  await expect(dialog).toBeHidden({ timeout: 10_000 });
 
   await canvas.locator("[data-block-ref=ScopeF32]").click();
   const plot = page.locator("[data-scope-plot]");
   await expect(plot).toBeVisible();
   await expect(plot).toHaveAttribute("data-series-count", "1");
+  await expect(plot).toHaveAttribute("data-domain-seconds", "1");
   await expect(plot).toContainText("Sum");
 
   const run = page.locator("[data-toolbar] [data-run-toggle]");
@@ -148,10 +160,16 @@ test("plots the sum of a constant and the blocks wired into its term channels", 
   await expect(run).toHaveText("Stop", { timeout: 120_000 });
   await expect(run).toHaveAttribute("data-run-state", "running");
   await expect(page.locator("[data-run-status]")).toHaveText("");
-  await expect.poll(async () => plot.getAttribute("data-samples"), { timeout: 10_000 }).not.toBe("0");
-  await expect.poll(async () => {
-    const min = Number(await plot.getAttribute("data-sample-min"));
-    const max = Number(await plot.getAttribute("data-sample-max"));
-    return max - min;
-  }, { timeout: 8_000 }).toBeGreaterThan(0.5);
+  await expect(plot).toHaveAttribute("data-samples", "100", { timeout: 10_000 });
+  await expect.poll(async () => Number(await plot.getAttribute("data-sample-min"))).toBeLessThan(0.1);
+  await expect.poll(async () => Number(await plot.getAttribute("data-sample-max"))).toBeGreaterThan(1.9);
+  const previous = await plot.getAttribute("data-last");
+  await expect.poll(() => plot.getAttribute("data-last")).not.toBe(previous);
+  await expect(plot).toHaveAttribute("data-samples", "100");
+  expect(Number(await plot.getAttribute("data-sample-min"))).toBeGreaterThanOrEqual(-0.001);
+  expect(Number(await plot.getAttribute("data-sample-max"))).toBeLessThanOrEqual(2.001);
+  await page.screenshot({ path: test.info().outputPath("sine-sum-scope.png") });
+
+  await run.click();
+  await expect(run).toHaveAttribute("data-run-state", "idle");
 });
