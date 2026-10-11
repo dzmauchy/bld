@@ -595,6 +595,45 @@ wa-split-panel::part(panel) {
   background: var(--block-accent, #0d6efd);
 }
 
+.diagram-port.is-vector::after {
+  display: none;
+}
+
+.diagram-port-rail,
+.diagram-port-pin {
+  position: absolute;
+  pointer-events: none;
+}
+
+.diagram-port-rail {
+  left: 50%;
+  top: 4px;
+  bottom: 4px;
+  width: 2px;
+  transform: translateX(-50%);
+  border-radius: 1px;
+  background: var(--block-accent, #0d6efd);
+}
+
+.diagram-port.is-vector[data-port-lanes="1"] .diagram-port-rail {
+  display: none;
+}
+
+.diagram-port-pin {
+  left: 50%;
+  width: 8px;
+  height: 8px;
+  box-sizing: border-box;
+  transform: translate(-50%, -50%);
+  border-radius: 50%;
+  border: 1px solid var(--block-accent, #0d6efd);
+  background: #14171a;
+}
+
+.diagram-port.is-vector:hover .diagram-port-pin {
+  background: var(--block-accent, #0d6efd);
+}
+
 .palette-drag-ghost {
   position: fixed;
   left: 0;

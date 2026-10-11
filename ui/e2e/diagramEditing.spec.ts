@@ -181,6 +181,94 @@ test("routes a connector around a block with maxGraph", async ({ page }) => {
   expect(errors).toEqual([]);
 });
 
+test("draws each multiplexed connection on its own lane and grows that port", async ({ page }) => {
+  await page.goto("/");
+  await expect(page.locator("[data-splash]")).toBeHidden();
+  const palette = page.locator("[data-region=palette]");
+  const canvas = page.locator("[data-diagram-canvas]");
+  const canvasBox = await canvas.boundingBox();
+  expect(canvasBox).toBeTruthy();
+
+  async function drop(blockId: string, clientX: number, clientY: number): Promise<void> {
+    const source = palette.locator(`[data-block-id=${blockId}]`);
+    await source.scrollIntoViewIfNeeded();
+    const sourceBox = await source.boundingBox();
+    expect(sourceBox).toBeTruthy();
+    await page.mouse.move(sourceBox!.x + sourceBox!.width / 2, sourceBox!.y + sourceBox!.height / 2);
+    await page.mouse.down();
+    await page.mouse.move(clientX, clientY, { steps: 12 });
+    await page.mouse.up();
+    await expect(canvas.locator(`[data-block-ref=${blockId}]`)).toHaveCount(1);
+  }
+
+  async function connect(fromRef: string, fromSide: "input" | "output", toRef: string, toSide: "input" | "output"): Promise<void> {
+    const from = canvas.locator(`[data-block-ref=${fromRef}] [data-port-side=${fromSide}]`);
+    const to = canvas.locator(`[data-block-ref=${toRef}] [data-port-side=${toSide}]`);
+    const fromBox = await from.boundingBox();
+    const toBox = await to.boundingBox();
+    expect(fromBox).toBeTruthy();
+    expect(toBox).toBeTruthy();
+    await page.mouse.move(fromBox!.x + fromBox!.width / 2, fromBox!.y + fromBox!.height / 2);
+    await page.mouse.down();
+    await page.mouse.move(toBox!.x + toBox!.width / 2, toBox!.y + toBox!.height / 2, { steps: 16 });
+    await page.mouse.up();
+  }
+
+  const y = canvasBox!.y + 220;
+  await drop("ScopeF32", canvasBox!.x + 160, y);
+  await drop("SumF32", canvasBox!.x + 420, y);
+  await drop("ConstF32", canvasBox!.x + 700, y - 120);
+  await drop("SinF32", canvasBox!.x + 700, y + 120);
+
+  await connect("ScopeF32", "output", "SumF32", "input");
+  await expect(canvas.locator("[data-connection]")).toHaveCount(1);
+  await connect("SumF32", "output", "ConstF32", "input");
+  const output = canvas.locator("[data-block-ref=SumF32] [data-port-side=output]");
+  await expect(output).toHaveAttribute("data-port-lanes", "1");
+  const before = await output.boundingBox();
+  await connect("SumF32", "output", "SinF32", "input");
+  await expect(canvas.locator("[data-connection]")).toHaveCount(3);
+  await expect(output).toHaveAttribute("data-port-lanes", "2");
+  await expect(canvas.locator("[data-block-ref=SumF32] [data-port-side=input]")).toHaveAttribute("data-port-lanes", "1");
+  await expect(canvas.locator("[data-block-ref=ConstF32] [data-port-side=input]")).toHaveAttribute("data-port-lanes", "1");
+  await expect(canvas.locator("[data-block-ref=SinF32] [data-port-side=input]")).toHaveAttribute("data-port-lanes", "1");
+  const after = await output.boundingBox();
+  expect(before && after && after.height).toBeGreaterThan((before?.height ?? 0) + 8);
+  await expect(canvas.locator("[data-route-origin=maxgraph]")).toHaveCount(3);
+
+  const lanes = await page.evaluate(() => {
+    const canvasElement = document.querySelector("[data-diagram-canvas]");
+    const port = document.querySelector("[data-block-ref=SumF32] [data-port-side=output]");
+    if (!(canvasElement instanceof HTMLElement) || !(port instanceof HTMLElement)) return undefined;
+    const origin = canvasElement.getBoundingClientRect();
+    const pins = [...port.querySelectorAll("[data-port-pin]")].map((pin) => {
+      const rect = pin.getBoundingClientRect();
+      return {
+        index: pin.getAttribute("data-vector-index"),
+        y: rect.top + rect.height / 2 - origin.top,
+      };
+    });
+    const wires = [...document.querySelectorAll("[data-connection]")].map((wire) => {
+      const points = [...(wire as SVGPolylineElement).points].map((point) => ({ x: point.x, y: point.y }));
+      return { id: wire.getAttribute("data-connection"), points };
+    });
+    return { pins, wires, lanes: port.getAttribute("data-port-lanes") };
+  });
+  expect(lanes?.lanes).toBe("2");
+  expect(lanes?.pins.map((pin) => pin.y)).toHaveLength(2);
+  expect(Math.abs((lanes?.pins[1]?.y ?? 0) - (lanes?.pins[0]?.y ?? 0))).toBeGreaterThan(12);
+  const departures = (lanes?.wires ?? []).flatMap((wire) => {
+    const start = wire.points[0];
+    if (!start) return [];
+    const pin = lanes?.pins.find((candidate) => Math.abs(candidate.y - start.y) < 4);
+    return pin ? [{ id: wire.id, y: start.y }] : [];
+  });
+  expect(departures).toHaveLength(2);
+  expect(new Set(departures.map((wire) => Math.round(wire.y))).size).toBe(2);
+
+  await page.screenshot({ path: test.info().outputPath("multiplexed-ports.png") });
+});
+
 function segmentHitsRect(
   points: { x: number; y: number }[],
   rect: { left: number; right: number; top: number; bottom: number },

@@ -175,6 +175,7 @@ export class DiagramEditor implements DiagramGestureHost {
   connect(from: PortHit, to: PortHit): void {
     const connection = this.connector.tryConnect(from, to);
     if (!connection) return;
+    this.publishPlaced();
     this.acceptRoute(this.provisional(connection));
     this.router.addLink(connection);
   }
@@ -183,10 +184,10 @@ export class DiagramEditor implements DiagramGestureHost {
     this.setDraftPoints(points);
   }
 
-  anchor(blockId: string, side: "input" | "output", portId: string): WirePoint | undefined {
+  anchor(blockId: string, side: "input" | "output", portId: string, vectorIndex?: number): WirePoint | undefined {
     const block = this.diagram.getBlock(blockId);
     if (!block) return undefined;
-    return PlacedBlock.from(block).anchor(side, portId);
+    return PlacedBlock.from(block, this.diagram.getConnections()).anchor(side, portId, vectorIndex);
   }
 
   private begin(gesture: PointerGesture): void {
@@ -220,8 +221,8 @@ export class DiagramEditor implements DiagramGestureHost {
   }
 
   private provisional(connection: Connection): WireRoute {
-    const from = this.anchor(connection.from.blockId, "output", connection.from.portId) ?? new WirePoint(0, 0);
-    const to = this.anchor(connection.to.blockId, "input", connection.to.portId) ?? new WirePoint(0, 0);
+    const from = this.anchor(connection.from.blockId, "output", connection.from.portId, connection.from.vectorIndex) ?? new WirePoint(0, 0);
+    const to = this.anchor(connection.to.blockId, "input", connection.to.portId, connection.to.vectorIndex) ?? new WirePoint(0, 0);
     return new WireRoute(connection.id, OrthogonalRoute.between(from, to), "provisional");
   }
 
@@ -237,6 +238,7 @@ export class DiagramEditor implements DiagramGestureHost {
   }
 
   private publishPlaced(): void {
-    this.setPlaced(this.diagram.getBlocks().map((block) => PlacedBlock.from(block)));
+    const connections = this.diagram.getConnections();
+    this.setPlaced(this.diagram.getBlocks().map((block) => PlacedBlock.from(block, connections)));
   }
 }

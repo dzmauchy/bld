@@ -80,9 +80,28 @@ export function DiagramCanvas(props: { editor: DiagramEditor; board: ScopeCaptur
                     class={`diagram-port is-${port().side}${port().vector ? " is-vector" : ""}`}
                     data-port-id={port().id}
                     data-port-side={port().side}
+                    data-port-lanes={port().lanes}
                     title={port().id}
-                    style={{ left: `${port().x}px`, top: `${port().y}px` }}
-                  />
+                    style={{
+                      left: `${port().x}px`,
+                      top: `${port().y}px`,
+                      height: port().vector ? `${port().span}px` : undefined,
+                    }}
+                  >
+                    <Show when={port().vector}>
+                      <span class="diagram-port-rail" />
+                      <For each={port().pins()}>
+                        {(pin) => (
+                          <span
+                            class="diagram-port-pin"
+                            data-port-pin
+                            data-vector-index={pin.index}
+                            style={{ top: `${pin.top}px` }}
+                          />
+                        )}
+                      </For>
+                    </Show>
+                  </span>
                 )}
               </For>
             </article>
