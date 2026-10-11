@@ -1,6 +1,6 @@
 import { WirePoint, WirePolyline } from "./geometry.js";
 
-export type WireOrigin = "avoid" | "fallback" | "provisional";
+export type WireOrigin = "maxgraph" | "provisional";
 
 /** A connector path ready to draw. */
 export class WireRoute {

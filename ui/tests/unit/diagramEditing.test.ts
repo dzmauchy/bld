@@ -1,11 +1,9 @@
 import { expect, test } from "@rstest/core";
-import { dia, shapes } from "@joint/core";
 import { Diagram, Library, type BlockDefinition, type PackageManifest } from "core";
 import { CanvasPoint, OrthogonalRoute, PointerTravel, WirePoint } from "../../src/view/diagram/geometry.js";
 import { DiagramBlockFrame } from "../../src/view/diagram/diagramBlockFrame.js";
 import { DiagramConnector, PortHit } from "../../src/view/diagram/diagramConnector.js";
 import { BlockMoveGesture, type DiagramGestureHost } from "../../src/view/diagram/diagramGestures.js";
-import { JointRouteReader } from "../../src/view/diagram/jointRouteReader.js";
 import { PaletteArm } from "../../src/view/diagram/paletteArm.js";
 
 const manifest: PackageManifest = {
@@ -38,62 +36,11 @@ function demoLibrary(): Library {
   });
 }
 
-test("distributes ports the same way JointJS lays out left and right groups", () => {
+test("distributes input and output ports along the block's left and right sides", () => {
   const frame = DiagramBlockFrame.fromPorts(["downstream"], ["channels", "extra"]);
-  const element = new shapes.standard.Rectangle({
-    position: { x: 0, y: 0 },
-    size: { width: frame.width, height: frame.height },
-    ports: frame.jointPorts(),
-  });
-  const inputs = element.getPortsPositions("input");
-  const outputs = element.getPortsPositions("output");
-  expect(inputs["input:downstream"]).toMatchObject({ x: 0, y: frame.port("input", "downstream")?.y });
-  expect(outputs["output:channels"]).toMatchObject({ x: frame.width, y: frame.port("output", "channels")?.y });
-  expect(outputs["output:extra"]).toMatchObject({ x: frame.width, y: frame.port("output", "extra")?.y });
-});
-
-test("reads a routed link as port centers plus anchor deltas", () => {
-  const graph = new dia.Graph();
-  graph.addCell(
-    new shapes.standard.Rectangle({
-      id: "scope",
-      position: { x: 10, y: 20 },
-      size: { width: 156, height: 72 },
-      ports: {
-        groups: { output: { position: { name: "right" } } },
-        items: [{ id: "output:channels", group: "output" }],
-      },
-    }),
-  );
-  graph.addCell(
-    new shapes.standard.Rectangle({
-      id: "constant",
-      position: { x: 300, y: 80 },
-      size: { width: 156, height: 72 },
-      ports: {
-        groups: { input: { position: { name: "left" } } },
-        items: [{ id: "input:downstream", group: "input" }],
-      },
-    }),
-  );
-  const link = new shapes.standard.Link({
-    id: "wire",
-    source: { id: "scope", port: "output:channels" },
-    target: { id: "constant", port: "input:downstream" },
-  });
-  graph.addCell(link);
-  link.set({
-    source: { id: "scope", port: "output:channels", anchor: { name: "modelCenter", args: { dx: 3, dy: -1 } } },
-    target: { id: "constant", port: "input:downstream", anchor: { name: "modelCenter", args: { dx: 0, dy: 2 } } },
-    vertices: [{ x: 200, y: 56 }, { x: 200, y: 116 }],
-  });
-  const points = JointRouteReader.read(graph, link);
-  expect(points?.map((point) => [point.x, point.y])).toEqual([
-    [10 + 156 + 3, 20 + 36 - 1],
-    [200, 56],
-    [200, 116],
-    [300 + 0, 80 + 36 + 2],
-  ]);
+  expect(frame.port("input", "downstream")).toMatchObject({ x: 0, y: 36 });
+  expect(frame.port("output", "channels")).toMatchObject({ x: frame.width, y: 18 });
+  expect(frame.port("output", "extra")).toMatchObject({ x: frame.width, y: 54 });
 });
 
 test("arms a palette block until the same block is clicked again", () => {

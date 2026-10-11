@@ -1,12 +1,6 @@
-import { createRequire } from "node:module";
-import { dirname, join } from "node:path";
 import { defineConfig } from "@rsbuild/core";
 import { pluginSolid } from "@rsbuild/plugin-solid";
 import { attachLlvmToolchainProxy } from "./scripts/llvmToolchainProxyMiddleware.ts";
-import { LibavoidWasmAsset } from "./scripts/libavoidWasmAsset.ts";
-
-const require = createRequire(import.meta.url);
-const libavoidWasm = join(dirname(require.resolve("libavoid-js")), "libavoid.wasm");
 
 export default defineConfig({
   // @rsbuild/plugin-solid compiles JSX with @solidjs/compiler 2.0.0-rc.9,
@@ -27,7 +21,6 @@ export default defineConfig({
     copy: [
       { from: "../core/assets/schemas", to: "schemas" },
       { from: "../cpp/public/llvm-toolchain-sw.js", to: "./" },
-      { from: libavoidWasm, to: "libavoid.wasm", transform: (input) => new LibavoidWasmAsset().transform(input) },
     ],
     dataUriLimit: {
       assets: 0,

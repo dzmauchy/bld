@@ -35,7 +35,7 @@ export class CanvasPoint {
   }
 }
 
-/** Orthogonal elbow used before the avoid router publishes a path. */
+/** Orthogonal elbow used before the router publishes a path. */
 export class OrthogonalRoute {
   static between(from: WirePoint, to: WirePoint): WirePoint[] {
     if (Math.abs(from.x - to.x) < 0.5 || Math.abs(from.y - to.y) < 0.5) return [from, to];

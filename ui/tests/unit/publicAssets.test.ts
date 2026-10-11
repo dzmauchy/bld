@@ -18,10 +18,7 @@ test("rsbuild copies core JSON schemas to /schemas", () => {
     { from: "../core/assets/schemas", to: "schemas" },
     { from: "../cpp/public/llvm-toolchain-sw.js", to: "./" },
   ]);
-  expect(copy).toHaveLength(3);
-  const wasm = copy[2];
-  expect(wasm && typeof wasm === "object" && "from" in wasm ? String(wasm.from) : "").toMatch(/[/\\]libavoid\.wasm$/);
-  expect(wasm && typeof wasm === "object" && "to" in wasm ? wasm.to : undefined).toBe("libavoid.wasm");
+  expect(copy).toHaveLength(2);
   expect(Object.keys(schemaAssets).sort()).toEqual([...schemaAssetFiles].sort());
   expect(CoreSchemaCatalog.shared.schemaNames).toEqual(["library"]);
   for (const [name, schema] of Object.entries(schemaAssets)) {

@@ -7,7 +7,7 @@ interface PortSpec {
   vector: boolean;
 }
 
-/** One connector on a placed block, in the same coordinates JointJS uses for that side. */
+/** One connector on a placed block. */
 export class FramePort {
   constructor(
     readonly id: string,
@@ -20,8 +20,8 @@ export class FramePort {
 
 /**
  * Size and port anchors for a diagram block.
- * Port positions follow JointJS `left` / `right` line layout: each side is
- * distributed across the full element height at `(index + 0.5) / count`.
+ * Each side is distributed across the full element height at
+ * `(index + 0.5) / count`.
  */
 export class DiagramBlockFrame {
   static readonly width = 156;
@@ -55,31 +55,8 @@ export class DiagramBlockFrame {
     );
   }
 
-  static portKey(side: "input" | "output", portId: string): string {
-    return `${side}:${portId}`;
-  }
-
   port(side: "input" | "output", portId: string): FramePort | undefined {
     return this.ports.find((port) => port.side === side && port.id === portId);
-  }
-
-  jointPorts(): {
-    groups: {
-      input: { position: { name: "left" } };
-      output: { position: { name: "right" } };
-    };
-    items: { id: string; group: "input" | "output" }[];
-  } {
-    return {
-      groups: {
-        input: { position: { name: "left" } },
-        output: { position: { name: "right" } },
-      },
-      items: this.ports.map((port) => ({
-        id: DiagramBlockFrame.portKey(port.side, port.id),
-        group: port.side,
-      })),
-    };
   }
 
   private static create(inputs: readonly PortSpec[], outputs: readonly PortSpec[]): DiagramBlockFrame {

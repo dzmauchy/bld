@@ -1,6 +1,6 @@
 import { expect, test } from "@playwright/test";
 import { readdirSync, readFileSync } from "node:fs";
-import { basename, dirname, join } from "node:path";
+import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { CoreSchemaCatalog } from "core";
 
@@ -233,7 +233,7 @@ test("client bundle uses release metadata and the pinned compiler", () => {
   expect(scripts).toContain("clang.wasm");
   expect(scripts).toContain("lld.wasm");
   expect(scripts).toContain("sysroot.tgz");
-  expect(collect(distDir, ".wasm").map((path) => basename(path))).toEqual(["libavoid.wasm"]);
+  expect(collect(distDir, ".wasm")).toEqual([]);
 });
 
 test("serves JSON schemas from /schemas", async ({ request }) => {

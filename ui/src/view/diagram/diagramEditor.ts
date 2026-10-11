@@ -1,6 +1,7 @@
 import { Diagram, type BlockDefinition, type Connection } from "core";
 import { createSignal, type Accessor } from "solid-js";
-import { AvoidWireRouter, type WireRouter } from "./avoidWireRouter.js";
+import { MaxGraphWireRouter } from "./maxGraphWireRouter.js";
+import type { WireRouter } from "./wireRouter.js";
 import { CanvasPoint, DragGhost, OrthogonalRoute, WirePoint } from "./geometry.js";
 import { DiagramBlockFrame, PlacedBlock } from "./diagramBlockFrame.js";
 import { DiagramConnector, PortHit } from "./diagramConnector.js";
@@ -66,7 +67,7 @@ export class DiagramEditor implements DiagramGestureHost {
     const inspected = createSignal<string | undefined>();
     this.inspectedId = inspected[0];
     this.setInspectedId = inspected[1];
-    this.router = router ?? new AvoidWireRouter((route) => this.acceptRoute(route));
+    this.router = router ?? new MaxGraphWireRouter((route) => this.acceptRoute(route));
   }
 
   get model(): Diagram {

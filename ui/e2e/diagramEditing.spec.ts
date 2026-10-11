@@ -64,19 +64,15 @@ test("drags a palette block, arms another with a fade blink, and inserts it on a
   await expect(stamped).toHaveCount(2);
 });
 
-test("routes a connector around a block without deprecated Wasm exceptions", async ({ page }) => {
-  const routerAsset = page.waitForResponse("**/libavoid.wasm");
+test("routes a connector around a block with maxGraph", async ({ page }) => {
+  const errors: string[] = [];
+  page.on("pageerror", (error) => errors.push(error.message));
+  const wasmRequests: string[] = [];
+  page.on("request", (request) => {
+    if (new URL(request.url()).pathname.endsWith(".wasm")) wasmRequests.push(request.url());
+  });
   await page.goto("/");
   await expect(page.locator("[data-splash]")).toBeHidden();
-  const { default: binaryen } = await import("binaryen");
-  const module = binaryen.readBinary(await (await routerAsset).body());
-  try {
-    const text = module.emitText();
-    expect(/\(try_table\b/.test(text)).toBe(true);
-    expect(text.match(/^\s*\((?:try|catch|catch_all|rethrow|delegate)\b/gm) ?? []).toEqual([]);
-  } finally {
-    module.dispose();
-  }
   const palette = page.locator("[data-region=palette]");
   const canvas = page.locator("[data-diagram-canvas]");
   const canvasBox = await canvas.boundingBox();
@@ -113,9 +109,9 @@ test("routes a connector around a block without deprecated Wasm exceptions", asy
 
   const wire = canvas.locator("[data-connection]");
   await expect(wire).toHaveCount(1);
-  await expect(wire).toHaveAttribute("data-route-origin", "avoid");
+  await expect(wire).toHaveAttribute("data-route-origin", "maxgraph");
 
-  const geometry = await page.evaluate(() => {
+  const readGeometry = () => page.evaluate(() => {
     const canvasElement = document.querySelector("[data-diagram-canvas]");
     const obstacle = document.querySelector("[data-block-ref=SumF32]");
     const polyline = document.querySelector("[data-connection]");
@@ -125,8 +121,16 @@ test("routes a connector around a block without deprecated Wasm exceptions", asy
     const origin = canvasElement.getBoundingClientRect();
     const box = obstacle.getBoundingClientRect();
     const points = [...polyline.points].map((point) => ({ x: point.x, y: point.y }));
+    const anchors = [
+      document.querySelector("[data-block-ref=ScopeF32] [data-port-side=output]"),
+      document.querySelector("[data-block-ref=ConstF32] [data-port-side=input]"),
+    ].map((element) => {
+      const rect = element!.getBoundingClientRect();
+      return { x: rect.left + rect.width / 2 - origin.left, y: rect.top + rect.height / 2 - origin.top };
+    });
     return {
       points,
+      anchors,
       rect: {
         left: box.left - origin.left + 3,
         right: box.right - origin.left - 3,
@@ -135,11 +139,46 @@ test("routes a connector around a block without deprecated Wasm exceptions", asy
       },
     };
   });
-  expect(geometry).toBeTruthy();
-  expect(geometry!.points.length).toBeGreaterThan(2);
-  expect(segmentHitsRect(geometry!.points, geometry!.rect)).toBe(false);
+  async function expectRoute(): Promise<void> {
+    const geometry = await readGeometry();
+    expect(geometry).toBeTruthy();
+    expect(segmentHitsRect(geometry!.points, geometry!.rect)).toBe(false);
+    for (let index = 1; index < geometry!.points.length; index++) {
+      const from = geometry!.points[index - 1];
+      const to = geometry!.points[index];
+      expect(from.x === to.x || from.y === to.y).toBe(true);
+    }
+    for (const [point, anchor] of [
+      [geometry!.points[0], geometry!.anchors[0]],
+      [geometry!.points.at(-1)!, geometry!.anchors[1]],
+    ]) {
+      // The block border offsets the visual port center by one CSS pixel.
+      expect(Math.abs(point.x - anchor.x)).toBeLessThan(2);
+      expect(Math.abs(point.y - anchor.y)).toBeLessThan(2);
+    }
+  }
+  expect((await readGeometry())!.points.length).toBeGreaterThan(2);
+  await expectRoute();
 
   await page.screenshot({ path: test.info().outputPath("diagram-routed.png") });
+
+  async function move(blockRef: string, dx: number, dy: number): Promise<void> {
+    const box = (await canvas.locator(`[data-block-ref=${blockRef}]`).boundingBox())!;
+    const previous = await wire.getAttribute("points");
+    await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
+    await page.mouse.down();
+    await page.mouse.move(box.x + box.width / 2 + dx, box.y + box.height / 2 + dy, { steps: 12 });
+    await page.mouse.up();
+    await expect.poll(() => wire.getAttribute("points")).not.toBe(previous);
+    await expectRoute();
+  }
+
+  // Reroute for a moved obstacle, a moved terminal, and a moved target.
+  await move("SumF32", 0, 140);
+  await move("ScopeF32", 0, -60);
+  await move("ConstF32", 0, 70);
+  expect(wasmRequests).toEqual([]);
+  expect(errors).toEqual([]);
 });
 
 function segmentHitsRect(

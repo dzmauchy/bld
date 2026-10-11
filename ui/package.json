@@ -19,8 +19,7 @@
   },
   "dependencies": {
     "@awesome.me/webawesome": "^3.14.0",
-    "@joint/core": "~4.3.3",
-    "@joint/router-avoid": "^4.3.3",
+    "@maxgraph/core": "0.25.0",
     "@solidjs/web": "^2.0.0-rc.13",
     "core": "*",
     "modern-tar": "^0.8.5",
@@ -32,7 +31,6 @@
     "@rsbuild/core": "^2.2.12",
     "@rsbuild/plugin-solid": "2.0.0-rc.1",
     "@rstest/adapter-rsbuild": "^0.12.3",
-    "@solidjs/compiler": "2.0.0-rc.13",
-    "binaryen": "132.0.0"
+    "@solidjs/compiler": "2.0.0-rc.13"
   }
 }
