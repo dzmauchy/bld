@@ -63,6 +63,21 @@ export class ScopePlotGeometry {
     return Math.min(this.domainSeconds, span);
   }
 
+  /** Smallest and largest finite samples, without axis padding. */
+  sampleExtent(): { minimum: number; maximum: number } | undefined {
+    let minimum = Infinity;
+    let maximum = -Infinity;
+    for (const series of this.series) {
+      for (const value of series.samples) {
+        if (!Number.isFinite(value)) continue;
+        minimum = Math.min(minimum, value);
+        maximum = Math.max(maximum, value);
+      }
+    }
+    if (!Number.isFinite(minimum) || !Number.isFinite(maximum)) return undefined;
+    return { minimum, maximum };
+  }
+
   /** Seconds from the left edge of the shared time axis. The newest sample is on the right. */
   sampleTime(series: ScopeSeriesGeometry, index: number): number {
     const age = (series.samples.length - 1 - index) * this.sampleSeconds;

@@ -189,6 +189,7 @@ export class PlacedBlock {
     readonly x: number,
     readonly y: number,
     readonly frame: DiagramBlockFrame,
+    readonly configurable: boolean,
   ) {}
 
   static from(block: DiagramBlock, connections: readonly Connection[] = []): PlacedBlock {
@@ -201,6 +202,7 @@ export class PlacedBlock {
       block.x,
       block.y,
       DiagramBlockFrame.of(block, connections),
+      block.definition.config.size > 0,
     );
   }
 

@@ -371,6 +371,46 @@ test("sum of three constants", async ({ cpp }) => {
   expect(await cpp.invoke("lastPin", [0, 0])).toBe(6);
 });
 
+test("sum of a constant and an open cosine follows the cosine", async ({ cpp }) => {
+  const diagram = new Diagram("sum_open_cos", "sum_open_cos", palette);
+  diagram.addBlock("ScopeF32", { x: 0, y: 0 }, "s");
+  diagram.addBlock("SumF32", { x: 1, y: 0 }, "sum");
+  diagram.addBlock("ConstF32", { x: 2, y: 0 }, "c", { value: 1 });
+  diagram.addBlock("CosF32", { x: 3, y: 0 }, "cs");
+  connect(diagram, "sum", "s", 0, "s", "sink", 0);
+  connect(diagram, "c", "v", 0, "sum", "v", 0);
+  connect(diagram, "cs", "cos", 0, "sum", "v", 1);
+  await compileDiagram(cpp, diagram);
+  await cpp.invoke("setNow", [250]);
+  await cpp.invoke("tickThenObserve");
+  await cpp.invoke("tickThenObserve");
+  expect(await cpp.invoke("lastPin", [0, 0])).toBeCloseTo(1, 2);
+  await cpp.invoke("setNow", [500]);
+  await cpp.invoke("tickThenObserve");
+  await cpp.invoke("tickThenObserve");
+  expect(await cpp.invoke("lastPin", [0, 0])).toBeCloseTo(0, 2);
+});
+
+test("sum of a constant and a cosine generator follows the wave", async ({ cpp }) => {
+  const diagram = new Diagram("sum_cos_gen", "sum_cos_gen", palette);
+  diagram.addBlock("ScopeF32", { x: 0, y: 0 }, "s");
+  diagram.addBlock("SumF32", { x: 1, y: 0 }, "sum");
+  diagram.addBlock("ConstF32", { x: 2, y: 0 }, "c", { value: 1 });
+  diagram.addBlock("CosGenF32", { x: 3, y: 0 }, "g");
+  connect(diagram, "sum", "s", 0, "s", "sink", 0);
+  connect(diagram, "c", "v", 0, "sum", "v", 0);
+  connect(diagram, "g", "v", 0, "sum", "v", 1);
+  await compileDiagram(cpp, diagram);
+  await cpp.invoke("setNow", [0]);
+  await cpp.invoke("tickThenObserve");
+  await cpp.invoke("tickThenObserve");
+  expect(await cpp.invoke("lastPin", [0, 0])).toBeCloseTo(2, 2);
+  await cpp.invoke("setNow", [500]);
+  await cpp.invoke("tickThenObserve");
+  await cpp.invoke("tickThenObserve");
+  expect(await cpp.invoke("lastPin", [0, 0])).toBeCloseTo(0, 2);
+});
+
 test("gpio OR via sum", async ({ cpp }) => {
   const diagram = new Diagram("gpio_or", "gpio_or", palette);
   diagram.addBlock("ScopeF32", { x: 0, y: 0 }, "s");

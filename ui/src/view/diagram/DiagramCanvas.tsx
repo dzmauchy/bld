@@ -2,6 +2,8 @@ import type { DiagramEditor } from "./diagramEditor.js";
 import { For, Show } from "solid-js";
 import { BlockAccent } from "../palette/palettePresenter.js";
 import { BlockGlyphCatalog } from "../palette/blockGlyphs.js";
+import { BlockConfigDialog } from "./BlockConfigDialog.js";
+import { GearIcon } from "./GearIcon.js";
 import type { DiagramRunController } from "../run/diagramRunController.js";
 import { ScopePlot } from "../scope/ScopePlot.js";
 import type { ScopeCaptureBoard } from "../scope/scopeCapture.js";
@@ -74,6 +76,26 @@ export function DiagramCanvas(props: { editor: DiagramEditor; board: ScopeCaptur
                 <span class="diagram-block-icon" aria-hidden="true" innerHTML={BlockGlyphCatalog.shared.markup(block().icon)} />
                 <span class="diagram-block-title">{block().title}</span>
               </div>
+              <Show when={block().configurable}>
+                <button
+                  type="button"
+                  class="diagram-block-config"
+                  data-block-config={block().id}
+                  title="Configure"
+                  aria-label={`Configure ${block().title}`}
+                  onPointerDown={(event) => {
+                    event.preventDefault();
+                    event.stopPropagation();
+                  }}
+                  onClick={(event) => {
+                    event.preventDefault();
+                    event.stopPropagation();
+                    props.editor.openConfiguration(block().id);
+                  }}
+                >
+                  <GearIcon />
+                </button>
+              </Show>
               <For each={block().frame.ports} keyed={(port) => `${port.side}:${port.id}`}>
                 {(port) => (
                   <span
@@ -108,6 +130,26 @@ export function DiagramCanvas(props: { editor: DiagramEditor; board: ScopeCaptur
           )}
         </For>
       </div>
+      <Show when={props.editor.configuredId()}>
+        {(blockId) => {
+          const block = () => props.editor.model.getBlock(blockId());
+          return (
+            <Show when={block()}>
+              {(configured) => (
+                <BlockConfigDialog
+                  block={configured()}
+                  revision={props.editor.configRevision()}
+                  onCommit={() => {
+                    props.editor.noteConfiguration();
+                    if (props.runner.phase() === "running") void props.runner.stop();
+                  }}
+                  onClose={() => props.editor.closeConfiguration()}
+                />
+              )}
+            </Show>
+          );
+        }}
+      </Show>
       <Show when={props.editor.inspectedId()}>
         {(blockId) => (
           <ScopePlot
