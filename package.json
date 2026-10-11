@@ -9,9 +9,9 @@
   ],
   "devDependencies": {
     "@rstest/core": "^0.12.3",
-    "@types/node": "^24",
+    "@types/node": "^26",
     "typescript": "^7.0.2",
-    "wrangler": "^4.148.0"
+    "wrangler": "^4.149.0"
   },
   "allowScripts": {
     "esbuild": true,
