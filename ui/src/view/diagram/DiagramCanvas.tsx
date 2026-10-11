@@ -2,9 +2,12 @@ import type { DiagramEditor } from "./diagramEditor.js";
 import { For, Show } from "solid-js";
 import { BlockAccent } from "../palette/palettePresenter.js";
 import { BlockGlyphCatalog } from "../palette/blockGlyphs.js";
+import type { DiagramRunController } from "../run/diagramRunController.js";
+import { ScopePlot } from "../scope/ScopePlot.js";
+import type { ScopeCaptureBoard } from "../scope/scopeCapture.js";
 import { WirePolyline } from "./geometry.js";
 
-export function DiagramCanvas(props: { editor: DiagramEditor }) {
+export function DiagramCanvas(props: { editor: DiagramEditor; board: ScopeCaptureBoard; runner: DiagramRunController }) {
   const extent = () => {
     let width = 0;
     let height = 0;
@@ -24,7 +27,6 @@ export function DiagramCanvas(props: { editor: DiagramEditor }) {
 
   return (
     <section class="region region-diagram" data-region="diagram" slot="end">
-      <h1 class="region-header">Diagram</h1>
       <div
         class={`diagram-canvas${props.editor.armedId() ? " is-armed" : ""}${props.editor.receiving() ? " is-receiving" : ""}`}
         data-diagram-canvas
@@ -60,6 +62,7 @@ export function DiagramCanvas(props: { editor: DiagramEditor }) {
               class={`diagram-block ${BlockAccent.forCategory(block().category).className}${props.editor.movingId() === block().id ? " is-moving" : ""}`}
               data-diagram-block={block().id}
               data-block-ref={block().ref}
+              data-inspected={props.editor.inspectedId() === block().id ? "true" : "false"}
               style={{
                 left: `${block().x}px`,
                 top: `${block().y}px`,
@@ -86,6 +89,19 @@ export function DiagramCanvas(props: { editor: DiagramEditor }) {
           )}
         </For>
       </div>
+      <Show when={props.editor.inspectedId()}>
+        {(blockId) => (
+          <ScopePlot
+            diagram={props.editor.model}
+            blockId={blockId()}
+            board={props.board}
+            revision={props.runner.revision}
+            placed={props.editor.placed}
+            routes={props.editor.routes}
+            onClose={() => props.editor.closeInspection()}
+          />
+        )}
+      </Show>
     </section>
   );
 }

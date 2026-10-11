@@ -14,6 +14,7 @@ export interface DiagramGestureHost {
   moveBlock(blockId: string, x: number, y: number): void;
   blockOrigin(blockId: string): WirePoint | undefined;
   setMoving(blockId: string | undefined): void;
+  selectBlock(blockId: string): void;
   connect(from: PortHit, to: PortHit): void;
   setDraft(points: readonly WirePoint[] | undefined): void;
   anchor(blockId: string, side: "input" | "output", portId: string): WirePoint | undefined;
@@ -70,6 +71,8 @@ export class BlockMoveGesture extends PointerGesture {
   private readonly origin: WirePoint;
   private readonly pointerX: number;
   private readonly pointerY: number;
+  private readonly travel: PointerTravel;
+  private dragged = false;
 
   constructor(
     private readonly host: DiagramGestureHost,
@@ -80,15 +83,19 @@ export class BlockMoveGesture extends PointerGesture {
     this.origin = host.blockOrigin(blockId) ?? new WirePoint(0, 0);
     this.pointerX = event.clientX;
     this.pointerY = event.clientY;
-    host.setMoving(blockId);
+    this.travel = new PointerTravel(event.clientX, event.clientY);
   }
 
   override move(event: PointerEvent): void {
+    if (!this.dragged && !this.travel.moved(event.clientX, event.clientY)) return;
+    if (!this.dragged) this.host.setMoving(this.blockId);
+    this.dragged = true;
     this.host.moveBlock(this.blockId, this.origin.x + event.clientX - this.pointerX, this.origin.y + event.clientY - this.pointerY);
   }
 
   override finish(): void {
     this.host.setMoving(undefined);
+    if (!this.dragged) this.host.selectBlock(this.blockId);
   }
 }
 

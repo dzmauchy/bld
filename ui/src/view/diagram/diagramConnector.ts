@@ -66,15 +66,39 @@ export class DiagramConnector {
   tryConnect(source: PortHit, target: PortHit): Connection | undefined {
     const directed = new ConnectionRequest(source, target).directed();
     if (!directed) return undefined;
-    const from = new OutputPortEndpoint(directed.from.blockId, directed.from.portId);
-    const to = new InputPortEndpoint(directed.to.blockId, directed.to.portId);
-    const input = this.diagram.getBlock(to.blockId)?.definition.getPort(to.portId, "input");
-    if (!input) return undefined;
-    if (!input.vector) {
-      const occupied = this.diagram.getConnections().some((connection) => connection.to.portType === "input" && connection.to.blockId === to.blockId && connection.to.portId === to.portId);
-      if (occupied) return undefined;
-    }
+    const output = this.diagram.getBlock(directed.from.blockId)?.definition.getPort(directed.from.portId, "output");
+    const input = this.diagram.getBlock(directed.to.blockId)?.definition.getPort(directed.to.portId, "input");
+    if (!output || !input) return undefined;
+    if (!input.vector && this.occupied(directed.to.blockId, directed.to.portId, "input")) return undefined;
+    const from = new OutputPortEndpoint(
+      directed.from.blockId,
+      directed.from.portId,
+      this.nextIndex(directed.from.blockId, directed.from.portId, "output", output.vector),
+    );
+    const to = new InputPortEndpoint(
+      directed.to.blockId,
+      directed.to.portId,
+      this.nextIndex(directed.to.blockId, directed.to.portId, "input", input.vector),
+    );
     if (!this.diagram.canConnect(from, to).ok) return undefined;
     return this.diagram.connect(from, to);
+  }
+
+  private occupied(blockId: string, portId: string, side: "input" | "output"): boolean {
+    return this.diagram.getConnections().some((connection) => {
+      const endpoint = side === "output" ? connection.from : connection.to;
+      return endpoint.blockId === blockId && endpoint.portId === portId && endpoint.portType === side;
+    });
+  }
+
+  /** The next free channel on a vector port. Scalar ports stay on channel 0. */
+  private nextIndex(blockId: string, portId: string, side: "input" | "output", vector: boolean): number {
+    if (!vector) return 0;
+    const used = this.diagram.getConnections().flatMap((connection) => {
+      const endpoint = side === "output" ? connection.from : connection.to;
+      return endpoint.blockId === blockId && endpoint.portId === portId && endpoint.portType === side ? [endpoint.vectorIndex] : [];
+    });
+    if (used.length === 0) return 0;
+    return Math.max(...used) + 1;
   }
 }

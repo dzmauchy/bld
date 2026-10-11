@@ -4,6 +4,7 @@ import { Diagram, Library, type BlockDefinition, type PackageManifest } from "co
 import { CanvasPoint, OrthogonalRoute, PointerTravel, WirePoint } from "../../src/view/diagram/geometry.js";
 import { DiagramBlockFrame } from "../../src/view/diagram/diagramBlockFrame.js";
 import { DiagramConnector, PortHit } from "../../src/view/diagram/diagramConnector.js";
+import { BlockMoveGesture, type DiagramGestureHost } from "../../src/view/diagram/diagramGestures.js";
 import { JointRouteReader } from "../../src/view/diagram/jointRouteReader.js";
 import { PaletteArm } from "../../src/view/diagram/paletteArm.js";
 
@@ -139,3 +140,78 @@ test("connects an output to an input from either drag direction", () => {
   const other = diagram.addBlock("ScopeF32", { x: 10, y: 120 });
   expect(connector.tryConnect(new PortHit(other.id, "channels", "output"), new PortHit(constant.id, "downstream", "input"))).toBeUndefined();
 });
+
+test("gives each scope output its own channel when several sources are connected", () => {
+  const library = Library.fromManifest(manifest, {
+    blocks: {
+      ScopeF32: {
+        ns: ["push", "f32", "sinks"],
+        title: "Scope",
+        outputs: { channels: { type: "f32", vector: true } },
+      },
+      SinGenF32: {
+        ns: ["push", "f32", "sources"],
+        title: "sin",
+        inputs: { downstream: { type: "f32", vector: true } },
+      },
+      CosGenF32: {
+        ns: ["push", "f32", "sources"],
+        title: "cos",
+        inputs: { downstream: { type: "f32", vector: true } },
+      },
+    },
+  });
+  const diagram = new Diagram("diagram", "Diagram", library.palette);
+  const scope = diagram.addBlock("ScopeF32", { x: 0, y: 0 });
+  const sin = diagram.addBlock("SinGenF32", { x: 200, y: 0 });
+  const cos = diagram.addBlock("CosGenF32", { x: 200, y: 120 });
+  const connector = new DiagramConnector(diagram);
+  const first = connector.tryConnect(new PortHit(scope.id, "channels", "output"), new PortHit(sin.id, "downstream", "input"));
+  const second = connector.tryConnect(new PortHit(scope.id, "channels", "output"), new PortHit(cos.id, "downstream", "input"));
+  expect(first?.from.vectorIndex).toBe(0);
+  expect(second?.from.vectorIndex).toBe(1);
+  expect(first?.to.vectorIndex).toBe(0);
+  expect(second?.to.vectorIndex).toBe(0);
+});
+
+test("selects a block on click and moves it only after the pointer travels", () => {
+  const selected: string[] = [];
+  const moved: number[][] = [];
+  const click = new BlockMoveGesture(gestureHost(selected, moved), "scope", pointer(4, 6));
+  click.move(pointer(5, 6));
+  click.finish();
+  expect(selected).toEqual(["scope"]);
+  expect(moved).toEqual([]);
+
+  const drag = new BlockMoveGesture(gestureHost(selected, moved), "scope", pointer(0, 0));
+  drag.move(pointer(30, 4));
+  drag.finish();
+  expect(selected).toEqual(["scope"]);
+  expect(moved).toEqual([[40, 24]]);
+});
+
+function pointer(x: number, y: number): PointerEvent {
+  return { clientX: x, clientY: y } as PointerEvent;
+}
+
+function gestureHost(selected: string[], moved: number[][]): DiagramGestureHost {
+  return {
+    canvasElement: () => undefined,
+    armDefinition() {},
+    armedDefinition: () => undefined,
+    place() {},
+    showGhost() {},
+    setReceiving() {},
+    moveBlock(_blockId, x, y) {
+      moved.push([x, y]);
+    },
+    blockOrigin: () => new WirePoint(10, 20),
+    setMoving() {},
+    selectBlock(blockId) {
+      selected.push(blockId);
+    },
+    connect() {},
+    setDraft() {},
+    anchor: () => undefined,
+  };
+}
