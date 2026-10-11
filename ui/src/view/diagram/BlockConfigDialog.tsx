@@ -27,7 +27,7 @@ export function BlockConfigDialog(props: {
     >
       <form class="block-config-form" onSubmit={(event) => event.preventDefault()}>
         <For each={configuration()?.fields ?? []} keyed={(field) => field.id}>
-          {(field) => <ConfigField field={field} revision={props.revision} onCommit={props.onCommit} />}
+          {(field) => <ConfigField field={field()} revision={props.revision} onCommit={props.onCommit} />}
         </For>
       </form>
     </wa-dialog>
