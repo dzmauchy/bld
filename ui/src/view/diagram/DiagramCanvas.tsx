@@ -86,6 +86,10 @@ export function DiagramCanvas(props: { editor: DiagramEditor; board: ScopeCaptur
                   onPointerDown={(event) => {
                     event.preventDefault();
                     event.stopPropagation();
+                  }}
+                  onClick={(event) => {
+                    event.preventDefault();
+                    event.stopPropagation();
                     props.editor.openConfiguration(block().id);
                   }}
                 >

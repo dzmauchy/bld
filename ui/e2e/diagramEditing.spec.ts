@@ -298,10 +298,10 @@ test("opens a configuration dialog from the gear on a block that has parameters"
   await expect(canvas.locator("[data-block-ref=ConstF32] [data-block-config]")).toHaveCount(1);
   await expect(canvas.locator("[data-block-ref=CosF32] [data-block-config]")).toHaveCount(0);
   await canvas.locator("[data-block-ref=ConstF32] [data-block-config]").click();
-  const dialog = page.locator("[data-block-config-dialog]");
+  const dialog = page.getByRole("dialog", { name: "Constant" });
   await expect(dialog).toBeVisible();
-  await expect(dialog).toContainText("Constant");
-  const value = dialog.locator("[data-config-field=value] input");
+  const value = page.locator("[data-block-config-dialog] [data-config-field=value] input");
+  await expect(value).toBeVisible();
   await expect(value).toHaveValue("1");
   await value.fill("3.25");
   await value.press("Enter");
@@ -309,7 +309,7 @@ test("opens a configuration dialog from the gear on a block that has parameters"
   await page.keyboard.press("Escape");
   await expect(dialog).toBeHidden();
   await canvas.locator("[data-block-ref=ConstF32] [data-block-config]").click();
-  await expect(dialog.locator("[data-config-field=value] input")).toHaveValue("3.25");
+  await expect(page.locator("[data-block-config-dialog] [data-config-field=value] input")).toHaveValue("3.25");
 });
 
 function segmentHitsRect(
