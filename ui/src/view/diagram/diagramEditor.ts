@@ -33,6 +33,10 @@ export class DiagramEditor implements DiagramGestureHost {
   private readonly setDraftPoints: (points: readonly WirePoint[] | undefined) => void;
   readonly inspectedId: Accessor<string | undefined>;
   private readonly setInspectedId: (id: string | undefined) => void;
+  readonly configuredId: Accessor<string | undefined>;
+  private readonly setConfiguredId: (id: string | undefined) => void;
+  readonly configRevision: Accessor<number>;
+  private readonly setConfigRevision: (revision: number) => void;
 
   private readonly routeMap = new Map<string, WireRoute>();
 
@@ -67,6 +71,12 @@ export class DiagramEditor implements DiagramGestureHost {
     const inspected = createSignal<string | undefined>();
     this.inspectedId = inspected[0];
     this.setInspectedId = inspected[1];
+    const configured = createSignal<string | undefined>();
+    this.configuredId = configured[0];
+    this.setConfiguredId = configured[1];
+    const configRevision = createSignal(0);
+    this.configRevision = configRevision[0];
+    this.setConfigRevision = configRevision[1];
     this.router = router ?? new MaxGraphWireRouter((route) => this.acceptRoute(route));
   }
 
@@ -170,6 +180,20 @@ export class DiagramEditor implements DiagramGestureHost {
 
   closeInspection(): void {
     this.setInspectedId(undefined);
+  }
+
+  openConfiguration(blockId: string): void {
+    const block = this.diagram.getBlock(blockId);
+    if (!block || block.definition.config.size === 0) return;
+    this.setConfiguredId(blockId);
+  }
+
+  closeConfiguration(): void {
+    this.setConfiguredId(undefined);
+  }
+
+  noteConfiguration(): void {
+    this.setConfigRevision(this.configRevision() + 1);
   }
 
   connect(from: PortHit, to: PortHit): void {

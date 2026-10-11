@@ -127,10 +127,14 @@ test("plots the sum of a constant and the blocks wired into its term channels", 
   await drop("ScopeF32", canvasBox!.x + 140, y);
   await drop("SumF32", canvasBox!.x + 380, y);
   await drop("ConstF32", canvasBox!.x + 640, y - 110);
-  await drop("SinF32", canvasBox!.x + 640, y + 110);
+  await drop("CosF32", canvasBox!.x + 640, y + 110);
+  await expect(canvas.locator("[data-block-ref=ConstF32] [data-block-config]")).toHaveCount(1);
+  await expect(canvas.locator("[data-block-ref=SumF32] [data-block-config]")).toHaveCount(1);
+  await expect(canvas.locator("[data-block-ref=ScopeF32] [data-block-config]")).toHaveCount(1);
+  await expect(canvas.locator("[data-block-ref=CosF32] [data-block-config]")).toHaveCount(0);
   await connect("ScopeF32", "SumF32");
   await connect("SumF32", "ConstF32");
-  await connect("SumF32", "SinF32");
+  await connect("SumF32", "CosF32");
   await expect(canvas.locator("[data-block-ref=SumF32] [data-port-side=output]")).toHaveAttribute("data-port-lanes", "2");
 
   await canvas.locator("[data-block-ref=ScopeF32]").click();
@@ -145,7 +149,9 @@ test("plots the sum of a constant and the blocks wired into its term channels", 
   await expect(run).toHaveAttribute("data-run-state", "running");
   await expect(page.locator("[data-run-status]")).toHaveText("");
   await expect.poll(async () => plot.getAttribute("data-samples"), { timeout: 10_000 }).not.toBe("0");
-  const last = Number(await plot.getAttribute("data-last"));
-  // Constant defaults to 1 and the open sine input is 0, so the scope shows 1.
-  expect(last).toBeCloseTo(1, 4);
+  await expect.poll(async () => {
+    const min = Number(await plot.getAttribute("data-sample-min"));
+    const max = Number(await plot.getAttribute("data-sample-max"));
+    return max - min;
+  }, { timeout: 8_000 }).toBeGreaterThan(0.5);
 });

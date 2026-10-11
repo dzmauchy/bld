@@ -20,6 +20,11 @@ declare module "@solidjs/web" {
         label?: string;
         value?: number;
       };
+      "wa-dialog": JSX.HTMLAttributes<HTMLElement> & {
+        ref?: (element: HTMLElement) => void;
+        label?: string;
+        open?: boolean;
+      };
     }
   }
 }

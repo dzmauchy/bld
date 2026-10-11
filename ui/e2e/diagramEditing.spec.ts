@@ -269,6 +269,49 @@ test("draws each multiplexed connection on its own lane and grows that port", as
   await page.screenshot({ path: test.info().outputPath("multiplexed-ports.png") });
 });
 
+test("opens a configuration dialog from the gear on a block that has parameters", async ({ page }) => {
+  await page.goto("/");
+  await expect(page.locator("[data-splash]")).toBeHidden();
+  const palette = page.locator("[data-region=palette]");
+  const canvas = page.locator("[data-diagram-canvas]");
+  const canvasBox = await canvas.boundingBox();
+  expect(canvasBox).toBeTruthy();
+
+  const constant = palette.locator("[data-block-id=ConstF32]");
+  await constant.scrollIntoViewIfNeeded();
+  const sourceBox = await constant.boundingBox();
+  expect(sourceBox).toBeTruthy();
+  await page.mouse.move(sourceBox!.x + sourceBox!.width / 2, sourceBox!.y + sourceBox!.height / 2);
+  await page.mouse.down();
+  await page.mouse.move(canvasBox!.x + 240, canvasBox!.y + 160, { steps: 12 });
+  await page.mouse.up();
+
+  const cosine = palette.locator("[data-block-id=CosF32]");
+  await cosine.scrollIntoViewIfNeeded();
+  const cosineBox = await cosine.boundingBox();
+  expect(cosineBox).toBeTruthy();
+  await page.mouse.move(cosineBox!.x + cosineBox!.width / 2, cosineBox!.y + cosineBox!.height / 2);
+  await page.mouse.down();
+  await page.mouse.move(canvasBox!.x + 480, canvasBox!.y + 160, { steps: 12 });
+  await page.mouse.up();
+
+  await expect(canvas.locator("[data-block-ref=ConstF32] [data-block-config]")).toHaveCount(1);
+  await expect(canvas.locator("[data-block-ref=CosF32] [data-block-config]")).toHaveCount(0);
+  await canvas.locator("[data-block-ref=ConstF32] [data-block-config]").click();
+  const dialog = page.locator("[data-block-config-dialog]");
+  await expect(dialog).toBeVisible();
+  await expect(dialog).toContainText("Constant");
+  const value = dialog.locator("[data-config-field=value] input");
+  await expect(value).toHaveValue("1");
+  await value.fill("3.25");
+  await value.press("Enter");
+  await expect(value).toHaveValue("3.25");
+  await page.keyboard.press("Escape");
+  await expect(dialog).toBeHidden();
+  await canvas.locator("[data-block-ref=ConstF32] [data-block-config]").click();
+  await expect(dialog.locator("[data-config-field=value] input")).toHaveValue("3.25");
+});
+
 function segmentHitsRect(
   points: { x: number; y: number }[],
   rect: { left: number; right: number; top: number; bottom: number },
