@@ -6,6 +6,7 @@ import { DiagramBlockFrame, PlacedBlock } from "./diagramBlockFrame.js";
 import { DiagramConnector, PortHit } from "./diagramConnector.js";
 import { BlockMoveGesture, PaletteDragGesture, PointerGesture, PortWireGesture, StampGesture, type DiagramGestureHost } from "./diagramGestures.js";
 import { PaletteArm } from "./paletteArm.js";
+import { ScopeBlock } from "../scope/scopeBlock.js";
 import { WireRoute } from "./wireRoute.js";
 
 /** Canvas session: palette drag, click-to-insert, block moves, and connector drags. */
@@ -29,6 +30,8 @@ export class DiagramEditor implements DiagramGestureHost {
   private readonly setMovingId: (id: string | undefined) => void;
   readonly draft: Accessor<readonly WirePoint[] | undefined>;
   private readonly setDraftPoints: (points: readonly WirePoint[] | undefined) => void;
+  readonly inspectedId: Accessor<string | undefined>;
+  private readonly setInspectedId: (id: string | undefined) => void;
 
   private readonly routeMap = new Map<string, WireRoute>();
 
@@ -60,7 +63,14 @@ export class DiagramEditor implements DiagramGestureHost {
     const draft = createSignal<readonly WirePoint[] | undefined>();
     this.draft = draft[0];
     this.setDraftPoints = draft[1];
+    const inspected = createSignal<string | undefined>();
+    this.inspectedId = inspected[0];
+    this.setInspectedId = inspected[1];
     this.router = router ?? new AvoidWireRouter((route) => this.acceptRoute(route));
+  }
+
+  get model(): Diagram {
+    return this.diagram;
   }
 
   start(): void {
@@ -149,6 +159,16 @@ export class DiagramEditor implements DiagramGestureHost {
 
   setMoving(blockId: string | undefined): void {
     this.setMovingId(blockId);
+  }
+
+  selectBlock(blockId: string): void {
+    const block = this.diagram.getBlock(blockId);
+    if (!block || !ScopeBlock.isScope(block)) return;
+    this.setInspectedId(blockId);
+  }
+
+  closeInspection(): void {
+    this.setInspectedId(undefined);
   }
 
   connect(from: PortHit, to: PortHit): void {

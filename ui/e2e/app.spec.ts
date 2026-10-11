@@ -128,7 +128,9 @@ test("splits a black workspace into a palette and a diagram", async ({ page }) =
     for (const count of counts) expect(count).toBeLessThanOrEqual(2);
   }
   expect(await palette.evaluate((element) => getComputedStyle(element).backgroundColor)).toBe("rgb(28, 33, 37)");
-  await expect(diagram.locator("h1")).toHaveText("Diagram");
+  await expect(diagram.locator("h1")).toHaveCount(0);
+  await expect(page.locator("[data-toolbar] [data-run-toggle]")).toHaveText("Run");
+  await expect(page.locator("[data-toolbar]")).toBeVisible();
 
   const paletteBox = await palette.boundingBox();
   const diagramBox = await diagram.boundingBox();
