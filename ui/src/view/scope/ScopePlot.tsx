@@ -54,6 +54,11 @@ export function ScopePlot(props: {
           data-axis="shared"
           data-series-count={geometry().series.length}
           data-domain-seconds={geometry().domainSeconds}
+          data-samples={geometry().series.reduce((count, series) => count + series.samples.length, 0)}
+          data-last={geometry().series.map((series) => {
+            const value = series.samples.at(-1);
+            return value === undefined ? "" : String(value);
+          }).join(" ")}
         >
           <header class="scope-plot-header">
             <h2>Scope</h2>

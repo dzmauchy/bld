@@ -191,6 +191,23 @@ describe("E2E diagram C++ generation", () => {
     expect(cpp).toContain("ProductF32");
   });
 
+  test("sum of a constant and an open sine emits the sine of zero", () => {
+    const cpp = cppOf(
+      new DiagramJsonBuilder()
+        .addScope("s")
+        .addSum("sum")
+        .addConstant("c", 1)
+        .addSin("sn")
+        .connect("c", "v", 0, "sum", "v", 0)
+        .connect("sn", "sin", 0, "sum", "v", 1)
+        .connect("sum", "s", 0, "s", "sink", 0)
+        .build(),
+    );
+    expect(cpp).toContain("(*open_");
+    expect(cpp).toContain(")(0);");
+    expect(cpp).toContain("core::output_channels<true, 2>");
+  });
+
   test("sum of three constants", () => {
     const cpp = cppOf(
       new DiagramJsonBuilder()

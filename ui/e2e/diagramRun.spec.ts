@@ -88,3 +88,64 @@ test("removes the diagram caption, runs from the toolbar, and plots every scope 
   await expect(run).toHaveText("Run");
   await expect(run).toHaveAttribute("data-run-state", "idle");
 });
+
+test("plots the sum of a constant and the blocks wired into its term channels", async ({ page }) => {
+  test.setTimeout(180_000);
+  await page.goto("/");
+  await expect(page.locator("[data-splash]")).toBeHidden();
+  const palette = page.locator("[data-region=palette]");
+  const canvas = page.locator("[data-diagram-canvas]");
+  const canvasBox = await canvas.boundingBox();
+  expect(canvasBox).toBeTruthy();
+
+  async function drop(blockId: string, clientX: number, clientY: number): Promise<void> {
+    const source = palette.locator(`[data-block-id=${blockId}]`);
+    await source.scrollIntoViewIfNeeded();
+    const sourceBox = await source.boundingBox();
+    expect(sourceBox).toBeTruthy();
+    await page.mouse.move(sourceBox!.x + sourceBox!.width / 2, sourceBox!.y + sourceBox!.height / 2);
+    await page.mouse.down();
+    await page.mouse.move(clientX, clientY, { steps: 12 });
+    await page.mouse.up();
+    await expect(canvas.locator(`[data-block-ref=${blockId}]`)).toHaveCount(1);
+  }
+
+  async function connect(fromRef: string, toRef: string): Promise<void> {
+    const from = canvas.locator(`[data-block-ref=${fromRef}] [data-port-side=output]`);
+    const to = canvas.locator(`[data-block-ref=${toRef}] [data-port-side=input]`);
+    const fromBox = await from.boundingBox();
+    const toBox = await to.boundingBox();
+    expect(fromBox).toBeTruthy();
+    expect(toBox).toBeTruthy();
+    await page.mouse.move(fromBox!.x + fromBox!.width / 2, fromBox!.y + fromBox!.height / 2);
+    await page.mouse.down();
+    await page.mouse.move(toBox!.x + toBox!.width / 2, toBox!.y + toBox!.height / 2, { steps: 14 });
+    await page.mouse.up();
+  }
+
+  const y = canvasBox!.y + 200;
+  await drop("ScopeF32", canvasBox!.x + 140, y);
+  await drop("SumF32", canvasBox!.x + 380, y);
+  await drop("ConstF32", canvasBox!.x + 640, y - 110);
+  await drop("SinF32", canvasBox!.x + 640, y + 110);
+  await connect("ScopeF32", "SumF32");
+  await connect("SumF32", "ConstF32");
+  await connect("SumF32", "SinF32");
+  await expect(canvas.locator("[data-block-ref=SumF32] [data-port-side=output]")).toHaveAttribute("data-port-lanes", "2");
+
+  await canvas.locator("[data-block-ref=ScopeF32]").click();
+  const plot = page.locator("[data-scope-plot]");
+  await expect(plot).toBeVisible();
+  await expect(plot).toHaveAttribute("data-series-count", "1");
+  await expect(plot).toContainText("Sum");
+
+  const run = page.locator("[data-toolbar] [data-run-toggle]");
+  await run.click();
+  await expect(run).toHaveText("Stop", { timeout: 120_000 });
+  await expect(run).toHaveAttribute("data-run-state", "running");
+  await expect(page.locator("[data-run-status]")).toHaveText("");
+  await expect.poll(async () => plot.getAttribute("data-samples"), { timeout: 10_000 }).not.toBe("0");
+  const last = Number(await plot.getAttribute("data-last"));
+  // Constant defaults to 1 and the open sine input is 0, so the scope shows 1.
+  expect(last).toBeCloseTo(1, 4);
+});
