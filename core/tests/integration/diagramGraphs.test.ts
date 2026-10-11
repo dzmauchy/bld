@@ -191,7 +191,7 @@ describe("E2E diagram C++ generation", () => {
     expect(cpp).toContain("ProductF32");
   });
 
-  test("sum of a constant and an open sine emits the sine of zero", () => {
+  test("sum of a constant and an open sine drives that sine with time", () => {
     const cpp = cppOf(
       new DiagramJsonBuilder()
         .addScope("s")
@@ -204,7 +204,9 @@ describe("E2E diagram C++ generation", () => {
         .build(),
     );
     expect(cpp).toContain("(*open_");
-    expect(cpp).toContain(")(0);");
+    expect(cpp).toContain("set_interval(10");
+    expect(cpp).toContain("core::pi_v<double>");
+    expect(cpp).not.toContain(")(0);");
     expect(cpp).toContain("core::output_channels<true, 2>");
   });
 
