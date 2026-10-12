@@ -91,6 +91,8 @@ wa-split-panel::part(panel) {
   flex: 1 1 auto;
   min-height: 0;
   height: auto;
+  /* The component resets this row inline when its divider position changes. */
+  grid-template-rows: minmax(0, 1fr) !important;
 }
 
 .workspace-toolbar {
