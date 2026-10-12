@@ -1,4 +1,4 @@
-import { expect } from "@rstest/core";
+import { expect } from "vitest";
 import type { EmscriptenModuleFactory, EmscriptenModuleOptions } from "../src/emscripten.ts";
 import { MemoryFileSystem, type EmscriptenFsApi } from "../src/filesystem.ts";
 import { SharedToolchainFileSystem } from "../src/sharedFileSystem.ts";

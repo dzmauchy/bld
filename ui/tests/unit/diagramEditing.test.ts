@@ -1,4 +1,4 @@
-import { expect, test } from "@rstest/core";
+import { expect, test } from "vitest";
 import { Diagram, Library, type BlockDefinition, type PackageManifest } from "core";
 import { CanvasPoint, OrthogonalRoute, PointerTravel, WirePoint } from "../../src/view/diagram/geometry.js";
 import { DiagramBlockFrame, PlacedBlock } from "../../src/view/diagram/diagramBlockFrame.js";

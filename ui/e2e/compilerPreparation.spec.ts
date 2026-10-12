@@ -1,4 +1,4 @@
-import { expect, test } from "@playwright/test";
+import { expect, test, element, baseURL } from "./fixtures/browser.ts";
 
 interface PreparationProbe {
   requests: string[];
@@ -7,8 +7,8 @@ interface PreparationProbe {
 
 test("prepares the compiler at startup and shares its pending promise with Run", async ({ page }) => {
   const errors: string[] = [];
-  page.on("pageerror", (error) => errors.push(error.message));
-  await page.addInitScript(() => {
+  page.on("pageerror", (error) => errors.push(error instanceof Error ? error.message : String(error)));
+  await page.evaluateOnNewDocument(() => {
     const pending: (() => void)[] = [];
     const probe: PreparationProbe = {
       requests: [],
@@ -33,40 +33,40 @@ test("prepares the compiler at startup and shares its pending promise with Run",
   const requests = () => page.evaluate(() =>
     (window as unknown as { preparationProbe: PreparationProbe }).preparationProbe.requests);
 
-  await page.goto("/");
-  await expect(page.locator("[data-splash]")).toBeHidden();
+  await page.goto(baseURL());
+  await expect.poll(() => element(page, "[data-splash]").visible()).toBe(false);
   expect(await requests()).toEqual(["init"]);
 
   // The workspace remains editable while compiler preparation is pending.
-  const canvas = page.locator("[data-diagram-canvas]");
+  const canvas = element(page, "[data-diagram-canvas]");
   for (const [ref, x] of [["ScopeF32", 140], ["ConstF32", 420]] as const) {
-    const block = page.locator(`[data-block-id=${ref}]`);
+    const block = element(page, `[data-block-id=${ref}]`);
     await block.scrollIntoViewIfNeeded();
     await block.click();
     await canvas.click({ position: { x, y: 180 } });
-    await expect(canvas.locator(`[data-block-ref=${ref}]`)).toHaveCount(1);
+    await expect.poll(() => canvas.within(`[data-block-ref=${ref}]`).count()).toBe(1);
   }
-  const output = await canvas.locator("[data-block-ref=ScopeF32] [data-port-side=output]").boundingBox();
-  const input = await canvas.locator("[data-block-ref=ConstF32] [data-port-side=input]").boundingBox();
+  const output = await canvas.within("[data-block-ref=ScopeF32] [data-port-side=output]").boundingBox();
+  const input = await canvas.within("[data-block-ref=ConstF32] [data-port-side=input]").boundingBox();
   await page.mouse.click(output!.x + output!.width / 2, output!.y + output!.height / 2);
   await page.mouse.click(input!.x + input!.width / 2, input!.y + input!.height / 2);
-  await expect(canvas.locator("[data-connection]")).toHaveCount(1);
+  await expect.poll(() => canvas.within("[data-connection]").count()).toBe(1);
 
-  const run = page.locator("[data-run-toggle]");
+  const run = element(page, "[data-run-toggle]");
   await run.click();
-  await expect(run).toHaveAttribute("data-run-state", "starting");
+  await expect.poll(() => run.getAttribute("data-run-state")).toBe("starting");
   expect(await requests()).toEqual(["init"]);
   await page.evaluate(() =>
     (window as unknown as { preparationProbe: PreparationProbe }).preparationProbe.release());
-  await expect(run).toHaveAttribute("data-run-state", "running");
-  await expect(page.locator("[data-run-status]")).toHaveText("");
+  await expect.poll(() => run.getAttribute("data-run-state")).toBe("running");
+  await expect.poll(() => element(page, "[data-run-status]").text()).toBe("");
   await run.click();
-  await expect(run).toHaveAttribute("data-run-state", "idle");
+  await expect.poll(() => run.getAttribute("data-run-state")).toBe("idle");
   await run.click();
-  await expect(run).toHaveAttribute("data-run-state", "running");
+  await expect.poll(() => run.getAttribute("data-run-state")).toBe("running");
   expect((await requests()).filter((type) => type === "init")).toHaveLength(1);
   expect((await requests()).filter((type) => type === "compile")).toHaveLength(2);
   await run.click();
-  await expect(run).toHaveAttribute("data-run-state", "idle");
+  await expect.poll(() => run.getAttribute("data-run-state")).toBe("idle");
   expect(errors).toEqual([]);
 });

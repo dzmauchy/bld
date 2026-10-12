@@ -14,7 +14,7 @@ Features:
 
 Technology stack:
 - TypeScript
-- rsbuild
+- Vite
 - Lit and @lit-labs/signals
 - webawesome
 - dark theme

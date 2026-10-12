@@ -1,4 +1,4 @@
-import { describe, expect, rs, test } from "@rstest/core";
+import { describe, expect, vi, test } from "vitest";
 import { resolveUrl } from "../../../src/model/appAssets.js";
 import { readNodeAsset } from "../../readNodeAsset.ts";
 import { packTar } from "modern-tar";
@@ -96,7 +96,7 @@ describe("Library and Asset Loader", () => {
     ].join("\n");
     const archive = await gzipTar({ "plugin.hpp": header, "meta.json": JSON.stringify({ namespaces: [], blocks: [{ id: "CustomBlock", namespace: "custom_ns", name: "Custom Block" }] }) });
     const originalFetch = globalThis.fetch;
-    const fetchMock = rs.fn(async (url: RequestInfo | URL) => {
+    const fetchMock = vi.fn(async (url: RequestInfo | URL) => {
       const u = String(url);
       if (u === "https://my-plugin.org/dsp/library.json") {
         return new Response(
@@ -221,7 +221,7 @@ describe("Library and Asset Loader", () => {
       }),
     });
     registerAppAssetBytes("samples/lib.tar.gz", await gzipTar({ "block.hpp": header, "meta.json": JSON.stringify({ namespaces: [], blocks: [{ id: "Local", namespace: "samples", name: "Local" }] }) }));
-    const fetchMock = rs.fn();
+    const fetchMock = vi.fn();
     const originalFetch = globalThis.fetch;
     globalThis.fetch = fetchMock as unknown as typeof fetch;
     try {

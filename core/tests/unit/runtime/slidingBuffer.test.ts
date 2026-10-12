@@ -1,4 +1,4 @@
-import { describe, expect, test } from "@rstest/core";
+import { describe, expect, test } from "vitest";
 import { SlidingScopeBuffer, SlidingScopeBufferF64 } from "core";
 
 describe("SlidingScopeBuffer", () => {

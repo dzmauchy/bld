@@ -21,9 +21,6 @@ core/assets/assembly/build/
 # Test artifacts
 .vitest/
 test-results/
-playwright-report/
-blob-report/
-playwright/.cache/
 
 # Editor
 .idea/

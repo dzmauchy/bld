@@ -1,17 +1,17 @@
 {
   "name": "bld",
-  "install": "npm ci && (cd ui && npx playwright install --with-deps chromium) && npm run build",
+  "install": "npm ci && npm exec --workspaces=false -- puppeteer browsers install chrome --install-deps && npm run build",
   "terminals": [
     {
       "name": "dev",
-      "command": "npm run dev",
-      "description": "Rsbuild dev server for the ui package, served on http://localhost:3000"
+      "command": "npm run dev --workspace=ui --include-workspace-root=false",
+      "description": "Vite dev server for the UI package, served on http://localhost:3001"
     }
   ],
   "ports": [
     {
       "name": "ui dev server",
-      "port": 3000
+      "port": 3001
     }
   ]
 }

@@ -1,4 +1,4 @@
-import { describe, expect, test } from "@rstest/core";
+import { describe, expect, test } from "vitest";
 import { ClangAstDumper, CppTypeNames, JsonComment, cppIdent } from "../../src/index.ts";
 import { HostClangAstDumper } from "../../src/hostClangAstDumper.ts";
 

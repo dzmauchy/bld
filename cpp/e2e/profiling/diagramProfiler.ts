@@ -1,6 +1,6 @@
 /** Object-oriented test profiler orchestrating execution breakdown for diagram tests. */
 
-import { expect } from "@playwright/test";
+import { expect } from "vitest";
 import type { CppSession } from "../fixtures/cpp.ts";
 import { Diagram, PortEndpoint, type CppDiagramBuilder } from "../../../core/src/index.ts";
 import type { IProfileSession } from "./session.ts";

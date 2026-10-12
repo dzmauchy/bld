@@ -8,13 +8,16 @@
     "cpp"
   ],
   "devDependencies": {
-    "@rstest/core": "^0.12.3",
     "@types/node": "^26",
     "typescript": "^7.0.2",
-    "wrangler": "^4.149.0"
+    "wrangler": "^4.149.0",
+    "vite": "8.3.4",
+    "vitest": "5.0.4",
+    "puppeteer": "25.13.0"
   },
   "allowScripts": {
     "esbuild": true,
-    "workerd": true
+    "workerd": true,
+    "puppeteer": true
   }
 }

@@ -1,4 +1,4 @@
-import { describe, expect, test } from "@rstest/core";
+import { describe, expect, test } from "vitest";
 import { CoreSchemaCatalog, SchemaCatalog, schemaAssetFiles } from "../../src/index.js";
 
 describe("SchemaCatalog", () => {

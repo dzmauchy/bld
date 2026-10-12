@@ -1,4 +1,4 @@
-import { describe, expect, test } from "@rstest/core";
+import { describe, expect, test } from "vitest";
 import { LlvmProjectRelease } from "../../src/llvmRelease.ts";
 import { LlvmToolchainProxy } from "../../src/llvmToolchainProxy.ts";
 

@@ -1,23 +1,13 @@
-import { expect, test } from "@rstest/core";
+import { expect, test } from "vitest";
 import { CoreSchemaCatalog, schemaAssetFiles } from "core";
 import headers from "../../public/_headers?raw";
-import config from "../../rsbuild.config.ts";
+import config from "../../vite.config.ts";
 import coreLibrarySchema from "core/assets/schemas/library.schema.json?raw";
 
-const schemaAssets = {
-  "library.schema.json": coreLibrarySchema,
-} as const;
+const schemaAssets = { "library.schema.json": coreLibrarySchema } as const;
 
-test("rsbuild copies core JSON schemas to /schemas", () => {
-  expect(config.html?.template).toBe("./index.html");
-  const copy = config.output?.copy;
-  expect(Array.isArray(copy)).toBe(true);
-  if (!Array.isArray(copy)) return;
-  expect(copy.slice(0, 2)).toEqual([
-    { from: "../core/assets/schemas", to: "schemas" },
-    { from: "../cpp/public/llvm-toolchain-sw.js", to: "./" },
-  ]);
-  expect(copy).toHaveLength(2);
+test("Vite publishes the shared schemas and toolchain service worker", () => {
+  expect(config.plugins?.some((plugin) => plugin && "name" in plugin && plugin.name === "bld-workspace-assets")).toBe(true);
   expect(Object.keys(schemaAssets).sort()).toEqual([...schemaAssetFiles].sort());
   expect(CoreSchemaCatalog.shared.schemaNames).toEqual(["library"]);
   for (const [name, schema] of Object.entries(schemaAssets)) {
@@ -25,16 +15,16 @@ test("rsbuild copies core JSON schemas to /schemas", () => {
   }
 });
 
-test("rsbuild compiles the Lit TypeScript entry", () => {
-  expect(config.source?.entry).toEqual({ index: "./src/index.ts" });
-  expect(config.output?.module).toBe(true);
-  expect(config.html?.scriptLoading).toBe("module");
-  expect(config.output?.overrideBrowserslist).toEqual([
-    "chrome >= 135",
-    "edge >= 135",
-    "firefox >= 135",
-    "safari >= 18.4",
-  ]);
+test("Vite builds the Lit app and its module workers without inlining assets", () => {
+  expect(config.build?.target).toBe("esnext");
+  expect(config.build?.assetsInlineLimit).toBe(0);
+  expect(config.worker?.format).toBe("es");
+  expect(config.server?.port).toBe(3001);
+  expect(config.preview?.port).toBe(3001);
+  for (const server of [config.server, config.preview]) {
+    expect(server?.headers?.["Cross-Origin-Opener-Policy"]).toBe("same-origin");
+    expect(server?.headers?.["Cross-Origin-Embedder-Policy"]).toBe("require-corp");
+  }
 });
 
 test("Cloudflare _headers enable cross-origin isolation for every asset", () => {

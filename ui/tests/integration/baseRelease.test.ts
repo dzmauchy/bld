@@ -1,7 +1,7 @@
 import { readFile } from "node:fs/promises";
 import { gzipSync } from "node:zlib";
 import { packTar } from "modern-tar";
-import { expect, test } from "@rstest/core";
+import { expect, test } from "vitest";
 import { isCurrentBaseRelease } from "../../scripts/fetch-base-release.mjs";
 
 test("the bundled base release exposes the type agnostic diagram contract", async () => {

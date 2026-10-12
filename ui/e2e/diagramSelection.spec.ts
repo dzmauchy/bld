@@ -1,45 +1,41 @@
-import { expect, test, type Locator, type Page } from "@playwright/test";
+import { expect, test, element, baseURL, dialog as dialogElement, artifactPath, type BrowserElement, type Page } from "./fixtures/browser.ts";
 
-test.use({ viewport: { width: 1280, height: 800 } });
-test.beforeEach(async ({ page }) => {
-  await page.goto("/");
-  await expect(page.locator("[data-splash]")).toBeHidden();
-});
+
 
 class SelectionDiagram {
-  readonly canvas: Locator;
-  readonly deleteButton: Locator;
+  readonly canvas: BrowserElement;
+  readonly deleteButton: BrowserElement;
 
   constructor(private readonly page: Page) {
-    this.canvas = page.locator("[data-diagram-canvas]");
-    this.deleteButton = page.locator("[data-delete-selected]");
+    this.canvas = element(page, "[data-diagram-canvas]");
+    this.deleteButton = element(page, "[data-delete-selected]");
   }
 
-  block(ref: string): Locator {
-    return this.canvas.locator(`[data-block-ref=${ref}]`);
+  block(ref: string): BrowserElement {
+    return this.canvas.within(`[data-block-ref=${ref}]`);
   }
 
   async insert(ref: string, x: number, y: number): Promise<void> {
-    const source = this.page.locator(`[data-region=palette] [data-block-id=${ref}]`);
+    const source = element(this.page, `[data-region=palette] [data-block-id=${ref}]`);
     await source.scrollIntoViewIfNeeded();
     const from = await source.boundingBox();
     const canvas = await this.canvas.boundingBox();
     expect(from && canvas).toBeTruthy();
     await source.click();
     await this.page.mouse.click(canvas!.x + x, canvas!.y + y);
-    await expect(this.block(ref)).toHaveCount(1);
+    await expect.poll(() => this.block(ref).count()).toBe(1);
   }
 
   async connect(fromRef: string, toRef: string): Promise<void> {
-    const from = await this.block(fromRef).locator("[data-port-side=output]").boundingBox();
-    const to = await this.block(toRef).locator("[data-port-side=input]").boundingBox();
+    const from = await this.block(fromRef).within("[data-port-side=output]").boundingBox();
+    const to = await this.block(toRef).within("[data-port-side=input]").boundingBox();
     expect(from && to).toBeTruthy();
     await this.page.mouse.click(from!.x + from!.width / 2, from!.y + from!.height / 2);
     await this.page.mouse.click(to!.x + to!.width / 2, to!.y + to!.height / 2);
   }
 
-  async selectWire(index = 0): Promise<Locator> {
-    const wire = this.canvas.locator("[data-connection]").nth(index);
+  async selectWire(index = 0): Promise<BrowserElement> {
+    const wire = this.canvas.within("[data-connection]").nth(index);
     const midpoint = await wire.evaluate((element) => {
       const polyline = element as SVGPolylineElement;
       const points = [...polyline.points];
@@ -59,7 +55,7 @@ class SelectionDiagram {
     });
     // The transparent hit stroke extends seven pixels either side of the line.
     await this.page.mouse.click(midpoint.x, midpoint.y + 4);
-    await expect(wire).toHaveAttribute("data-selected", "true", { timeout: 5_000 });
+    await expect.poll(() => wire.getAttribute("data-selected"), { timeout: 5_000 }).toBe("true");
     return wire;
   }
 
@@ -67,11 +63,11 @@ class SelectionDiagram {
     await this.insert("ScopeF32", 140, 170);
     await this.insert("ConstF32", 460, 170);
     await this.connect("ScopeF32", "ConstF32");
-    await expect(this.canvas.locator("[data-connection]")).toHaveCount(1);
+    await expect.poll(() => this.canvas.within("[data-connection]").count()).toBe(1);
   }
 }
 
-async function expectPulse(object: Locator): Promise<void> {
+async function expectPulse(object: BrowserElement): Promise<void> {
   const pulse = await object.evaluate(async (element) => {
     const samples: number[] = [];
     const animation = getComputedStyle(element).animationName;
@@ -90,161 +86,174 @@ async function expectPulse(object: Locator): Promise<void> {
 }
 
 test("selects blocks and connections with a slow 17% fade and deletes a wire from the toolbar", async ({ page }) => {
+  await page.goto(baseURL());
+  await expect.poll(() => element(page, "[data-splash]").visible()).toBe(false);
   const diagram = new SelectionDiagram(page);
-  await expect(diagram.deleteButton).toBeDisabled();
+  await expect.poll(() => diagram.deleteButton.disabled()).toBe(true);
   await diagram.pair();
   const constant = diagram.block("ConstF32");
   await constant.click();
-  await expect(constant).toHaveAttribute("data-selected", "true");
+  await expect.poll(() => constant.getAttribute("data-selected")).toBe("true");
   await expectPulse(constant);
   const wire = await diagram.selectWire();
-  await expect(constant).toHaveAttribute("data-selected", "false");
+  await expect.poll(() => constant.getAttribute("data-selected")).toBe("false");
   await expectPulse(wire);
-  await page.screenshot({ path: test.info().outputPath("selected-connection.png") });
+  await page.screenshot({ path: artifactPath("selected-connection.png") });
   await diagram.deleteButton.click();
-  await expect(diagram.canvas.locator("[data-connection]")).toHaveCount(0);
-  await expect(diagram.canvas.locator("[data-diagram-block]")).toHaveCount(2);
-  await expect(diagram.deleteButton).toBeDisabled();
+  await expect.poll(() => diagram.canvas.within("[data-connection]").count()).toBe(0);
+  await expect.poll(() => diagram.canvas.within("[data-diagram-block]").count()).toBe(2);
+  await expect.poll(() => diagram.deleteButton.disabled()).toBe(true);
   // A later reroute must not resurrect the deleted edge.
   const origin = await constant.boundingBox();
   await page.mouse.move(origin!.x + origin!.width / 2, origin!.y + origin!.height / 2);
   await page.mouse.down();
   await page.mouse.move(origin!.x + origin!.width / 2, origin!.y + origin!.height / 2 + 70, { steps: 8 });
   await page.mouse.up();
-  await expect(diagram.canvas.locator("[data-connection]")).toHaveCount(0);
+  await expect.poll(() => diagram.canvas.within("[data-connection]").count()).toBe(0);
   await diagram.connect("ScopeF32", "ConstF32");
-  await expect(diagram.canvas.locator("[data-route-origin=maxgraph]")).toHaveCount(1);
+  await expect.poll(() => diagram.canvas.within("[data-route-origin=maxgraph]").count()).toBe(1);
 });
 
-for (const key of ["Delete", "Backspace"]) {
+for (const key of ["Delete", "Backspace"] as const) {
   test(`${key} deletes a selected wire and a block with its attached connections`, async ({ page }) => {
+  await page.goto(baseURL());
+  await expect.poll(() => element(page, "[data-splash]").visible()).toBe(false);
     const diagram = new SelectionDiagram(page);
     await diagram.pair();
     await diagram.selectWire();
     await page.keyboard.press(key);
-    await expect(diagram.canvas.locator("[data-connection]")).toHaveCount(0);
-    await expect(diagram.canvas.locator("[data-diagram-block]")).toHaveCount(2);
+    await expect.poll(() => diagram.canvas.within("[data-connection]").count()).toBe(0);
+    await expect.poll(() => diagram.canvas.within("[data-diagram-block]").count()).toBe(2);
     await diagram.connect("ScopeF32", "ConstF32");
-    await expect(diagram.canvas.locator("[data-connection]")).toHaveCount(1);
+    await expect.poll(() => diagram.canvas.within("[data-connection]").count()).toBe(1);
     await diagram.block("ConstF32").click();
     await page.keyboard.press(key);
-    await expect(diagram.block("ConstF32")).toHaveCount(0);
-    await expect(diagram.canvas.locator("[data-connection]")).toHaveCount(0);
-    await expect(diagram.deleteButton).toBeDisabled();
+    await expect.poll(() => diagram.block("ConstF32").count()).toBe(0);
+    await expect.poll(() => diagram.canvas.within("[data-connection]").count()).toBe(0);
+    await expect.poll(() => diagram.deleteButton.disabled()).toBe(true);
     await diagram.block("ScopeF32").click();
-    await expect(page.locator("[data-scope-plot]")).toBeVisible();
+    await expect.poll(() => element(page, "[data-scope-plot]").visible()).toBe(true);
     await diagram.deleteButton.click();
-    await expect(diagram.canvas.locator("[data-diagram-block]")).toHaveCount(0);
-    await expect(page.locator("[data-scope-plot]")).toHaveCount(0);
+    await expect.poll(() => diagram.canvas.within("[data-diagram-block]").count()).toBe(0);
+    await expect.poll(() => element(page, "[data-scope-plot]").count()).toBe(0);
   });
 }
 
 test("supports multiple selections and preserves blocks while editing configuration", async ({ page }) => {
+  await page.goto(baseURL());
+  await expect.poll(() => element(page, "[data-splash]").visible()).toBe(false);
   const diagram = new SelectionDiagram(page);
   await diagram.pair();
   await diagram.block("ConstF32").click();
   await diagram.block("ScopeF32").click({ modifiers: ["Control"] });
-  await expect(diagram.canvas.locator("[data-diagram-block][data-selected=true]")).toHaveCount(2);
+  await expect.poll(() => diagram.canvas.within("[data-diagram-block][data-selected=true]").count()).toBe(2);
   await diagram.block("ScopeF32").click({ modifiers: ["Shift"] });
-  await expect(diagram.canvas.locator("[data-diagram-block][data-selected=true]")).toHaveCount(1);
+  await expect.poll(() => diagram.canvas.within("[data-diagram-block][data-selected=true]").count()).toBe(1);
   await diagram.canvas.click({ position: { x: 700, y: 70 } });
-  await expect(diagram.deleteButton).toBeDisabled();
+  await expect.poll(() => diagram.deleteButton.disabled()).toBe(true);
 
   await diagram.block("ConstF32").click();
-  await diagram.block("ConstF32").locator("[data-block-config]").click();
-  const dialog = page.getByRole("dialog", { name: "Constant", exact: true });
-  await expect(dialog).toBeVisible({ timeout: 10_000 });
-  const input = page.locator("[data-block-config-dialog] [data-config-field=value] input");
+  await diagram.block("ConstF32").within("[data-block-config]").click();
+  const dialog = dialogElement(page, "Constant");
+  await expect.poll(() => dialog.visible(), { timeout: 10_000 }).toBe(true);
+  const input = element(page, "[data-block-config-dialog] [data-config-field=value] input");
   await input.fill("123");
   await input.press("Backspace");
   await input.press("Delete");
-  await expect(input).toHaveValue("12");
-  await expect(diagram.canvas.locator("[data-diagram-block]")).toHaveCount(2);
-  await expect(diagram.canvas.locator("[data-connection]")).toHaveCount(1);
+  await expect.poll(() => input.value()).toBe("12");
+  await expect.poll(() => diagram.canvas.within("[data-diagram-block]").count()).toBe(2);
+  await expect.poll(() => diagram.canvas.within("[data-connection]").count()).toBe(1);
   await page.keyboard.press("Escape");
-  await expect(dialog).toBeHidden();
+  await expect.poll(() => dialog.visible()).toBe(false);
   await diagram.block("ScopeF32").click({ modifiers: ["Control"] });
   await diagram.deleteButton.click();
-  await expect(diagram.canvas.locator("[data-diagram-block]")).toHaveCount(0);
-  await expect(diagram.canvas.locator("[data-connection]")).toHaveCount(0);
+  await expect.poll(() => diagram.canvas.within("[data-diagram-block]").count()).toBe(0);
+  await expect.poll(() => diagram.canvas.within("[data-connection]").count()).toBe(0);
 });
 
 test("deleting a block stops the running diagram", async ({ page }) => {
+  await page.goto(baseURL());
+  await expect.poll(() => element(page, "[data-splash]").visible()).toBe(false);
   const diagram = new SelectionDiagram(page);
   await diagram.pair();
-  const run = page.locator("[data-run-toggle]");
+  const run = element(page, "[data-run-toggle]");
   await run.click();
-  await expect(run).toHaveAttribute("data-run-state", "running");
+  await expect.poll(() => run.getAttribute("data-run-state")).toBe("running");
   await diagram.block("ConstF32").click();
   await page.keyboard.press("Delete");
-  await expect(run).toHaveAttribute("data-run-state", "idle");
-  await expect(diagram.block("ConstF32")).toHaveCount(0);
-  await expect(diagram.canvas.locator("[data-connection]")).toHaveCount(0);
+  await expect.poll(() => run.getAttribute("data-run-state")).toBe("idle");
+  await expect.poll(() => diagram.block("ConstF32").count()).toBe(0);
+  await expect.poll(() => diagram.canvas.within("[data-connection]").count()).toBe(0);
 });
 
 test("connects only after selecting an output and then an input, with cancellation and keyboard support", async ({ page }) => {
+  await page.goto(baseURL());
+  await expect.poll(() => element(page, "[data-splash]").visible()).toBe(false);
   const diagram = new SelectionDiagram(page);
   await diagram.insert("ScopeF32", 140, 170);
   await diagram.insert("SumF32", 370, 170);
   await diagram.insert("ConstF32", 600, 170);
-  const output = diagram.block("ScopeF32").locator("[data-port-side=output]");
-  const otherOutput = diagram.block("SumF32").locator("[data-port-side=output]");
-  const input = diagram.block("ConstF32").locator("[data-port-side=input]");
-  const wires = diagram.canvas.locator("[data-connection]");
+  const output = diagram.block("ScopeF32").within("[data-port-side=output]");
+  const otherOutput = diagram.block("SumF32").within("[data-port-side=output]");
+  const input = diagram.block("ConstF32").within("[data-port-side=input]");
+  const wires = diagram.canvas.within("[data-connection]");
 
   await input.click();
-  await expect(output).toHaveAttribute("data-selected", "false");
-  await expect(wires).toHaveCount(0);
+  await expect.poll(() => output.getAttribute("data-selected")).toBe("false");
+  await expect.poll(() => wires.count()).toBe(0);
   await output.dragTo(input);
-  await expect(wires).toHaveCount(0);
-  await expect(output).toHaveAttribute("data-selected", "false");
-  await expect(diagram.canvas.locator(".diagram-wire.is-draft")).toHaveCount(0);
+  await expect.poll(() => wires.count()).toBe(0);
+  await expect.poll(() => output.getAttribute("data-selected")).toBe("false");
+  await expect.poll(() => diagram.canvas.within(".diagram-wire.is-draft").count()).toBe(0);
 
   await output.click();
-  await expect(output).toHaveAttribute("aria-pressed", "true");
+  await expect.poll(() => output.getAttribute("aria-pressed")).toBe("true");
   await expectPulse(output);
-  await expect(wires).toHaveCount(0);
+  await expect.poll(() => wires.count()).toBe(0);
   await output.click();
-  await expect(output).toHaveAttribute("aria-pressed", "false");
+  await expect.poll(() => output.getAttribute("aria-pressed")).toBe("false");
   await output.click();
   await otherOutput.click();
-  await expect(output).toHaveAttribute("data-selected", "false");
-  await expect(otherOutput).toHaveAttribute("data-selected", "true");
+  await expect.poll(() => output.getAttribute("data-selected")).toBe("false");
+  await expect.poll(() => otherOutput.getAttribute("data-selected")).toBe("true");
   // An invalid self-connection leaves the selected output available.
-  await diagram.block("SumF32").locator("[data-port-side=input]").click();
-  await expect(wires).toHaveCount(0);
-  await expect(otherOutput).toHaveAttribute("data-selected", "true");
+  await diagram.block("SumF32").within("[data-port-side=input]").click();
+  await expect.poll(() => wires.count()).toBe(0);
+  await expect.poll(() => otherOutput.getAttribute("data-selected")).toBe("true");
   await page.keyboard.press("Escape");
-  await expect(otherOutput).toHaveAttribute("data-selected", "false");
+  await expect.poll(() => otherOutput.getAttribute("data-selected")).toBe("false");
   await output.click();
   await diagram.canvas.click({ position: { x: 700, y: 70 } });
   await input.click();
-  await expect(wires).toHaveCount(0);
+  await expect.poll(() => wires.count()).toBe(0);
 
   await output.focus();
   await page.keyboard.press("Enter");
-  await expect(output).toHaveAttribute("aria-pressed", "true");
+  await expect.poll(() => output.getAttribute("aria-pressed")).toBe("true");
   await input.focus();
   await page.keyboard.press("Space");
-  await expect(wires).toHaveCount(1);
-  await expect(output).toHaveAttribute("aria-pressed", "false");
+  await expect.poll(() => wires.count()).toBe(1);
+  await expect.poll(() => output.getAttribute("aria-pressed")).toBe("false");
   await otherOutput.click();
   await input.click();
-  await expect(wires).toHaveCount(1);
-  await expect(otherOutput).toHaveAttribute("data-selected", "true");
+  await expect.poll(() => wires.count()).toBe(2);
+  await expect.poll(() => otherOutput.getAttribute("data-selected")).toBe("false");
+  await otherOutput.click();
   await diagram.block("ConstF32").click();
-  await expect(otherOutput).toHaveAttribute("data-selected", "false");
+  await expect.poll(() => otherOutput.getAttribute("data-selected")).toBe("false");
 });
 
 test("renders palette items, blocks, ports, and configuration controls as Lit custom elements", async ({ page }) => {
+  await page.goto(baseURL());
+  await expect.poll(() => element(page, "[data-splash]").visible()).toBe(false);
   const diagram = new SelectionDiagram(page);
-  const paletteButton = page.locator("bld-palette-button").filter({ has: page.locator("[data-block-id=ConstF32]") });
-  await expect(paletteButton).toHaveCount(1);
+  const paletteButton = element(page, "bld-palette-button:has([data-block-id=ConstF32])");
+  await expect.poll(() => paletteButton.count()).toBe(1);
   await diagram.insert("ConstF32", 420, 170);
-  const block = page.locator("bld-diagram-block").filter({ has: diagram.block("ConstF32") });
-  await expect(block).toHaveCount(1);
-  await expect(block.locator("bld-port-button button")).toHaveCount(1);
-  await expect(block.locator("bld-config-button button")).toHaveCount(1);
+  const block = element(page, "bld-diagram-block:has([data-block-ref=ConstF32])");
+  await expect.poll(() => block.count()).toBe(1);
+  await expect.poll(() => block.within("bld-port-button button").count()).toBe(1);
+  await expect.poll(() => block.within("bld-config-button button").count()).toBe(1);
   const registered = await page.evaluate(() => [
     "bld-app", "bld-workspace", "bld-palette-button", "bld-diagram-block", "bld-port-button", "bld-config-button",
   ].every((tag) => customElements.get(tag)?.prototype.requestUpdate instanceof Function));

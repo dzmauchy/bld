@@ -1,4 +1,7 @@
-import { expect, test, type Page } from "@playwright/test";
+import { beforeAll, afterAll } from "vitest";
+import puppeteer, { type Page, type Browser, type ConsoleMessage } from "puppeteer";
+import { expect, baseURL, wasmBrowserArgs } from "../../tests/e2e/browser.ts";
+import { test } from "vitest";
 import type { CppPageApi } from "../src/browser/api.ts";
 
 declare global {
@@ -7,7 +10,7 @@ declare global {
   }
 }
 
-test.describe.configure({ mode: "serial" });
+
 
 const ADD_CPP = `
 extern "C" int add(int a, int b) {
@@ -38,16 +41,18 @@ extern "C" int mul(int a, int b) {
 `;
 
 let page: Page;
+let browser: Browser;
 
-test.beforeAll(async ({ browser }) => {
+beforeAll(async () => {
+  browser = await puppeteer.launch({ headless: true, args: ["--no-sandbox", ...wasmBrowserArgs] });
   page = await browser.newPage();
-  await page.goto("/");
-  await expect(page.locator("#status")).toHaveText("module-ready");
+  await page.goto(baseURL());
+  await page.waitForFunction(() => document.querySelector("#status")?.textContent === "module-ready", { timeout: 30_000 });
   expect(await page.evaluate(() => window.cpp.workerCreateCount())).toBe(0);
 });
 
-test.afterAll(async () => {
-  await page.close();
+afterAll(async () => {
+  await browser.close();
 });
 
 test("compiles freestanding C++ and executes the wasm export", async () => {
@@ -76,7 +81,7 @@ test("compiles against sysroot headers", async () => {
 
 test("bare wasm uses the freestanding runtime, initializes C++ state once, and imports browser output and clocks", async () => {
   const output: string[] = [];
-  const collectOutput = (message: import("@playwright/test").ConsoleMessage) => output.push(message.text());
+  const collectOutput = (message: ConsoleMessage) => output.push(message.text());
   page.on("console", collectOutput);
   try {
     const result = await page.evaluate(async () => {
@@ -110,7 +115,8 @@ extern "C" double utc() {
       // Inspect the actual module sent to the execution worker.
       const postMessage = Worker.prototype.postMessage;
       let imports: WebAssembly.ModuleImportDescriptor[] = [];
-      Worker.prototype.postMessage = function (...args: Parameters<Worker["postMessage"]>) {
+      Worker.prototype.postMessage = function (message: unknown, options?: Transferable[] | StructuredSerializeOptions) {
+        const args = [message, options];
         const request = args[0] as { type?: string; wasm?: Uint8Array<ArrayBuffer> };
         if (request.type === "instantiate" && request.wasm) {
           imports = WebAssembly.Module.imports(new WebAssembly.Module(request.wasm));
@@ -156,7 +162,7 @@ test("rejects unresolved dependencies at link time", async () => {
       });
       return "";
     } catch (error) {
-      return error instanceof Error ? error.message : String(error);
+      return error instanceof Error ? error instanceof Error ? error.message : String(error) : String(error);
     }
   });
   expect(message).toMatch(/undefined symbol: missing_dependency/);
@@ -171,7 +177,7 @@ extern "C" int answer() { return unknown_host(); }
 ` });
       return "";
     } catch (error) {
-      return error instanceof Error ? error.message : String(error);
+      return error instanceof Error ? error instanceof Error ? error.message : String(error) : String(error);
     }
   });
   expect(message).toBe("unsupported wasm import env.unknown_host (function)");
@@ -194,7 +200,7 @@ test("surfaces clang diagnostics for invalid C++", async () => {
       await window.cpp.compile({ "bad.cpp": "not valid c++ {" });
       return "";
     } catch (error) {
-      return error instanceof Error ? error.message : String(error);
+      return error instanceof Error ? error instanceof Error ? error.message : String(error) : String(error);
     }
   });
   expect(message.length).toBeGreaterThan(0);
@@ -231,7 +237,7 @@ test("a subsequent job cannot include a header from a previous job", async () =>
       await window.cpp.compileOnly({ "main.cpp": '#include "old.h"' });
       return "";
     } catch (error) {
-      return error instanceof Error ? error.message : String(error);
+      return error instanceof Error ? error instanceof Error ? error.message : String(error) : String(error);
     }
   });
   expect(message).toMatch(/old.h.*file not found/);

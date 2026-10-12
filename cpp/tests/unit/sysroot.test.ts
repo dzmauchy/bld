@@ -1,5 +1,5 @@
 import { packTar } from "modern-tar";
-import { describe, expect, test } from "@rstest/core";
+import { describe, expect, test } from "vitest";
 import { MemoryFileSystem } from "../../src/filesystem.ts";
 import { shouldInstallSysrootEntry, SysrootInstaller, tarPathToMemfs } from "../../src/sysroot.ts";
 

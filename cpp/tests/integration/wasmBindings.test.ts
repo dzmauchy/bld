@@ -1,4 +1,4 @@
-import { expect, test } from "@rstest/core";
+import { expect, test } from "vitest";
 import { DefaultWasmBindings } from "../../src/bindings.ts";
 
 async function importingModule(namespace: string, name: string, type: number[]): Promise<WebAssembly.Module> {

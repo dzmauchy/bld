@@ -1,4 +1,4 @@
-import { expect, test } from "@rstest/core";
+import { expect, test } from "vitest";
 import { SharedToolchainFileSystem } from "../../src/sharedFileSystem.ts";
 import type { WorkerResponse } from "../../src/messages.ts";
 import { attachWorker } from "../../src/workers/host.ts";

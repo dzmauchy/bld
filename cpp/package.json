@@ -15,19 +15,17 @@
     "modern-tar": "^0.8.5"
   },
   "devDependencies": {
-    "@playwright/test": "^1.64.0",
-    "@rsbuild/core": "^2.2.12",
-    "@rstest/adapter-rsbuild": "^0.12.3",
     "core": "*"
   },
   "scripts": {
-    "dev": "rsbuild",
-    "build": "tsc -b && tsc -b tsconfig.test.json",
-    "preview": "rsbuild build && rsbuild preview --port 3002",
-    "test": "tsc -b && tsc -b tsconfig.test.json && rstest tests && playwright test",
-    "test:unit": "tsc -b && tsc -b tsconfig.test.json && rstest tests/unit",
-    "test:manual": "playwright test e2e/diagramProfile.manual.spec.ts",
-    "test:profile": "playwright test e2e/diagramProfile.manual.spec.ts",
-    "clean": "tsc -b --clean"
+    "dev": "vite",
+    "build": "tsc -b && tsc -b tsconfig.test.json && vite build",
+    "preview": "vite preview",
+    "test": "tsc -b && tsc -b tsconfig.test.json && vitest run --config vitest.config.ts && vitest run --config vitest.e2e.config.ts",
+    "test:unit": "tsc -b && tsc -b tsconfig.test.json && vitest run --config vitest.config.ts tests/unit",
+    "test:manual": "MANUAL=1 vitest run --config vitest.e2e.config.ts e2e/diagramProfile.manual.spec.ts",
+    "test:profile": "MANUAL=1 vitest run --config vitest.e2e.config.ts e2e/diagramProfile.manual.spec.ts",
+    "clean": "tsc -b --clean",
+    "test:e2e": "vitest run --config vitest.e2e.config.ts"
   }
 }

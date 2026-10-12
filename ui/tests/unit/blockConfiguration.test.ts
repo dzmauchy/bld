@@ -1,5 +1,5 @@
 import { Diagram, Library, type PackageManifest } from "core";
-import { expect, test } from "@rstest/core";
+import { expect, test } from "vitest";
 import { BlockConfiguration, ConfigControl } from "../../src/view/diagram/blockConfiguration.js";
 import { PlacedBlock } from "../../src/view/diagram/diagramBlockFrame.js";
 

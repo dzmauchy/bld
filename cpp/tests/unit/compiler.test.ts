@@ -1,4 +1,4 @@
-import { describe, expect, test } from "@rstest/core";
+import { describe, expect, test } from "vitest";
 import { ClangFrontend } from "../../src/clang.ts";
 import { CppWasmCompiler, WorkerCppWasmCompiler } from "../../src/compiler.ts";
 import type { EmscriptenModuleFactory } from "../../src/emscripten.ts";

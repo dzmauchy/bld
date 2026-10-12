@@ -4,7 +4,7 @@
 [![WebAssembly](https://img.shields.io/badge/WebAssembly-clang%2Flld-654FF0.svg)](https://webassembly.org/)
 [![C++](https://img.shields.io/badge/C%2B%2B-base%20library-00599C.svg)](https://isocpp.org/)
 [![Lit](https://img.shields.io/badge/Lit-3.3-324fff.svg)](https://lit.dev/)
-[![Rsbuild](https://img.shields.io/badge/Rsbuild-Fast%20Builds-F43F5E.svg)](https://rsbuild.dev/)
+[![Vite](https://img.shields.io/badge/Vite-8.3.4-646cff.svg)](https://vite.dev/)
 [![License: AGPL-3.0](https://img.shields.io/badge/License-AGPL--3.0-orange.svg)](LICENSE)
 
 > A modern, client-side Visual Programming IDE and compiler for creating, editing, and executing reactive dataflow diagrams. Diagrams are translated to **C++** against the native base library and compiled in the browser to **WebAssembly** with **clang/lld**, running isolated inside Web Worker threads, with an MCU deployment target reserved for embedded devices.
@@ -54,7 +54,7 @@ The project features a **client-side only** architecture:
 - **Sliding Scope Buffers**: High-rate signal capture in the browser uses a `Float32Array`/`Float64Array` ring with a single write pointer.
 - **Release metadata**: `meta.json` in the base archive lists every block, namespace, port, and parameter. Loading the palette does not invoke Clang. Parameter controls, JSON defaults, vectorized flags, and channel constraints come from that manifest.
 - **Clang type checks**: Clang checks connection compatibility during compilation. Optional AST analysis displays the actual port types. Configuration properties that match their defaults are omitted from the diagram comment.
-- **Production-Ready UI Stack**: Built on Lit, Web Awesome, dark mode by default, and bundled with Rsbuild.
+- **Production-Ready UI Stack**: Built on Lit, Web Awesome, dark mode by default, and bundled with Vite.
 
 ---
 
@@ -66,7 +66,7 @@ The repository is structured as an npm multi-workspace monorepo:
 bld/
 ├── core/        # Domain model, Diagram, TypeSystem, C++ builder, wasm session, and scope buffers
 ├── cpp/         # In-browser clang/lld compilation
-└── ui/          # Lit frontend, canvas, Web Awesome components, worker runners, and Rsbuild config
+└── ui/          # Lit frontend, canvas, Web Awesome components, worker runners, and Vite config
 ```
 
 ### Package Responsibilities
@@ -75,7 +75,7 @@ bld/
 |---|---|---|
 | **`core`** | Domain model, C++ builder, and wasm session | `Library` points at a tar.gz URL, `LibraryArchive` unpacks it with modern-tar, `MetadataCatalog` reads `meta.json`, `Diagram` is a `mount()` entry point, `CppDiagramBuilder` and `DiagramCompiler` delegate wasm compilation to `cpp`. Worker RPC (`WasmRuntime`, `WasmSession`), host env bindings, and sliding scope buffers live in `core/src/runtime`. |
 | **`cpp`** | In-browser clang/lld | Compiles generated C++ sources to wasm and executes the module in a worker. |
-| **`ui`** | User Interface & Worker Host | Lit web app, black UI theme, palette and diagram split view, Rsbuild dev server, Cloudflare Workers static assets (`wrangler.json`, not Pages), browser Worker hosting (`run.worker.ts`). |
+| **`ui`** | User Interface & Worker Host | Lit web app, black UI theme, palette and diagram split view, Vite dev server, Cloudflare Workers static assets (`wrangler.json`, not Pages), browser Worker hosting (`run.worker.ts`). |
 
 ---
 
@@ -394,18 +394,18 @@ Or build specific workspaces:
 ```bash
 npm run build --workspace=core     # Typechecks model, C++ builder, wasm session, and sliding buffers
 npm run build --workspace=cpp      # Typechecks in-browser clang/lld
-npm run build --workspace=ui       # Bundles Lit UI via Rsbuild
+npm run build --workspace=ui       # Bundles Lit UI via Vite
 ```
 
 ### Running the Development Server
 
-Launch the Rsbuild development server with hot module reloading:
+Launch the Vite development server with hot module reloading:
 
 ```bash
 npm run dev --workspace=ui
 ```
 
-Open [http://localhost:3000](http://localhost:3000) in your browser to view the application.
+Open [http://localhost:3001](http://localhost:3001) in your browser to view the application.
 
 ### Running Tests
 
@@ -420,6 +420,10 @@ npm run test:unit
 
 # Run unit tests for a specific workspace
 npm run test:unit --workspace=core
+
+# Browser tests use Puppeteer against Vite production previews
+npm run test:e2e --workspace=ui --include-workspace-root=false
+npm run test:e2e --workspace=cpp --include-workspace-root=false
 ```
 
 ---
@@ -432,7 +436,7 @@ The repository follows a clean, three-layer test layout:
 ├── tests/
 │   ├── unit/          # Fast unit tests for isolated classes and data structures
 │   └── integration/   # Multi-module integration tests (Wasm compilation, runtime workers)
-└── e2e/               # End-to-end diagram compilation, session execution, and Playwright UI tests
+└── e2e/               # End-to-end diagram compilation, session execution, and Puppeteer UI tests
 ```
 
 - **Unit Tests**: Verify isolated models (`Diagram`, `CppDiagramBuilder`, `CppBlockCatalog`, `TypeSystem`, `SlidingScopeBuffer`).

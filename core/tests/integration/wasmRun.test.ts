@@ -1,4 +1,4 @@
-import { expect, test } from "@rstest/core";
+import { expect, test } from "vitest";
 import { toWasmBytes } from "cpp/wasmBytes.ts";
 import { instantiateWasm } from "../../src/runtime/run.ts";
 

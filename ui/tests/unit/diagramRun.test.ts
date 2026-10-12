@@ -1,5 +1,5 @@
 import { Diagram, Library, OutputPortEndpoint, InputPortEndpoint, type PackageManifest } from "core";
-import { expect, test } from "@rstest/core";
+import { expect, test } from "vitest";
 import { DiagramRunSession, type DiagramCompilerLike } from "../../src/view/run/diagramRunSession.js";
 import { PinSample } from "../../src/view/run/pinSample.js";
 import { IntervalSchedule, SessionClock, type RunningRuntime, type RunningSession } from "../../src/view/run/sessionClock.js";

@@ -1,4 +1,4 @@
-import { expect, test } from "@rstest/core";
+import { expect, test } from "vitest";
 import { ClangQualType } from "cpp";
 import { BlockDefinition } from "../../src/model/blockDefinition";
 import { DiagramAnalysis } from "../../src/model/cppBuilder";

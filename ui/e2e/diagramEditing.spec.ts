@@ -1,14 +1,14 @@
-import { expect, test } from "@playwright/test";
+import { expect, test, element, baseURL, dialog as dialogElement, artifactPath } from "./fixtures/browser.ts";
 
 test("ignores palette dragging and inserts selected blocks on canvas clicks", async ({ page }) => {
-  await page.goto("/");
-  await expect(page.locator("[data-splash]")).toBeHidden();
-  const palette = page.locator("[data-region=palette]");
-  const canvas = page.locator("[data-diagram-canvas]");
+  await page.goto(baseURL());
+  await expect.poll(() => element(page, "[data-splash]").visible()).toBe(false);
+  const palette = element(page, "[data-region=palette]");
+  const canvas = element(page, "[data-diagram-canvas]");
   const canvasBox = await canvas.boundingBox();
   expect(canvasBox).toBeTruthy();
 
-  const constant = palette.locator("[data-block-id=ConstF32]");
+  const constant = palette.within("[data-block-id=ConstF32]");
   await constant.scrollIntoViewIfNeeded();
   const sourceBox = await constant.boundingBox();
   expect(sourceBox).toBeTruthy();
@@ -17,27 +17,27 @@ test("ignores palette dragging and inserts selected blocks on canvas clicks", as
   await page.mouse.move(sourceBox!.x + sourceBox!.width / 2, sourceBox!.y + sourceBox!.height / 2);
   await page.mouse.down();
   await page.mouse.move(dropX, dropY, { steps: 12 });
-  await expect(page.locator(".palette-drag-ghost")).toHaveCount(0);
+  await expect.poll(() => element(page, ".palette-drag-ghost").count()).toBe(0);
   await page.mouse.up();
-  await expect(page.locator(".palette-drag-ghost")).toHaveCount(0);
+  await expect.poll(() => element(page, ".palette-drag-ghost").count()).toBe(0);
 
-  const dropped = canvas.locator("[data-block-ref=ConstF32]");
-  await expect(dropped).toHaveCount(0);
-  await expect(constant).toHaveAttribute("data-armed", "false");
+  const dropped = canvas.within("[data-block-ref=ConstF32]");
+  await expect.poll(() => dropped.count()).toBe(0);
+  await expect.poll(() => constant.getAttribute("data-armed")).toBe("false");
   await constant.click();
   await page.mouse.click(dropX, dropY);
-  await expect(dropped).toHaveCount(1);
+  await expect.poll(() => dropped.count()).toBe(1);
   const droppedBox = await dropped.boundingBox();
   expect(droppedBox).toBeTruthy();
   expect(Math.abs(droppedBox!.x + droppedBox!.width / 2 - dropX)).toBeLessThan(2);
   expect(Math.abs(droppedBox!.y + droppedBox!.height / 2 - dropY)).toBeLessThan(2);
-  await expect(constant).toHaveAttribute("data-armed", "true");
+  await expect.poll(() => constant.getAttribute("data-armed")).toBe("true");
 
-  const scope = palette.locator("[data-block-id=ScopeF32]");
+  const scope = palette.within("[data-block-id=ScopeF32]");
   await scope.scrollIntoViewIfNeeded();
   await scope.click();
-  await expect(scope).toHaveAttribute("data-armed", "true");
-  await expect(scope).toHaveAttribute("aria-pressed", "true");
+  await expect.poll(() => scope.getAttribute("data-armed")).toBe("true");
+  await expect.poll(() => scope.getAttribute("aria-pressed")).toBe("true");
   const blink = await scope.evaluate(async (element) => {
     const style = getComputedStyle(element);
     const samples: number[] = [];
@@ -49,47 +49,47 @@ test("ignores palette dragging and inserts selected blocks on canvas clicks", as
   });
   expect(blink.name).toBe("palette-fade-blink");
   expect(Math.max(...blink.samples) - Math.min(...blink.samples)).toBeGreaterThan(0.2);
-  await expect(canvas.locator("[data-block-ref=ScopeF32]")).toHaveCount(0);
+  await expect.poll(() => canvas.within("[data-block-ref=ScopeF32]").count()).toBe(0);
 
   await canvas.click({ position: { x: 280, y: 120 } });
-  const stamped = canvas.locator("[data-block-ref=ScopeF32]");
-  await expect(stamped).toHaveCount(1);
+  const stamped = canvas.within("[data-block-ref=ScopeF32]");
+  await expect.poll(() => stamped.count()).toBe(1);
   const stampedBox = await stamped.boundingBox();
   expect(stampedBox).toBeTruthy();
   expect(Math.abs(stampedBox!.x + stampedBox!.width / 2 - (canvasBox!.x + 280))).toBeLessThan(2);
   expect(Math.abs(stampedBox!.y + stampedBox!.height / 2 - (canvasBox!.y + 120))).toBeLessThan(2);
-  await expect(scope).toHaveAttribute("data-armed", "true");
+  await expect.poll(() => scope.getAttribute("data-armed")).toBe("true");
 
   await canvas.click({ position: { x: 280, y: 260 } });
-  await expect(stamped).toHaveCount(2);
+  await expect.poll(() => stamped.count()).toBe(2);
   await scope.click();
-  await expect(scope).toHaveAttribute("data-armed", "false");
+  await expect.poll(() => scope.getAttribute("data-armed")).toBe("false");
   await canvas.click({ position: { x: 420, y: 80 } });
-  await expect(stamped).toHaveCount(2);
+  await expect.poll(() => stamped.count()).toBe(2);
 });
 
 test("routes a connector around a block with maxGraph", async ({ page }) => {
   const errors: string[] = [];
-  page.on("pageerror", (error) => errors.push(error.message));
+  page.on("pageerror", (error) => errors.push(error instanceof Error ? error.message : String(error)));
   const wasmRequests: string[] = [];
   page.on("request", (request) => {
     if (new URL(request.url()).pathname.endsWith(".wasm")) wasmRequests.push(request.url());
   });
-  await page.goto("/");
-  await expect(page.locator("[data-splash]")).toBeHidden();
-  const palette = page.locator("[data-region=palette]");
-  const canvas = page.locator("[data-diagram-canvas]");
+  await page.goto(baseURL());
+  await expect.poll(() => element(page, "[data-splash]").visible()).toBe(false);
+  const palette = element(page, "[data-region=palette]");
+  const canvas = element(page, "[data-diagram-canvas]");
   const canvasBox = await canvas.boundingBox();
   expect(canvasBox).toBeTruthy();
 
   async function insert(blockId: string, clientX: number, clientY: number): Promise<void> {
-    const source = palette.locator(`[data-block-id=${blockId}]`);
+    const source = palette.within(`[data-block-id=${blockId}]`);
     await source.scrollIntoViewIfNeeded();
     const sourceBox = await source.boundingBox();
     expect(sourceBox).toBeTruthy();
     await source.click();
     await page.mouse.click(clientX, clientY);
-    await expect(canvas.locator(`[data-block-ref=${blockId}]`)).toHaveCount(1);
+    await expect.poll(() => canvas.within(`[data-block-ref=${blockId}]`).count()).toBe(1);
   }
 
   const y = canvasBox!.y + 180;
@@ -97,8 +97,8 @@ test("routes a connector around a block with maxGraph", async ({ page }) => {
   await insert("SumF32", canvasBox!.x + 330, y);
   await insert("ConstF32", canvasBox!.x + 550, y);
 
-  const output = canvas.locator("[data-block-ref=ScopeF32] [data-port-side=output]");
-  const input = canvas.locator("[data-block-ref=ConstF32] [data-port-side=input]");
+  const output = canvas.within("[data-block-ref=ScopeF32] [data-port-side=output]");
+  const input = canvas.within("[data-block-ref=ConstF32] [data-port-side=input]");
   const outputBox = await output.boundingBox();
   const inputBox = await input.boundingBox();
   expect(outputBox).toBeTruthy();
@@ -106,9 +106,9 @@ test("routes a connector around a block with maxGraph", async ({ page }) => {
   await page.mouse.click(outputBox!.x + outputBox!.width / 2, outputBox!.y + outputBox!.height / 2);
   await page.mouse.click(inputBox!.x + inputBox!.width / 2, inputBox!.y + inputBox!.height / 2);
 
-  const wire = canvas.locator("[data-connection]");
-  await expect(wire).toHaveCount(1);
-  await expect(wire).toHaveAttribute("data-route-origin", "maxgraph");
+  const wire = canvas.within("[data-connection]");
+  await expect.poll(() => wire.count()).toBe(1);
+  await expect.poll(() => wire.getAttribute("data-route-origin")).toBe("maxgraph");
 
   const readGeometry = () => page.evaluate(() => {
     const canvasElement = document.querySelector("[data-diagram-canvas]");
@@ -159,10 +159,10 @@ test("routes a connector around a block with maxGraph", async ({ page }) => {
   expect((await readGeometry())!.points.length).toBeGreaterThan(2);
   await expectRoute();
 
-  await page.screenshot({ path: test.info().outputPath("diagram-routed.png") });
+  await page.screenshot({ path: artifactPath("diagram-routed.png") });
 
   async function move(blockRef: string, dx: number, dy: number): Promise<void> {
-    const box = (await canvas.locator(`[data-block-ref=${blockRef}]`).boundingBox())!;
+    const box = (await canvas.within(`[data-block-ref=${blockRef}]`).boundingBox())!;
     const previous = await wire.getAttribute("points");
     await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
     await page.mouse.down();
@@ -183,26 +183,26 @@ test("routes a connector around a block with maxGraph", async ({ page }) => {
 });
 
 test("draws each multiplexed connection on its own lane and grows that port", async ({ page }) => {
-  await page.goto("/");
-  await expect(page.locator("[data-splash]")).toBeHidden();
-  const palette = page.locator("[data-region=palette]");
-  const canvas = page.locator("[data-diagram-canvas]");
+  await page.goto(baseURL());
+  await expect.poll(() => element(page, "[data-splash]").visible()).toBe(false);
+  const palette = element(page, "[data-region=palette]");
+  const canvas = element(page, "[data-diagram-canvas]");
   const canvasBox = await canvas.boundingBox();
   expect(canvasBox).toBeTruthy();
 
   async function insert(blockId: string, clientX: number, clientY: number): Promise<void> {
-    const source = palette.locator(`[data-block-id=${blockId}]`);
+    const source = palette.within(`[data-block-id=${blockId}]`);
     await source.scrollIntoViewIfNeeded();
     const sourceBox = await source.boundingBox();
     expect(sourceBox).toBeTruthy();
     await source.click();
     await page.mouse.click(clientX, clientY);
-    await expect(canvas.locator(`[data-block-ref=${blockId}]`)).toHaveCount(1);
+    await expect.poll(() => canvas.within(`[data-block-ref=${blockId}]`).count()).toBe(1);
   }
 
   async function connect(fromRef: string, fromSide: "input" | "output", toRef: string, toSide: "input" | "output"): Promise<void> {
-    const from = canvas.locator(`[data-block-ref=${fromRef}] [data-port-side=${fromSide}]`);
-    const to = canvas.locator(`[data-block-ref=${toRef}] [data-port-side=${toSide}]`);
+    const from = canvas.within(`[data-block-ref=${fromRef}] [data-port-side=${fromSide}]`);
+    const to = canvas.within(`[data-block-ref=${toRef}] [data-port-side=${toSide}]`);
     const fromBox = await from.boundingBox();
     const toBox = await to.boundingBox();
     expect(fromBox).toBeTruthy();
@@ -218,20 +218,20 @@ test("draws each multiplexed connection on its own lane and grows that port", as
   await insert("SinF32", canvasBox!.x + 700, y + 120);
 
   await connect("ScopeF32", "output", "SumF32", "input");
-  await expect(canvas.locator("[data-connection]")).toHaveCount(1);
+  await expect.poll(() => canvas.within("[data-connection]").count()).toBe(1);
   await connect("SumF32", "output", "ConstF32", "input");
-  const output = canvas.locator("[data-block-ref=SumF32] [data-port-side=output]");
-  await expect(output).toHaveAttribute("data-port-lanes", "1");
+  const output = canvas.within("[data-block-ref=SumF32] [data-port-side=output]");
+  await expect.poll(() => output.getAttribute("data-port-lanes")).toBe("1");
   const before = await output.boundingBox();
   await connect("SumF32", "output", "SinF32", "input");
-  await expect(canvas.locator("[data-connection]")).toHaveCount(3);
-  await expect(output).toHaveAttribute("data-port-lanes", "2");
-  await expect(canvas.locator("[data-block-ref=SumF32] [data-port-side=input]")).toHaveAttribute("data-port-lanes", "1");
-  await expect(canvas.locator("[data-block-ref=ConstF32] [data-port-side=input]")).toHaveAttribute("data-port-lanes", "1");
-  await expect(canvas.locator("[data-block-ref=SinF32] [data-port-side=input]")).toHaveAttribute("data-port-lanes", "1");
+  await expect.poll(() => canvas.within("[data-connection]").count()).toBe(3);
+  await expect.poll(() => output.getAttribute("data-port-lanes")).toBe("2");
+  await expect.poll(() => canvas.within("[data-block-ref=SumF32] [data-port-side=input]").getAttribute("data-port-lanes")).toBe("1");
+  await expect.poll(() => canvas.within("[data-block-ref=ConstF32] [data-port-side=input]").getAttribute("data-port-lanes")).toBe("1");
+  await expect.poll(() => canvas.within("[data-block-ref=SinF32] [data-port-side=input]").getAttribute("data-port-lanes")).toBe("1");
   const after = await output.boundingBox();
   expect(before && after && after.height).toBeGreaterThan((before?.height ?? 0) + 8);
-  await expect(canvas.locator("[data-route-origin=maxgraph]")).toHaveCount(3);
+  await expect.poll(() => canvas.within("[data-route-origin=maxgraph]").count()).toBe(3);
 
   const lanes = await page.evaluate(() => {
     const canvasElement = document.querySelector("[data-diagram-canvas]");
@@ -263,7 +263,7 @@ test("draws each multiplexed connection on its own lane and grows that port", as
   expect(departures).toHaveLength(2);
   expect(new Set(departures.map((wire) => Math.round(wire.y))).size).toBe(2);
 
-  const contentFit = await canvas.locator("[data-diagram-block]").evaluateAll((blocks) => blocks.map((block) => {
+  const contentFit = await canvas.within("[data-diagram-block]").evaluateAll((blocks) => blocks.map((block) => {
     const label = block.querySelector(".diagram-block-title") as HTMLElement;
     return {
       ref: block.getAttribute("data-block-ref"),
@@ -276,46 +276,46 @@ test("draws each multiplexed connection on its own lane and grows that port", as
     expect(block.clipped).toBeLessThanOrEqual(1);
   }
   expect(contentFit.find((block) => block.ref === "SinF32")!.width).toBeLessThan(contentFit.find((block) => block.ref === "ConstF32")!.width);
-  await page.screenshot({ path: test.info().outputPath("multiplexed-ports.png") });
+  await page.screenshot({ path: artifactPath("multiplexed-ports.png") });
 });
 
 test("opens a configuration dialog from the gear on a block that has parameters", async ({ page }) => {
-  await page.goto("/");
-  await expect(page.locator("[data-splash]")).toBeHidden();
-  const palette = page.locator("[data-region=palette]");
-  const canvas = page.locator("[data-diagram-canvas]");
+  await page.goto(baseURL());
+  await expect.poll(() => element(page, "[data-splash]").visible()).toBe(false);
+  const palette = element(page, "[data-region=palette]");
+  const canvas = element(page, "[data-diagram-canvas]");
   const canvasBox = await canvas.boundingBox();
   expect(canvasBox).toBeTruthy();
 
-  const constant = palette.locator("[data-block-id=ConstF32]");
+  const constant = palette.within("[data-block-id=ConstF32]");
   await constant.scrollIntoViewIfNeeded();
   const sourceBox = await constant.boundingBox();
   expect(sourceBox).toBeTruthy();
   await constant.click();
   await canvas.click({ position: { x: 240, y: 160 } });
 
-  const cosine = palette.locator("[data-block-id=CosF32]");
+  const cosine = palette.within("[data-block-id=CosF32]");
   await cosine.scrollIntoViewIfNeeded();
   const cosineBox = await cosine.boundingBox();
   expect(cosineBox).toBeTruthy();
   await cosine.click();
   await canvas.click({ position: { x: 480, y: 160 } });
 
-  await expect(canvas.locator("[data-block-ref=ConstF32] [data-block-config]")).toHaveCount(1);
-  await expect(canvas.locator("[data-block-ref=CosF32] [data-block-config]")).toHaveCount(0);
-  await canvas.locator("[data-block-ref=ConstF32] [data-block-config]").click();
-  const dialog = page.getByRole("dialog", { name: "Constant" });
-  await expect(dialog).toBeVisible();
-  const value = page.locator("[data-block-config-dialog] [data-config-field=value] input");
-  await expect(value).toBeVisible();
-  await expect(value).toHaveValue("1");
+  await expect.poll(() => canvas.within("[data-block-ref=ConstF32] [data-block-config]").count()).toBe(1);
+  await expect.poll(() => canvas.within("[data-block-ref=CosF32] [data-block-config]").count()).toBe(0);
+  await canvas.within("[data-block-ref=ConstF32] [data-block-config]").click();
+  const dialog = dialogElement(page, "Constant");
+  await expect.poll(() => dialog.visible()).toBe(true);
+  const value = element(page, "[data-block-config-dialog] [data-config-field=value] input");
+  await expect.poll(() => value.visible()).toBe(true);
+  await expect.poll(() => value.value()).toBe("1");
   await value.fill("3.25");
   await value.press("Enter");
-  await expect(value).toHaveValue("3.25");
+  await expect.poll(() => value.value()).toBe("3.25");
   await page.keyboard.press("Escape");
-  await expect(dialog).toBeHidden();
-  await canvas.locator("[data-block-ref=ConstF32] [data-block-config]").click();
-  await expect(page.locator("[data-block-config-dialog] [data-config-field=value] input")).toHaveValue("3.25");
+  await expect.poll(() => dialog.visible()).toBe(false);
+  await canvas.within("[data-block-ref=ConstF32] [data-block-config]").click();
+  await expect.poll(() => element(page, "[data-block-config-dialog] [data-config-field=value] input").value()).toBe("3.25");
 });
 
 function segmentHitsRect(

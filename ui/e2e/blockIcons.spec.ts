@@ -1,16 +1,16 @@
 import { readdirSync } from "node:fs";
-import { expect, test } from "@playwright/test";
+import { expect, test, element, baseURL, fetchAsset, artifactPath } from "./fixtures/browser.ts";
 
-test.use({ viewport: { width: 1600, height: 1200 } });
 
-test("every block SVG has centered artwork and padding inside its viewport", async ({ page, request }) => {
-  await page.goto("/");
-  await expect(page.locator("[data-splash]")).toBeHidden();
+test("every block SVG has centered artwork and padding inside its viewport", async ({ page }) => {
+  await page.setViewport({ width: 1600, height: 1200 });
+  await page.goto(baseURL());
+  await expect.poll(() => element(page, "[data-splash]").visible()).toBe(false);
   const names = readdirSync(new URL("../public/icons/", import.meta.url))
     .filter((name) => name.endsWith(".svg") && !["bld.svg", "bigbld.svg"].includes(name));
   for (const name of names) {
-    const response = await request.get(`/icons/${name}`);
-    expect(response.ok(), name).toBe(true);
+    const response = await fetchAsset(`/icons/${name}`);
+    expect(response.ok, name).toBe(true);
     const svg = await response.text();
     const geometry = await page.evaluate((markup) => {
       const slot = document.createElement("span");
@@ -38,19 +38,20 @@ test("every block SVG has centered artwork and padding inside its viewport", asy
 });
 
 test("all palette and canvas block icons are centered above their labels without cropping", async ({ page }) => {
-  await page.goto("/");
-  await expect(page.locator("[data-splash]")).toBeHidden();
-  const palette = page.locator("[data-region=palette]");
-  const canvas = page.locator("[data-diagram-canvas]");
-  const refs = await palette.locator("[data-block-id]").evaluateAll((buttons) => buttons.map((button) => button.getAttribute("data-block-id")!));
+  await page.setViewport({ width: 1600, height: 1200 });
+  await page.goto(baseURL());
+  await expect.poll(() => element(page, "[data-splash]").visible()).toBe(false);
+  const palette = element(page, "[data-region=palette]");
+  const canvas = element(page, "[data-diagram-canvas]");
+  const refs = await palette.within("[data-block-id]").evaluateAll((buttons) => buttons.map((button) => button.getAttribute("data-block-id")!));
   for (const [index, ref] of refs.entries()) {
-    const button = palette.locator(`[data-block-id=${ref}]`);
+    const button = palette.within(`[data-block-id=${ref}]`);
     await button.scrollIntoViewIfNeeded();
     await button.click();
     await canvas.click({ position: { x: 90 + (index % 6) * 200, y: 100 + Math.floor(index / 6) * 160 } });
-    await expect(canvas.locator(`[data-block-ref=${ref}]`)).toHaveCount(1);
+    await expect.poll(() => canvas.within(`[data-block-ref=${ref}]`).count()).toBe(1);
   }
-  const geometry = await page.locator("[data-block-id], [data-diagram-block]").evaluateAll((blocks) => blocks.map((block) => {
+  const geometry = await element(page, "[data-block-id], [data-diagram-block]").evaluateAll((blocks) => blocks.map((block) => {
     const svg = block.querySelector(".flow-node-icon svg, .diagram-block-icon svg") as SVGSVGElement;
     const label = block.querySelector(".flow-node-title, .diagram-block-title")!;
     const bounds = block.getBoundingClientRect();
@@ -75,5 +76,5 @@ test("all palette and canvas block icons are centered above their labels without
     expect(icon.artworkCenterY, icon.id!).toBeCloseTo(12, 3);
     expect(icon.background, icon.id!).toContain("linear-gradient");
   }
-  await page.screenshot({ path: test.info().outputPath("centered-block-icons.png") });
+  await page.screenshot({ path: artifactPath("centered-block-icons.png") });
 });

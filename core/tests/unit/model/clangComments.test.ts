@@ -1,4 +1,4 @@
-import { describe, expect, test } from "@rstest/core";
+import { describe, expect, test } from "vitest";
 import { ClangComment, ClangSourceComments, JsonComment, isMainFileNode } from "cpp";
 import { Diagram, Library } from "../../../src/model/index.js";
 

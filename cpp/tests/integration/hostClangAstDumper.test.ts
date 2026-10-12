@@ -1,4 +1,4 @@
-import { expect, test } from "@rstest/core";
+import { expect, test } from "vitest";
 import { ClangTranslationUnit } from "../../src/clangAst.ts";
 import { HostClangAstDumper } from "../../src/hostClangAstDumper.ts";
 

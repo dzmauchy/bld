@@ -13,7 +13,7 @@
     ],
     "allowImportingTsExtensions": true,
     "types": [
-      "@rsbuild/core/types"
+      "vite/client"
     ],
     "rootDir": ".",
     "outDir": "./dist"

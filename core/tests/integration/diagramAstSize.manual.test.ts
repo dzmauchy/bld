@@ -3,7 +3,7 @@
  * have huge sizes relative to their source representation.
  */
 
-import { beforeAll, describe, expect, test } from "@rstest/core";
+import { beforeAll, describe, expect, test } from "vitest";
 import { ClangAstDumper, ClangDumpResult } from "cpp";
 import { CppDiagramBuilder } from "../../src/model/cppBuilder";
 import { Diagram } from "../../src/model/diagram";

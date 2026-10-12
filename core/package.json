@@ -19,8 +19,8 @@
   },
   "scripts": {
     "build": "tsc -b && tsc -b tsconfig.test.json",
-    "test": "tsc -b && tsc -b tsconfig.test.json && rstest",
-    "test:unit": "tsc -b && tsc -b tsconfig.test.json && rstest tests/unit",
+    "test": "tsc -b && tsc -b tsconfig.test.json && vitest run --config vitest.config.ts",
+    "test:unit": "tsc -b && tsc -b tsconfig.test.json && vitest run --config vitest.config.ts tests/unit",
     "clean": "tsc -b --clean"
   }
 }

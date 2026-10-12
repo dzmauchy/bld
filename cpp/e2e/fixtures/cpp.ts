@@ -1,4 +1,6 @@
-import { expect, test as base, type Page, type Worker } from "@playwright/test";
+import { expect } from "vitest";
+import type { Page, WebWorker } from "puppeteer";
+import { browserTest, baseURL, element } from "../../../tests/e2e/browser.ts";
 import { BrowserClangAstDumper } from "../../src/browserClangAstDumper.ts";
 import type { CppPageApi } from "../../src/browser/api.ts";
 
@@ -10,11 +12,11 @@ declare global {
 
 /** A page owns the clang/lld worker across tests; each compile loads fresh program state. */
 export class CppSession {
-  private readonly workers: Worker[] = [];
+  private readonly workers: WebWorker[] = [];
   readonly astDumper: BrowserClangAstDumper;
 
   constructor(private readonly page: Page) {
-    page.on("worker", (worker) => this.workers.push(worker));
+    page.on("workercreated", (worker) => this.workers.push(worker));
     this.astDumper = new BrowserClangAstDumper({
       dumpAst: (files, mainFile) => page.evaluate(
         ({ files, mainFile }) => window.cpp.dumpAst(files, mainFile),
@@ -32,7 +34,7 @@ export class CppSession {
   async open(baseURL: string): Promise<void> {
     const start = performance.now();
     await this.page.goto(baseURL);
-    await expect(this.page.locator("#status")).toHaveText("module-ready");
+    await expect.poll(() => element(this.page, "#status").text()).toBe("module-ready");
     expect(this.workers).toHaveLength(0);
     expect(await this.page.evaluate(() => window.cpp.workerCreateCount())).toBe(0);
     this._pageReadyDurationMs = performance.now() - start;
@@ -74,19 +76,22 @@ export class CppSession {
   }
 }
 
-export const test = base.extend<{}, { cpp: CppSession }>({
-  cpp: [async ({ browser }, use, workerInfo) => {
-    const baseURL = workerInfo.project.use.baseURL;
-    if (!baseURL) throw new Error("C++ tests require a baseURL");
-    const page = await browser.newPage();
-    const session = new CppSession(page);
-    try {
-      await session.open(baseURL);
-      await use(session);
-    } finally {
-      await session.close();
-    }
-  }, { scope: "worker" }],
+const sessionTest = browserTest().extend("cppSession", { scope: "file" }, async ({ browser }, { onCleanup }) => {
+  const page = await browser.newPage();
+  const session = new CppSession(page);
+  try {
+    await session.open(baseURL());
+  } catch (error) {
+    await page.close();
+    throw error;
+  }
+  onCleanup(() => session.close());
+  return session;
+});
+
+export const test = sessionTest.extend("cpp", async ({ cppSession }, { onCleanup }) => {
+  onCleanup(() => cppSession.expectWorkersReused());
+  return cppSession;
 });
 
 export { expect };

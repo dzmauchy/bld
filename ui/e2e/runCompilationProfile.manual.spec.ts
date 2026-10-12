@@ -1,7 +1,6 @@
 import { writeFile } from "node:fs/promises";
-import { expect, test } from "@playwright/test";
+import { expect, test, element, baseURL, dialog as dialogElement, artifactPath } from "./fixtures/browser.ts";
 
-test.skip(!process.env.MANUAL, "Set MANUAL=1 to profile the Run button.");
 
 interface ProfileEvent {
   phase: string;
@@ -142,55 +141,53 @@ function installRunProfiler(): void {
 }
 
 test("profiles the actual Run button on cold, unchanged, and edited diagrams", async ({ page }) => {
-  test.setTimeout(300_000);
-  await page.addInitScript(installRunProfiler);
-  await page.goto("/");
-  await expect(page.locator("[data-splash]")).toBeHidden();
-  const canvas = page.locator("[data-diagram-canvas]");
+  await page.evaluateOnNewDocument(installRunProfiler);
+  await page.goto(baseURL());
+  await expect.poll(() => element(page, "[data-splash]").visible()).toBe(false);
+  const canvas = element(page, "[data-diagram-canvas]");
   for (const [ref, x, y] of [
     ["ScopeF32", 130, 200], ["SumF32", 380, 200], ["ConstF32", 640, 90], ["SinGenF32", 640, 310],
   ] as const) {
-    const source = page.locator(`[data-block-id=${ref}]`);
+    const source = element(page, `[data-block-id=${ref}]`);
     await source.scrollIntoViewIfNeeded();
     await source.click();
     await canvas.click({ position: { x, y } });
   }
   for (const [from, to] of [["ScopeF32", "SumF32"], ["SumF32", "ConstF32"], ["SumF32", "SinGenF32"]]) {
-    const output = await canvas.locator(`[data-block-ref=${from}] [data-port-side=output]`).boundingBox();
-    const input = await canvas.locator(`[data-block-ref=${to}] [data-port-side=input]`).boundingBox();
+    const output = await canvas.within(`[data-block-ref=${from}] [data-port-side=output]`).boundingBox();
+    const input = await canvas.within(`[data-block-ref=${to}] [data-port-side=input]`).boundingBox();
     await page.mouse.click(output!.x + output!.width / 2, output!.y + output!.height / 2);
     await page.mouse.click(input!.x + input!.width / 2, input!.y + input!.height / 2);
   }
-  await expect(canvas.locator("[data-connection]")).toHaveCount(3);
-  await canvas.locator("[data-block-ref=ScopeF32]").click();
-  const run = page.locator("[data-run-toggle]");
+  await expect.poll(() => canvas.within("[data-connection]").count()).toBe(3);
+  await canvas.within("[data-block-ref=ScopeF32]").click();
+  const run = element(page, "[data-run-toggle]");
   const results: { name: string; events: ProfileEvent[] }[] = [];
   for (const name of ["cold", "unchanged", "edited"]) {
     if (name === "edited") {
-      await canvas.locator("[data-block-ref=ConstF32] [data-block-config]").click();
-      const input = page.locator("[data-block-config-dialog] [data-config-field=value] input");
+      await canvas.within("[data-block-ref=ConstF32] [data-block-config]").click();
+      const input = element(page, "[data-block-config-dialog] [data-config-field=value] input");
       await input.fill("2");
       await input.press("Enter");
       await page.keyboard.press("Escape");
-      await expect(page.getByRole("dialog", { name: "Constant", exact: true })).toBeHidden();
+      await expect.poll(() => dialogElement(page, "Constant").visible()).toBe(false);
     }
     const first = await page.evaluate(() => (window as unknown as { runProfile: ProfileEvent[] }).runProfile.length);
     await run.click();
-    await expect(run).toHaveAttribute("data-run-state", "running", { timeout: 180_000 });
-    await expect(page.locator("[data-run-status]")).toHaveText("");
+    await expect.poll(() => run.getAttribute("data-run-state"), { timeout: 180_000 }).toBe("running");
+    await expect.poll(() => element(page, "[data-run-status]").text()).toBe("");
     const events = await page.evaluate((first) => (window as unknown as { runProfile: ProfileEvent[] }).runProfile.slice(first), first);
     results.push({ name, events });
     console.log(`RUN PROFILE ${name}: ${JSON.stringify(events.filter((event) => ["running", "worker-request", "tool-main", "asset"].includes(event.phase)))}`);
     await run.click();
-    await expect(run).toHaveAttribute("data-run-state", "idle");
+    await expect.poll(() => run.getAttribute("data-run-state")).toBe("idle");
   }
   const allEvents = await page.evaluate(() => (window as unknown as { runProfile: ProfileEvent[] }).runProfile);
   const firstClick = allEvents.find((event) => event.phase === "run-click")!;
   const preparation = allEvents.filter((event) => event.started < firstClick.started);
   console.log(`STARTUP PROFILE: ${JSON.stringify(preparation)}`);
   const report = JSON.stringify({ preparation, runs: results }, null, 2);
-  await writeFile(test.info().outputPath("run-compilation-profile.json"), report);
-  await test.info().attach("Run compilation profile", { body: report, contentType: "application/json" });
+  await writeFile(artifactPath("run-compilation-profile.json"), report);
   expect(results.every((result) => result.events.some((event) => event.phase === "running"))).toBe(true);
   expect(results[0]!.events.some((event) => event.phase === "tool-main" && event.name === "clang.js")).toBe(true);
   expect(results[1]!.events.some((event) => event.phase === "tool-main" && event.name === "clang.js")).toBe(false);

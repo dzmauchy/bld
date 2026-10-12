@@ -1,4 +1,4 @@
-import { expect, test } from "@rstest/core";
+import { expect, test } from "vitest";
 import { Diagram, DiagramCompiler, Palette, PortEndpoint } from "core";
 import { ClangFrontend } from "../../src/clang.ts";
 import { CppWasmCompiler } from "../../src/compiler.ts";

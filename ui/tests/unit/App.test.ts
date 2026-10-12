@@ -1,4 +1,4 @@
-import { expect, test } from "@rstest/core";
+import { expect, test } from "vitest";
 import { modelAssetFiles } from "core";
 import { modelAssets } from "../../src/modelAssets.js";
 

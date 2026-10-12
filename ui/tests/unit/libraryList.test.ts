@@ -1,4 +1,4 @@
-import { expect, test } from "@rstest/core";
+import { expect, test } from "vitest";
 import { Library, type PackageManifest } from "core";
 import baseManifest from "core/assets/base.json?raw";
 import "cpp/hostClangAstDumper.ts";

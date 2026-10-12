@@ -1,5 +1,5 @@
 import { createServer, type IncomingMessage, type Server, type ServerResponse } from "node:http";
-import { expect, test } from "@rstest/core";
+import { expect, test } from "vitest";
 import { attachLlvmToolchainProxy, LlvmToolchainAssetCache } from "../../scripts/llvmToolchainProxyMiddleware.ts";
 
 const prefix = "https://github.com/dzmauchy/clang-wasm/releases/download/clang-23.1.2/";

@@ -1,4 +1,4 @@
-import { expect, test } from "@rstest/core";
+import { expect, test } from "vitest";
 import { BrowserCppRuntime } from "../../src/browser/api.ts";
 import { BrowserClangAstDumper } from "../../src/browserClangAstDumper.ts";
 

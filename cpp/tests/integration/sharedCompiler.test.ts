@@ -1,5 +1,5 @@
 import { packTar } from "modern-tar";
-import { describe, expect, test } from "@rstest/core";
+import { describe, expect, test } from "vitest";
 import { ClangFrontend } from "../../src/clang.ts";
 import { CppWasmCompiler } from "../../src/compiler.ts";
 import type { EmscriptenFsApi } from "../../src/filesystem.ts";

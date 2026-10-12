@@ -5,17 +5,18 @@
   "type": "module",
   "license": "AGPL-3.0-only",
   "scripts": {
-    "dev": "rsbuild",
+    "dev": "vite",
     "assets": "node scripts/fetch-base-release.mjs",
     "prebuild": "npm run assets",
     "predev": "npm run assets",
     "pretest": "npm run assets",
-    "build": "tsc -b && tsc -b tsconfig.test.json && rsbuild build",
-    "preview": "rsbuild preview",
-    "test": "tsc -b && tsc -b tsconfig.test.json && rstest tests && playwright test",
-    "test:unit": "tsc -b && tsc -b tsconfig.test.json && rstest tests/unit",
+    "build": "tsc -b && tsc -b tsconfig.test.json && vite build",
+    "preview": "vite preview",
+    "test": "tsc -b && tsc -b tsconfig.test.json && vitest run --config vitest.config.ts && vitest run --config vitest.e2e.config.ts",
+    "test:unit": "tsc -b && tsc -b tsconfig.test.json && vitest run --config vitest.config.ts tests/unit",
     "clean": "tsc -b --clean",
-    "deploy": "wrangler deploy --config ../wrangler.json"
+    "deploy": "wrangler deploy --config ../wrangler.json",
+    "test:e2e": "vitest run --config vitest.e2e.config.ts"
   },
   "dependencies": {
     "@awesome.me/webawesome": "^3.14.0",
@@ -25,10 +26,5 @@
     "cpp": "*",
     "lit": "^3.3.3",
     "@lit-labs/signals": "^0.3.0"
-  },
-  "devDependencies": {
-    "@playwright/test": "^1.63.0",
-    "@rsbuild/core": "^2.2.12",
-    "@rstest/adapter-rsbuild": "^0.12.3"
   }
 }

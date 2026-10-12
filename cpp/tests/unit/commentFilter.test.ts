@@ -1,4 +1,4 @@
-import { describe, expect, test } from "@rstest/core";
+import { describe, expect, test } from "vitest";
 import { DiagramMetaCommentFilter } from "../../src/commentFilter.ts";
 
 const filter = new DiagramMetaCommentFilter();

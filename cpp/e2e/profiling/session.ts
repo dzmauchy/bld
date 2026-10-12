@@ -8,7 +8,7 @@ export interface IProfileMetric {
   readonly name: string;
   readonly durationMs: number;
   readonly isSubMetric?: boolean;
-  readonly details?: Record<string, unknown>;
+  readonly details?: Record<string, unknown> | undefined;
 }
 
 export class ProfileMetric implements IProfileMetric {

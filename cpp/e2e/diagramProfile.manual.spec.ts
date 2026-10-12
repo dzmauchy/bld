@@ -1,11 +1,11 @@
+import { beforeAll } from "vitest";
 import { readFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
-import { expect, test, type CppSession } from "./fixtures/cpp.ts";
+import { expect, test } from "./fixtures/cpp.ts";
 import "../../core/tests/nodeFileFetch.ts";
 import {
   CppDiagramBuilder,
-  Diagram,
   Library,
   registerAppAssets,
 } from "../../core/src/index.ts";
@@ -26,7 +26,7 @@ let palette: Awaited<ReturnType<typeof Library.load>>["palette"];
 let libraryLoadDurationMs = 0;
 let builderInitDurationMs = 0;
 
-test.beforeAll(async () => {
+beforeAll(async () => {
   const libStart = performance.now();
   const library = await Library.load("base.json");
   libraryLoadDurationMs = performance.now() - libStart;
@@ -37,9 +37,6 @@ test.beforeAll(async () => {
   builderInitDurationMs = performance.now() - builderStart;
 });
 
-test.afterEach(async ({ cpp }) => {
-  await cpp.expectWorkersReused();
-});
 
 test("Profile: ConstF32 writes to a scope channel", async ({ cpp }) => {
   const reporter = new MarkdownTableProfileReporter();

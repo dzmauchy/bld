@@ -1,4 +1,4 @@
-import { expect, test } from "@playwright/test";
+import { expect, test, element, baseURL, fetchAsset, artifactPath } from "./fixtures/browser.ts";
 import { readdirSync, readFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -38,21 +38,22 @@ test("shows the bld icon splash until 100 ms after the parsed workspace is shown
   });
   // The splash closes 100 ms after the base library parses. The local archive
   // answers immediately, so hold it until the open splash has been observed.
-  await page.route("**/base-0.1.0.tar.gz", async (route) => {
-    await archiveHeld;
-    await route.continue();
+  await page.setRequestInterception(true);
+  page.on("request", async (request) => {
+    if (request.url().endsWith("/base-0.1.0.tar.gz")) await archiveHeld;
+    await request.continue();
   });
 
-  await page.goto("/", { waitUntil: "commit" });
-  const splash = page.locator("[data-splash]");
-  await expect(splash).toBeVisible();
-  await expect(splash).toHaveAttribute("data-state", "open");
-  await expect(page.locator("link[rel='icon']")).toHaveAttribute("href", "/icons/bld.svg");
-  await expect(splash.locator("img.splash-mark")).toHaveAttribute("src", "/icons/bld.svg");
-  await expect(splash.locator("wa-spinner")).toBeVisible();
-  await expect(splash.locator("wa-progress-bar")).toHaveAttribute("indeterminate", "");
-  await expect(splash.locator("wa-animation")).toHaveAttribute("play", "");
-  const animationName = await splash.locator(".splash-ring-outer").evaluate((element) => getComputedStyle(element).animationName);
+  await page.goto(baseURL(), { waitUntil: "domcontentloaded" });
+  const splash = element(page, "[data-splash]");
+  await expect.poll(() => splash.visible()).toBe(true);
+  await expect.poll(() => splash.getAttribute("data-state")).toBe("open");
+  await expect.poll(() => element(page, "link[rel='icon']").getAttribute("href")).toBe("/icons/bld.svg");
+  await expect.poll(() => splash.shadow("img.splash-mark").getAttribute("src")).toBe("/icons/bld.svg");
+  await expect.poll(() => splash.shadow("wa-spinner").visible()).toBe(true);
+  await expect.poll(() => splash.shadow("wa-progress-bar").getAttribute("indeterminate")).toBe("");
+  await expect.poll(() => splash.shadow("wa-animation").getAttribute("play")).toBe("");
+  const animationName = await splash.shadow(".splash-ring-outer").evaluate((element) => getComputedStyle(element).animationName);
   expect(animationName).toBe("splash-spin");
 
   await page.evaluate(() => {
@@ -75,29 +76,29 @@ test("shows the bld icon splash until 100 ms after the parsed workspace is shown
   });
   releaseArchive();
   await page.evaluate(() => (window as unknown as { workspaceShownWhileOpen: Promise<boolean> }).workspaceShownWhileOpen);
-  await expect(splash).toBeHidden();
-  await expect(splash).toHaveAttribute("data-state", "closed");
+  await expect.poll(() => splash.visible()).toBe(false);
+  await expect.poll(() => splash.getAttribute("data-state")).toBe("closed");
 });
 
 test("splits a black workspace into a palette and a diagram", async ({ page }) => {
-  await page.goto("/");
-  await expect(page.locator("[data-splash]")).toBeHidden();
-  const palette = page.locator("[data-region=palette]");
-  const diagram = page.locator("[data-region=diagram]");
-  await expect(page.locator("wa-split-panel")).toBeVisible();
-  await expect(palette).toBeVisible();
-  await expect(diagram).toBeVisible();
-  await expect(palette).toHaveAttribute("data-libraries", "base");
-  await expect(palette.locator(".palette-header, .palette-title, .palette-subtitle, h1")).toHaveCount(0);
-  await expect(palette.getByText("Click to place on the canvas")).toHaveCount(0);
-  await expect(palette.locator(".palette-ns-toggle").first()).toBeVisible();
-  await expect(palette.locator("[data-block-id=ScopeF32] .flow-node-icon svg")).toBeVisible();
-  const blockButton = await palette.locator("[data-block-id=ConstF32]").boundingBox();
+  await page.goto(baseURL());
+  await expect.poll(() => element(page, "[data-splash]").visible()).toBe(false);
+  const palette = element(page, "[data-region=palette]");
+  const diagram = element(page, "[data-region=diagram]");
+  await expect.poll(() => element(page, "wa-split-panel").visible()).toBe(true);
+  await expect.poll(() => palette.visible()).toBe(true);
+  await expect.poll(() => diagram.visible()).toBe(true);
+  await expect.poll(() => palette.getAttribute("data-libraries")).toBe("base");
+  await expect.poll(() => palette.within(".palette-header, .palette-title, .palette-subtitle, h1").count()).toBe(0);
+  await expect.poll(() => palette.within("::-p-text(Click to place on the canvas)").count()).toBe(0);
+  await expect.poll(() => palette.within(".palette-ns-toggle").first().visible()).toBe(true);
+  await expect.poll(() => palette.within("[data-block-id=ScopeF32] .flow-node-icon svg").visible()).toBe(true);
+  const blockButton = await palette.within("[data-block-id=ConstF32]").boundingBox();
   expect(blockButton).toBeTruthy();
   expect(blockButton!.height).toBeLessThan(60);
   expect(blockButton!.width / blockButton!.height).toBeGreaterThan(1.2);
   expect(blockButton!.width / blockButton!.height).toBeLessThan(1.4);
-  const blockFill = await palette.locator("[data-block-id=ConstF32], [data-block-id=SumF32], [data-block-id=ScopeF32]").evaluateAll((buttons) =>
+  const blockFill = await palette.within("[data-block-id=ConstF32], [data-block-id=SumF32], [data-block-id=ScopeF32]").evaluateAll((buttons) =>
     buttons.map((button) => ({ image: getComputedStyle(button).backgroundImage, color: getComputedStyle(button).backgroundColor })),
   );
   expect(blockFill).toHaveLength(3);
@@ -106,17 +107,17 @@ test("splits a black workspace into a palette and a diagram", async ({ page }) =
     expect(fill.image).toContain("linear-gradient");
     expect(fill.color).toBe("rgb(32, 36, 39)");
   }
-  const gpioClip = await palette.locator("[data-block-id=GpioInF32] .flow-node-title").evaluate((element) => element.scrollWidth - element.clientWidth);
+  const gpioClip = await palette.within("[data-block-id=GpioInF32] .flow-node-title").evaluate((element) => element.scrollWidth - element.clientWidth);
   expect(gpioClip).toBeLessThanOrEqual(1);
-  const titleSize = await palette.locator("[data-block-id=ConstF32] .flow-node-title").evaluate((element) => {
+  const titleSize = await palette.within("[data-block-id=ConstF32] .flow-node-title").evaluate((element) => {
     const fontSize = parseFloat(getComputedStyle(element).fontSize);
     const rootSize = parseFloat(getComputedStyle(document.documentElement).fontSize);
     return fontSize / rootSize;
   });
   expect(titleSize).toBeCloseTo(0.7, 2);
-  const portOpacity = await palette.locator("[data-block-id=ConstF32] .flow-node-port-col").first().evaluate((element) => Number(getComputedStyle(element).opacity));
+  const portOpacity = await palette.within("[data-block-id=ConstF32] .flow-node-port-col").first().evaluate((element) => Number(getComputedStyle(element).opacity));
   expect(portOpacity).toBeLessThan(0.6);
-  const rowCounts = await palette.locator(".palette-blocks-grid").evaluateAll((grids) =>
+  const rowCounts = await palette.within(".palette-blocks-grid").evaluateAll((grids) =>
     grids.map((grid) => {
       const rows = new Map<number, number>();
       for (const button of grid.querySelectorAll("[data-block-id]")) {
@@ -131,9 +132,9 @@ test("splits a black workspace into a palette and a diagram", async ({ page }) =
     for (const count of counts) expect(count).toBeLessThanOrEqual(2);
   }
   expect(await palette.evaluate((element) => getComputedStyle(element).backgroundColor)).toBe("rgb(28, 33, 37)");
-  await expect(diagram.locator("h1")).toHaveCount(0);
-  await expect(page.locator("[data-toolbar] [data-run-toggle]")).toHaveText("Run");
-  await expect(page.locator("[data-toolbar]")).toBeVisible();
+  await expect.poll(() => diagram.within("h1").count()).toBe(0);
+  await expect.poll(() => element(page, "[data-toolbar] [data-run-toggle]").text()).toBe("Run");
+  await expect.poll(() => element(page, "[data-toolbar]").visible()).toBe(true);
 
   const paletteBox = await palette.boundingBox();
   const diagramBox = await diagram.boundingBox();
@@ -199,33 +200,33 @@ test("splits a black workspace into a palette and a diagram", async ({ page }) =
   expect(await diagram.evaluate((element) => getComputedStyle(element).backgroundColor)).toBe("rgb(0, 0, 0)");
   expect(await page.evaluate(() => getComputedStyle(document.body).backgroundColor)).toBe("rgb(0, 0, 0)");
 
-  await expect(palette.locator("[data-block-id]")).toHaveCount(baseBlocks.length * 2);
+  await expect.poll(() => palette.within("[data-block-id]").count()).toBe(baseBlocks.length * 2);
   for (const id of baseBlocks) {
-    await expect(palette.locator(`[data-block-id="${id}"]`)).toHaveCount(1);
+    await expect.poll(() => palette.within(`[data-block-id="${id}"]`).count()).toBe(1);
   }
 
-  const sinks = palette.locator('[data-namespace="push::f_32::sinks"] > .palette-ns-toggle');
+  const sinks = palette.within('[data-namespace="push::f_32::sinks"] > .palette-ns-toggle');
   await sinks.click();
-  await expect(palette.locator("[data-block-id=ScopeF32]")).toBeHidden();
+  await expect.poll(() => palette.within("[data-block-id=ScopeF32]").visible()).toBe(false);
   await sinks.click();
-  await expect(palette.locator("[data-block-id=ScopeF32]")).toBeVisible();
+  await expect.poll(() => palette.within("[data-block-id=ScopeF32]").visible()).toBe(true);
 
-  const scope = palette.locator("[data-block-id=ScopeF32]");
+  const scope = palette.within("[data-block-id=ScopeF32]");
   await scope.click();
-  await expect(scope).toHaveAttribute("data-armed", "true");
-  await expect(diagram.locator("[data-block-ref=ScopeF32]")).toHaveCount(0);
-  await diagram.locator("[data-diagram-canvas]").click({ position: { x: 96, y: 80 } });
-  await expect(diagram.locator("[data-block-ref=ScopeF32]")).toHaveCount(1);
-  await expect(diagram.locator("[data-block-ref=ScopeF32]")).toContainText("Scope");
-  const placed = diagram.locator("[data-block-ref=ScopeF32]");
+  await expect.poll(() => scope.getAttribute("data-armed")).toBe("true");
+  await expect.poll(() => diagram.within("[data-block-ref=ScopeF32]").count()).toBe(0);
+  await diagram.within("[data-diagram-canvas]").click({ position: { x: 96, y: 80 } });
+  await expect.poll(() => diagram.within("[data-block-ref=ScopeF32]").count()).toBe(1);
+  await expect.poll(() => diagram.within("[data-block-ref=ScopeF32]").text()).toContain("Scope");
+  const placed = diagram.within("[data-block-ref=ScopeF32]");
   const placedBox = await placed.boundingBox();
   expect(placedBox!.height).toBeLessThan(70);
   expect(placedBox!.width).toBeLessThan(90);
   expect(await placed.evaluate((element) => getComputedStyle(element).backgroundImage)).toMatch(/^url\(/);
   expect(await placed.evaluate((element) => getComputedStyle(element).backgroundImage)).toContain("linear-gradient");
   for (const [icon, label, size] of [
-    [placed.locator(".diagram-block-icon svg"), placed.locator(".diagram-block-title"), 28],
-    [scope.locator(".flow-node-icon svg"), scope.locator(".flow-node-title"), 24],
+    [placed.within(".diagram-block-icon svg"), placed.within(".diagram-block-title"), 28],
+    [scope.within(".flow-node-icon svg"), scope.within(".flow-node-title"), 24],
   ] as const) {
     const iconBox = await icon.boundingBox();
     const labelBox = await label.boundingBox();
@@ -233,7 +234,7 @@ test("splits a black workspace into a palette and a diagram", async ({ page }) =
     expect(iconBox!.y + iconBox!.height).toBeLessThan(labelBox!.y);
     expect(await label.evaluate((element) => element.scrollWidth - element.clientWidth)).toBeLessThanOrEqual(1);
   }
-  await page.screenshot({ path: test.info().outputPath("matte-blocks.png") });
+  await page.screenshot({ path: artifactPath("matte-blocks.png") });
 });
 
 test("copies all JSON schemas into ui/dist/schemas", () => {
@@ -256,10 +257,10 @@ test("client bundle uses release metadata and the pinned compiler", () => {
   expect(collect(distDir, ".wasm")).toEqual([]);
 });
 
-test("serves JSON schemas from /schemas", async ({ request }) => {
+test("serves JSON schemas from /schemas", async () => {
   for (const name of CoreSchemaCatalog.shared.schemaNames) {
-    const response = await request.get(`/schemas/${name}.schema.json`);
-    expect(response.ok(), name).toBeTruthy();
+    const response = await fetchAsset(`/schemas/${name}.schema.json`);
+    expect(response.ok, name).toBeTruthy();
     const body = await response.json();
     expect(body.$id).toContain(`/schemas/${name}.schema.json`);
   }
