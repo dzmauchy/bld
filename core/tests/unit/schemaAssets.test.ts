@@ -1,5 +1,5 @@
 import { describe, expect, test } from "vitest";
-import { CoreSchemaCatalog, SchemaCatalog, schemaAssetFiles } from "../../src/index.js";
+import { CoreSchemaCatalog, SchemaCatalog, schemaAssetFiles } from "core";
 
 describe("SchemaCatalog", () => {
   test("CoreSchemaCatalog publishes every core JSON schema path", () => {

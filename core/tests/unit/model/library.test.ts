@@ -1,5 +1,5 @@
 import { describe, expect, vi, test } from "vitest";
-import { resolveUrl } from "../../../src/model/appAssets.js";
+import { resolveUrl } from "core/model/appAssets.ts";
 import { readNodeAsset } from "../../readNodeAsset.ts";
 import { packTar } from "modern-tar";
 import {
@@ -17,7 +17,7 @@ import {
   registerAppAssetBytes,
   registerAppAssets,
   setAppAssetResolver,
-} from "../../../src/model/index.js";
+} from "core/model/index.ts";
 
 describe("Library and Asset Loader", () => {
   test("resolves relative URLs against base URLs", () => {

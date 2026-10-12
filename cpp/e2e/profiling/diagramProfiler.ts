@@ -2,7 +2,7 @@
 
 import { expect } from "vitest";
 import type { CppSession } from "../fixtures/cpp.ts";
-import { Diagram, PortEndpoint, type CppDiagramBuilder } from "../../../core/src/index.ts";
+import { Diagram, PortEndpoint, type CppDiagramBuilder } from "core";
 import type { IProfileSession } from "./session.ts";
 import type { IProfileReporter } from "./reporter.ts";
 import { ProfilingClangAstDumper } from "./astDumper.ts";

@@ -8,8 +8,8 @@ import {
   CppDiagramBuilder,
   Library,
   registerAppAssets,
-} from "../../core/src/index.ts";
-import "../src/hostClangAstDumper.ts";
+} from "core";
+import "cpp/hostClangAstDumper.ts";
 import { ExecutionProfileSession } from "./profiling/session.ts";
 import { MarkdownTableProfileReporter } from "./profiling/reporter.ts";
 import { SingleDiagramTestProfiler } from "./profiling/diagramProfiler.ts";

@@ -61,15 +61,7 @@ export class HostClangAstDumper extends ClangAstDumper {
         let stderr = [spawned.stderr, spawned.error?.message].filter(Boolean).join("\n");
         let ast: unknown;
         try {
-          const reader = new ClangAstReader(mainFile);
-          const chunk = new Uint8Array(64 * 1024);
-          let position = 0;
-          let count: number;
-          while ((count = readSync(output, chunk, 0, chunk.length, position)) > 0) {
-            reader.read(chunk.subarray(0, count));
-            position += count;
-          }
-          ast = reader.finish();
+          ast = this.readAst(output, mainFile);
         } catch (error) {
           stderr = [stderr, String(error)].filter(Boolean).join("\n");
         }
@@ -80,6 +72,19 @@ export class HostClangAstDumper extends ClangAstDumper {
     } finally {
       rmSync(dir, { recursive: true, force: true });
     }
+  }
+
+  /** Extension point for inspecting a dump while its temporary file is open. */
+  protected readAst(output: number, mainFile: string): unknown {
+    const reader = new ClangAstReader(mainFile);
+    const chunk = new Uint8Array(64 * 1024);
+    let position = 0;
+    let count: number;
+    while ((count = readSync(output, chunk, 0, chunk.length, position)) > 0) {
+      reader.read(chunk.subarray(0, count));
+      position += count;
+    }
+    return reader.finish();
   }
 }
 

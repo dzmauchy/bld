@@ -18,7 +18,7 @@ import {
   SchemaCatalog,
   TypeSystem,
   schemaAssetFiles,
-} from "../../src/index.js";
+} from "core";
 
 const coreRoot = join(dirname(fileURLToPath(import.meta.url)), "../..");
 const modelDir = join(coreRoot, "src/model");
@@ -61,7 +61,7 @@ describe("core public API", () => {
 
   test("implements strong OOP class hierarchies and abstractions", async () => {
     // DiagramElement hierarchy
-    const { DiagramElement, Endpoint, InputPortEndpoint, OutputPortEndpoint, PropertyDefinition, PortDefinition, InputPortDefinition, OutputPortDefinition, ConfigPropertyDefinition, CompilerContext, BrowserCompilerContext, McuCompilerContext, AbstractAssetStore, AppAssetStore, CppDiagramBuilder } = await import("../../src/index.js") as any;
+    const { DiagramElement, Endpoint, InputPortEndpoint, OutputPortEndpoint, PropertyDefinition, PortDefinition, InputPortDefinition, OutputPortDefinition, ConfigPropertyDefinition, CompilerContext, BrowserCompilerContext, McuCompilerContext, AbstractAssetStore, AppAssetStore, CppDiagramBuilder } = await import("core") as any;
 
     expect(DiagramElement).toBeTypeOf("function");
     expect(Endpoint).toBeTypeOf("function");

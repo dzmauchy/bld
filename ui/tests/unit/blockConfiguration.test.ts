@@ -1,7 +1,7 @@
 import { Diagram, Library, type PackageManifest } from "core";
 import { expect, test } from "vitest";
-import { BlockConfiguration, ConfigControl } from "../../src/view/diagram/blockConfiguration.js";
-import { PlacedBlock } from "../../src/view/diagram/diagramBlockFrame.js";
+import { BlockConfiguration, ConfigControl } from "ui/view/diagram/blockConfiguration.ts";
+import { PlacedBlock } from "ui/view/diagram/diagramBlockFrame.ts";
 
 const manifest: PackageManifest = {
   id: "demo",

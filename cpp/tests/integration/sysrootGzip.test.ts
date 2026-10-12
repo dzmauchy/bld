@@ -1,7 +1,7 @@
 import { packTar } from "modern-tar";
 import { describe, expect, test } from "vitest";
-import { MemoryFileSystem } from "../../src/filesystem.ts";
-import { SysrootInstaller } from "../../src/sysroot.ts";
+import { MemoryFileSystem } from "cpp/filesystem.ts";
+import { SysrootInstaller } from "cpp/sysroot.ts";
 
 describe("gzipped sysroot install", () => {
   test("decodes a tar.gz archive with modern-tar before writing the FS", async () => {

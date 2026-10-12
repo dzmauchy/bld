@@ -1,7 +1,7 @@
 import { expect, test } from "vitest";
-import { SharedToolchainFileSystem } from "../../src/sharedFileSystem.ts";
-import type { WorkerResponse } from "../../src/messages.ts";
-import { attachWorker } from "../../src/workers/host.ts";
+import { SharedToolchainFileSystem } from "cpp/sharedFileSystem.ts";
+import type { WorkerResponse } from "cpp/messages.ts";
+import { attachWorker } from "cpp/workers/host.ts";
 
 test("transfers compiler output to the host without detaching shared filesystem storage", async () => {
   const files = new SharedToolchainFileSystem();

@@ -1,4 +1,4 @@
-import { LlvmToolchainProxy } from "../cpp/src/llvmToolchainProxy.ts";
+import { LlvmToolchainProxy } from "cpp/llvmToolchainProxy.ts";
 
 type AssetFetcher = {
   fetch(input: RequestInfo | URL, init?: RequestInit): Promise<Response>;

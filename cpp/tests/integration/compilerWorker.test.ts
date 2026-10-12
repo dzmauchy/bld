@@ -1,11 +1,11 @@
 import { describe, expect, test } from "vitest";
-import { ClangFrontend } from "../../src/clang.ts";
-import { SharedToolchainFileSystem } from "../../src/sharedFileSystem.ts";
-import { WasmLinker } from "../../src/linker.ts";
-import { CppWasmCompiler, WorkerCppWasmCompiler } from "../../src/compiler.ts";
-import type { WorkerResponse } from "../../src/messages.ts";
-import { Thread } from "../../src/thread.ts";
-import { WorkerMessageDispatcher, type WorkerMessageHandler } from "../../src/workers/host.ts";
+import { ClangFrontend } from "cpp/clang.ts";
+import { SharedToolchainFileSystem } from "cpp/sharedFileSystem.ts";
+import { WasmLinker } from "cpp/linker.ts";
+import { CppWasmCompiler, WorkerCppWasmCompiler } from "cpp/compiler.ts";
+import type { WorkerResponse } from "cpp/messages.ts";
+import { Thread } from "cpp/thread.ts";
+import { WorkerMessageDispatcher, type WorkerMessageHandler } from "cpp/workers/host.ts";
 
 class InProcessWorker extends Thread {
   private readonly dispatcher: WorkerMessageDispatcher;

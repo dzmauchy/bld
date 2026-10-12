@@ -1,5 +1,5 @@
 import { expect, test } from "vitest";
-import { PaletteColumnWidth } from "../../src/view/palette/paletteColumnWidth.js";
+import { PaletteColumnWidth } from "ui/view/palette/paletteColumnWidth.ts";
 
 test("palette column is the wider of the titles and two buttons, plus slack", () => {
   expect(new PaletteColumnWidth(181.75, 136.78125, 1.6).pixels()).toBeCloseTo(183.35);

@@ -1,12 +1,12 @@
 import { expect, test } from "vitest";
 import { Library, type PackageManifest } from "core";
-import { BlockGlyphCatalog } from "../../src/view/palette/blockGlyphs.js";
+import { BlockGlyphCatalog } from "ui/view/palette/blockGlyphs.ts";
 import {
   BlockAccent,
   LibraryListPalettePresenter,
   NamespacePalettePresenter,
   PaletteExpansion,
-} from "../../src/view/palette/palettePresenter.js";
+} from "ui/view/palette/palettePresenter.ts";
 
 const manifest: PackageManifest = {
   id: "demo",

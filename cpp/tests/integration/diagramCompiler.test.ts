@@ -1,9 +1,9 @@
 import { expect, test } from "vitest";
 import { Diagram, DiagramCompiler, Palette, PortEndpoint } from "core";
-import { ClangFrontend } from "../../src/clang.ts";
-import { CppWasmCompiler } from "../../src/compiler.ts";
-import { WasmLinker } from "../../src/linker.ts";
-import { SharedToolchainFileSystem } from "../../src/sharedFileSystem.ts";
+import { ClangFrontend } from "cpp/clang.ts";
+import { CppWasmCompiler } from "cpp/compiler.ts";
+import { WasmLinker } from "cpp/linker.ts";
+import { SharedToolchainFileSystem } from "cpp/sharedFileSystem.ts";
 import { DisposableToolFactory, writeClangOutputs } from "../toolchainFixture.ts";
 
 test("diagram compilation emits AST/object in one clang invocation and links that object", async () => {

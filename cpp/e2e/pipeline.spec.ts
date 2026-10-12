@@ -2,7 +2,7 @@ import { beforeAll, afterAll } from "vitest";
 import puppeteer, { type Page, type Browser, type ConsoleMessage } from "puppeteer";
 import { expect, baseURL, wasmBrowserArgs } from "../../tests/e2e/browser.ts";
 import { test } from "vitest";
-import type { CppPageApi } from "../src/browser/api.ts";
+import type { CppPageApi } from "cpp/browser/api.ts";
 
 declare global {
   interface Window {

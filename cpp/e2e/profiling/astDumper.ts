@@ -1,7 +1,7 @@
 /** Instrumented ClangAstDumper subclass that records AST dump timings and payloads. */
 
-import { BrowserClangAstDumper, type AstDumpClient } from "../../src/browserClangAstDumper.ts";
-import type { ClangDumpResult } from "../../src/clangAstDumper.ts";
+import { BrowserClangAstDumper, type AstDumpClient } from "cpp/browserClangAstDumper.ts";
+import type { ClangDumpResult } from "cpp/clangAstDumper.ts";
 
 export interface AstDumpRecord {
   readonly callIndex: number;

@@ -1,7 +1,7 @@
 import { expect } from "vitest";
-import type { EmscriptenModuleFactory, EmscriptenModuleOptions } from "../src/emscripten.ts";
-import { MemoryFileSystem, type EmscriptenFsApi } from "../src/filesystem.ts";
-import { SharedToolchainFileSystem } from "../src/sharedFileSystem.ts";
+import type { EmscriptenModuleFactory, EmscriptenModuleOptions } from "cpp/emscripten.ts";
+import { MemoryFileSystem, type EmscriptenFsApi } from "cpp/filesystem.ts";
+import { SharedToolchainFileSystem } from "cpp/sharedFileSystem.ts";
 
 /** Models fresh tool filesystems mounting one owner, with one invocation per runtime. */
 export class DisposableToolFactory {

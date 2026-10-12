@@ -1,5 +1,5 @@
 import { describe, expect, test } from "vitest";
-import { DiagramMetaCommentFilter } from "../../src/commentFilter.ts";
+import { DiagramMetaCommentFilter } from "cpp/commentFilter.ts";
 
 const filter = new DiagramMetaCommentFilter();
 

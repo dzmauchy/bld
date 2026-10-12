@@ -1,12 +1,12 @@
 import { describe, expect, test } from "vitest";
-import { ClangFrontend } from "../../src/clang.ts";
-import { CppWasmCompiler, WorkerCppWasmCompiler } from "../../src/compiler.ts";
-import type { EmscriptenModuleFactory } from "../../src/emscripten.ts";
-import { SharedToolchainFileSystem } from "../../src/sharedFileSystem.ts";
+import { ClangFrontend } from "cpp/clang.ts";
+import { CppWasmCompiler, WorkerCppWasmCompiler } from "cpp/compiler.ts";
+import type { EmscriptenModuleFactory } from "cpp/emscripten.ts";
+import { SharedToolchainFileSystem } from "cpp/sharedFileSystem.ts";
 import { DisposableToolFactory, writeClangOutputs } from "../toolchainFixture.ts";
-import { WasmLinker } from "../../src/linker.ts";
-import type { WorkerResponse } from "../../src/messages.ts";
-import { Thread } from "../../src/thread.ts";
+import { WasmLinker } from "cpp/linker.ts";
+import type { WorkerResponse } from "cpp/messages.ts";
+import { Thread } from "cpp/thread.ts";
 
 class ScriptedThread extends Thread {
   private handler: ((data: unknown) => void) | undefined;

@@ -4,6 +4,9 @@
   "private": true,
   "type": "module",
   "license": "AGPL-3.0-only",
+  "exports": {
+    "./*": "./src/*"
+  },
   "scripts": {
     "dev": "vite",
     "assets": "node scripts/fetch-base-release.mjs",

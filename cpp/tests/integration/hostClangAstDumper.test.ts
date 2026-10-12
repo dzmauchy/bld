@@ -1,6 +1,6 @@
 import { expect, test } from "vitest";
-import { ClangTranslationUnit } from "../../src/clangAst.ts";
-import { HostClangAstDumper } from "../../src/hostClangAstDumper.ts";
+import { ClangTranslationUnit } from "cpp/clangAst.ts";
+import { HostClangAstDumper } from "cpp/hostClangAstDumper.ts";
 
 test("native clang reads included headers without precompilation and retains source types and comments", () => {
   const files = new Map([
@@ -10,6 +10,7 @@ test("native clang reads included headers without precompilation and retains sou
   const dumper = new HostClangAstDumper();
   const first = dumper.dump(files, "main.cpp");
   expect(first.ok, first.diagnostics).toBe(true);
+  expect(first.stdout).toBe("");
   const ast = JSON.stringify(first.ast);
   expect(ast).toContain('"name":"answer"');
   expect(ast).toContain("Source comment with π");

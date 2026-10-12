@@ -1,6 +1,6 @@
 import { readFile } from "node:fs/promises";
 import type { Plugin } from "vite";
-import { schemaAssetFiles } from "../../core/src/schemaAssets.ts";
+import { schemaAssetFiles } from "core/schemaAssets.ts";
 import { attachLlvmToolchainProxy } from "./llvmToolchainProxyMiddleware.ts";
 
 export const isolationHeaders = {

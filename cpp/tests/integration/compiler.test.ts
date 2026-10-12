@@ -1,9 +1,9 @@
 import { describe, expect, test } from "vitest";
-import { ClangFrontend } from "../../src/clang.ts";
-import { SharedToolchainFileSystem } from "../../src/sharedFileSystem.ts";
+import { ClangFrontend } from "cpp/clang.ts";
+import { SharedToolchainFileSystem } from "cpp/sharedFileSystem.ts";
 import { DisposableToolFactory, writeClangOutputs } from "../toolchainFixture.ts";
-import { WasmLinker } from "../../src/linker.ts";
-import { ObjectFile } from "../../src/object-file.ts";
+import { WasmLinker } from "cpp/linker.ts";
+import { ObjectFile } from "cpp/object-file.ts";
 
 describe("clang frontend and wasm linker", () => {
   test("clang writes headers and sources then emits one object per translation unit", async () => {

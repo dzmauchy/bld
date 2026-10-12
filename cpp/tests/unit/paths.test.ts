@@ -1,5 +1,5 @@
 import { describe, expect, test } from "vitest";
-import { isCppSource, isHeader, objectPathFor, workPath } from "../../src/paths.ts";
+import { isCppSource, isHeader, objectPathFor, workPath } from "cpp/paths.ts";
 
 describe("virtual source paths", () => {
   test("places user files under /work", () => {

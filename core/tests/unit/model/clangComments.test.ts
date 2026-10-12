@@ -1,6 +1,6 @@
 import { describe, expect, test } from "vitest";
 import { ClangComment, ClangSourceComments, JsonComment, isMainFileNode } from "cpp";
-import { Diagram, Library } from "../../../src/model/index.js";
+import { Diagram, Library } from "core/model/index.ts";
 
 describe("AST JSON comments", () => {
   test("parses block and line comments with markers", () => {

@@ -8,11 +8,11 @@ import {
   mcuContext,
   McuCompiler,
   registerCompilerContext,
-} from "../../../src/model/compiler.ts";
-import { Diagram } from "../../../src/model/diagram.ts";
-import { Library } from "../../../src/model/library.ts";
-import { Palette } from "../../../src/model/palette.ts";
-import { PortEndpoint } from "../../../src/model/endpoint.ts";
+} from "core/model/compiler.ts";
+import { Diagram } from "core/model/diagram.ts";
+import { Library } from "core/model/library.ts";
+import { Palette } from "core/model/palette.ts";
+import { PortEndpoint } from "core/model/endpoint.ts";
 import { ClangAstDumper } from "cpp";
 
 let palette: Palette;
@@ -134,7 +134,7 @@ describe("DiagramCompiler C++ generation", () => {
       },
     });
     let captured: Uint8Array | undefined;
-    const session = { close: async () => 0 } as unknown as import("../../../src/model/compiler.ts").WasmSessionLike;
+    const session = { close: async () => 0 } as unknown as import("core/model/compiler.ts").WasmSessionLike;
     const runtime = {
       async instantiate(bytes: Uint8Array) {
         captured = bytes;

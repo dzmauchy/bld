@@ -12,7 +12,7 @@ import {
   PortEndpoint,
   registerAppAssets,
 } from "core";
-import "../src/hostClangAstDumper.ts";
+import "cpp/hostClangAstDumper.ts";
 
 const here = dirname(fileURLToPath(import.meta.url));
 const coreAssets = join(here, "../../core/assets");

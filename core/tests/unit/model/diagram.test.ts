@@ -10,7 +10,7 @@ import {
   Library,
   Palette,
   PortEndpoint,
-} from "../../../src/model/index.js";
+} from "core/model/index.ts";
 
 const coreRoot = join(dirname(fileURLToPath(import.meta.url)), "../../..");
 const diagramDemoPath = join(coreRoot, "assets/diagram_demo.cpp");
@@ -269,7 +269,7 @@ describe("Wasm Code Generation", () => {
       },
     });
     let capturedWasm: Uint8Array | undefined;
-    const mockSession = { close: async () => 0 } as unknown as import("../../../src/model/compiler").WasmSessionLike;
+    const mockSession = { close: async () => 0 } as unknown as import("core/model/compiler.ts").WasmSessionLike;
     const mockRuntime = {
       async instantiate(bytes: Uint8Array) {
         capturedWasm = bytes;

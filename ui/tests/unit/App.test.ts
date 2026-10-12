@@ -1,6 +1,6 @@
 import { expect, test } from "vitest";
 import { modelAssetFiles } from "core";
-import { modelAssets } from "../../src/modelAssets.js";
+import { modelAssets } from "ui/modelAssets.ts";
 
 test("loads every core model file as a source asset", () => {
   expect(Object.keys(modelAssets).sort()).toEqual([...modelAssetFiles].sort());

@@ -1,12 +1,12 @@
 import { expect, test } from "vitest";
 import { ClangQualType } from "cpp";
-import { BlockDefinition } from "../../src/model/blockDefinition";
-import { DiagramAnalysis } from "../../src/model/cppBuilder";
-import { Diagram, DiagramPortTypes } from "../../src/model/diagram";
-import { PortEndpoint } from "../../src/model/endpoint";
-import { InferredPortType } from "../../src/model/inferredPortType";
-import { Palette } from "../../src/model/palette";
-import { TypeSystem } from "../../src/types";
+import { BlockDefinition } from "core/model/blockDefinition.ts";
+import { DiagramAnalysis } from "core/model/cppBuilder.ts";
+import { Diagram, DiagramPortTypes } from "core/model/diagram.ts";
+import { PortEndpoint } from "core/model/endpoint.ts";
+import { InferredPortType } from "core/model/inferredPortType.ts";
+import { Palette } from "core/model/palette.ts";
+import { TypeSystem } from "core/types/index.ts";
 
 test("compilation analysis assigns partial types and errors to runtime ports and clears old state", () => {
   const typeSystem = new TypeSystem();

@@ -2,7 +2,7 @@ import { existsSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { describe, expect, test } from "vitest";
-import { LlvmProjectRelease } from "../../src/llvmRelease.ts";
+import { LlvmProjectRelease } from "cpp/llvmRelease.ts";
 
 const here = dirname(fileURLToPath(import.meta.url));
 

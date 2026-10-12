@@ -1,6 +1,6 @@
 import { describe, expect, test } from "vitest";
-import { LlvmProjectRelease } from "../../src/llvmRelease.ts";
-import { LlvmToolchainProxy } from "../../src/llvmToolchainProxy.ts";
+import { LlvmProjectRelease } from "cpp/llvmRelease.ts";
+import { LlvmToolchainProxy } from "cpp/llvmToolchainProxy.ts";
 
 describe("llvm toolchain proxy", () => {
   test("rejects urls outside the clang and lld release assets", async () => {

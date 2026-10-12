@@ -1,8 +1,8 @@
 import { expect } from "vitest";
 import type { Page, WebWorker } from "puppeteer";
 import { browserTest, baseURL, element } from "../../../tests/e2e/browser.ts";
-import { BrowserClangAstDumper } from "../../src/browserClangAstDumper.ts";
-import type { CppPageApi } from "../../src/browser/api.ts";
+import { BrowserClangAstDumper } from "cpp/browserClangAstDumper.ts";
+import type { CppPageApi } from "cpp/browser/api.ts";
 
 declare global {
   interface Window {

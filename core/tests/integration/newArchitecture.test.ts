@@ -1,10 +1,10 @@
 import { beforeAll, describe, expect, test } from "vitest";
-import { Library } from "../../src/model/library";
-import { Diagram } from "../../src/model/diagram";
-import { CppDiagramBuilder } from "../../src/model/cppBuilder";
-import { PortEndpoint } from "../../src/model/endpoint";
+import { Library } from "core/model/library.ts";
+import { Diagram } from "core/model/diagram.ts";
+import { CppDiagramBuilder } from "core/model/cppBuilder.ts";
+import { PortEndpoint } from "core/model/endpoint.ts";
 import { ClangAstDumper, ClangTranslationUnit } from "cpp";
-import { Palette } from "../../src/model/palette";
+import { Palette } from "core/model/palette.ts";
 
 let library: Library;
 let builder: CppDiagramBuilder;

@@ -1,10 +1,10 @@
 import { Diagram, Library, OutputPortEndpoint, InputPortEndpoint, type PackageManifest } from "core";
 import { expect, test } from "vitest";
-import { DiagramRunSession, type DiagramCompilerLike } from "../../src/view/run/diagramRunSession.js";
-import { PinSample } from "../../src/view/run/pinSample.js";
-import { IntervalSchedule, SessionClock, type RunningRuntime, type RunningSession } from "../../src/view/run/sessionClock.js";
-import { ScopeCaptureBoard } from "../../src/view/scope/scopeCapture.js";
-import { ScopePlotGeometry } from "../../src/view/scope/scopePlotGeometry.js";
+import { DiagramRunSession, type DiagramCompilerLike } from "ui/view/run/diagramRunSession.ts";
+import { PinSample } from "ui/view/run/pinSample.ts";
+import { IntervalSchedule, SessionClock, type RunningRuntime, type RunningSession } from "ui/view/run/sessionClock.ts";
+import { ScopeCaptureBoard } from "ui/view/scope/scopeCapture.ts";
+import { ScopePlotGeometry } from "ui/view/scope/scopePlotGeometry.ts";
 
 const manifest: PackageManifest = {
   id: "demo",

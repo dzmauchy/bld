@@ -1,5 +1,5 @@
 import { describe, expect, test } from "vitest";
-import { ClangArgumentBuilder, LldArgumentBuilder } from "../../src/args.ts";
+import { ClangArgumentBuilder, LldArgumentBuilder } from "cpp/args.ts";
 
 describe("toolchain argument builders", () => {
   test("clang emits JSON dumps and objects using the launcher defaults", () => {

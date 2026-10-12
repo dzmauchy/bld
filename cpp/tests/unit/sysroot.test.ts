@@ -1,7 +1,7 @@
 import { packTar } from "modern-tar";
 import { describe, expect, test } from "vitest";
-import { MemoryFileSystem } from "../../src/filesystem.ts";
-import { shouldInstallSysrootEntry, SysrootInstaller, tarPathToMemfs } from "../../src/sysroot.ts";
+import { MemoryFileSystem } from "cpp/filesystem.ts";
+import { shouldInstallSysrootEntry, SysrootInstaller, tarPathToMemfs } from "cpp/sysroot.ts";
 
 describe("shared sysroot install", () => {
   test("selects runtime headers, Clang resources and static libraries", () => {

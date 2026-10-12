@@ -3,8 +3,8 @@ import {
   ParameterizedType,
   PrimitiveType,
   TypeSystem,
-} from "../../../src/types/index.js";
-import { Library } from "../../../src/model/index.js";
+} from "core/types/index.ts";
+import { Library } from "core/model/index.ts";
 
 describe("TypeSystem & DataTypes", () => {
   let ts: TypeSystem;

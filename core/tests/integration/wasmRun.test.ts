@@ -1,6 +1,6 @@
 import { expect, test } from "vitest";
 import { toWasmBytes } from "cpp/wasmBytes.ts";
-import { instantiateWasm } from "../../src/runtime/run.ts";
+import { instantiateWasm } from "core/runtime/run.ts";
 
 // A module exporting memory and bump(), backed by a mutable counter starting at zero.
 const counterModule = new Uint8Array([

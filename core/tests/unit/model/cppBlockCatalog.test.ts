@@ -2,8 +2,8 @@ import { beforeAll, describe, expect, test } from "vitest";
 import {
   CppBlockCatalog,
   defaultCppBlockCatalog,
-} from "../../../src/model/cppBlockCatalog.ts";
-import { Library } from "../../../src/model/library.ts";
+} from "core/model/cppBlockCatalog.ts";
+import { Library } from "core/model/library.ts";
 
 describe("CppBlockCatalog", () => {
   let catalog: CppBlockCatalog;

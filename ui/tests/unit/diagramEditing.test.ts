@@ -1,10 +1,10 @@
 import { expect, test } from "vitest";
 import { Diagram, Library, type BlockDefinition, type PackageManifest } from "core";
-import { CanvasPoint, OrthogonalRoute, PointerTravel, WirePoint } from "../../src/view/diagram/geometry.js";
-import { DiagramBlockFrame, PlacedBlock } from "../../src/view/diagram/diagramBlockFrame.js";
-import { DiagramConnector, PortHit } from "../../src/view/diagram/diagramConnector.js";
-import { BlockMoveGesture, type DiagramGestureHost } from "../../src/view/diagram/diagramGestures.js";
-import { PaletteArm } from "../../src/view/diagram/paletteArm.js";
+import { CanvasPoint, OrthogonalRoute, PointerTravel, WirePoint } from "ui/view/diagram/geometry.ts";
+import { DiagramBlockFrame, PlacedBlock } from "ui/view/diagram/diagramBlockFrame.ts";
+import { DiagramConnector, PortHit } from "ui/view/diagram/diagramConnector.ts";
+import { BlockMoveGesture, type DiagramGestureHost } from "ui/view/diagram/diagramGestures.ts";
+import { PaletteArm } from "ui/view/diagram/paletteArm.ts";
 
 const manifest: PackageManifest = {
   id: "demo",

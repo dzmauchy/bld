@@ -1,5 +1,5 @@
 import { expect, test } from "vitest";
-import { DefaultWasmBindings } from "../../src/bindings.ts";
+import { DefaultWasmBindings } from "cpp/bindings.ts";
 
 async function importingModule(namespace: string, name: string, type: number[]): Promise<WebAssembly.Module> {
   const moduleBytes = new TextEncoder().encode(namespace);

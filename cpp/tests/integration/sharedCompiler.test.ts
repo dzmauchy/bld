@@ -1,10 +1,10 @@
 import { packTar } from "modern-tar";
 import { describe, expect, test } from "vitest";
-import { ClangFrontend } from "../../src/clang.ts";
-import { CppWasmCompiler } from "../../src/compiler.ts";
-import type { EmscriptenFsApi } from "../../src/filesystem.ts";
-import { WasmLinker } from "../../src/linker.ts";
-import { SharedToolchainFileSystem } from "../../src/sharedFileSystem.ts";
+import { ClangFrontend } from "cpp/clang.ts";
+import { CppWasmCompiler } from "cpp/compiler.ts";
+import type { EmscriptenFsApi } from "cpp/filesystem.ts";
+import { WasmLinker } from "cpp/linker.ts";
+import { SharedToolchainFileSystem } from "cpp/sharedFileSystem.ts";
 import { DisposableToolFactory, writeClangOutputs } from "../toolchainFixture.ts";
 
 class RecordingFiles extends SharedToolchainFileSystem {

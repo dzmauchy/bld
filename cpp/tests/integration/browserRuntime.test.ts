@@ -1,6 +1,6 @@
 import { expect, test } from "vitest";
-import { BrowserCppRuntime } from "../../src/browser/api.ts";
-import { BrowserClangAstDumper } from "../../src/browserClangAstDumper.ts";
+import { BrowserCppRuntime } from "cpp/browser/api.ts";
+import { BrowserClangAstDumper } from "cpp/browserClangAstDumper.ts";
 
 /** Browser transport stand-in; the runtime, AST client, and RPC lifecycle are real. */
 class RecordingWorker extends EventTarget {

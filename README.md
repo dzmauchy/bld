@@ -426,6 +426,15 @@ npm run test:e2e --workspace=ui --include-workspace-root=false
 npm run test:e2e --workspace=cpp --include-workspace-root=false
 ```
 
+Core manual profiles are excluded from routine runs. Run a `*.manual.test.ts` file
+directly from CLion's test gutter or select it on the command line:
+
+```bash
+npx vitest run --config core/vitest.config.ts tests/integration/diagramAstSize.manual.test.ts
+```
+
+Set `MANUAL=1` to run all core manual profiles.
+
 ---
 
 ## Testing Strategy
