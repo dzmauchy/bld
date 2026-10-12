@@ -119,6 +119,19 @@ bld-palette-panel[hidden] {
   cursor: pointer;
 }
 
+.toolbar-menu {
+  display: block;
+  flex: 0 0 44px;
+  width: 44px;
+  height: 44px;
+}
+
+.toolbar-menu::part(menu) {
+  background: #15191c;
+  border-color: #384047;
+  box-shadow: 0 8px 24px #0009;
+}
+
 .toolbar-button svg,
 .toolbar-status svg {
   width: 24px;
@@ -182,6 +195,10 @@ bld-palette-panel[hidden] {
     padding: 6px 2px calc(6px + env(safe-area-inset-bottom)) calc(2px + env(safe-area-inset-left));
     border-bottom: 0;
     border-right: 1px solid #2b2b2b;
+  }
+
+  .toolbar-menu {
+    margin-bottom: auto;
   }
 }
 
@@ -933,9 +950,34 @@ bld-palette-panel[hidden] {
 
 .scope-plot-canvas {
   display: block;
-  flex: 1 1 auto;
   width: 100%;
+  height: 100%;
+}
+
+.scope-screen {
+  position: relative;
+  flex: 1 1 auto;
   min-height: 0;
+  overflow: hidden;
+}
+
+.scope-screen.is-vintage::before,
+.scope-screen.is-vintage::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+}
+
+.scope-screen.is-vintage::before {
+  background-image: url("../public/textures/matte.svg");
+  background-size: 128px 128px;
+}
+
+.scope-screen.is-vintage::after {
+  background:
+    radial-gradient(ellipse at 18% -30%, #c9e5d91a, transparent 65%),
+    radial-gradient(ellipse at 50% 45%, transparent 45%, #0005 100%);
 }
 
 .scope-legend {

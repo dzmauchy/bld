@@ -1,4 +1,6 @@
 import { html, nothing, svg } from "lit";
+import "@awesome.me/webawesome/dist/components/dropdown/dropdown.js";
+import type WaDropdownItem from "@awesome.me/webawesome/dist/components/dropdown-item/dropdown-item.js";
 import { SignalElement } from "../elements/SignalElement.js";
 import type { DiagramRunController } from "../run/diagramRunController.js";
 import type { DiagramEditor } from "../diagram/diagramEditor.js";
@@ -8,11 +10,19 @@ export class WorkspaceToolbar extends SignalElement {
   static override properties = {
     runner: { attribute: false }, editor: { attribute: false },
     paletteOpen: { type: Boolean }, onTogglePalette: { attribute: false },
+    scopeEffects: { type: Boolean }, onToggleScopeEffects: { attribute: false },
   };
   declare runner: DiagramRunController | undefined;
   declare editor: DiagramEditor | undefined;
   declare paletteOpen: boolean;
   declare onTogglePalette: (() => void) | undefined;
+  declare scopeEffects: boolean;
+  declare onToggleScopeEffects: (() => void) | undefined;
+
+  constructor() {
+    super();
+    this.scopeEffects = true;
+  }
 
   protected override render() {
     if (!this.runner || !this.editor) return nothing;
@@ -22,6 +32,21 @@ export class WorkspaceToolbar extends SignalElement {
     const running = phase === "running" || phase === "stopping";
     return html`
       <header class="workspace-toolbar" data-toolbar role="toolbar" aria-label="Diagram tools">
+        <wa-dropdown class="toolbar-menu" data-workspace-menu placement="bottom-start"
+          @wa-select=${(event: CustomEvent<{ item: WaDropdownItem }>) => {
+            if (event.detail.item.value === "run") void runner.toggle();
+            else if (event.detail.item.value === "scope-effects") this.onToggleScopeEffects?.();
+          }}>
+          <button slot="trigger" type="button" class="toolbar-button" data-menu-toggle title="Menu" aria-label="Menu">
+            ${svg`<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 6h16M4 12h16M4 18h16"/></svg>`}
+          </button>
+          <wa-dropdown-item value="run" data-menu-run ?disabled=${phase === "starting" || phase === "stopping"}>
+            ${running ? "Stop" : "Run"}
+          </wa-dropdown-item>
+          <wa-dropdown-item value="scope-effects" type="checkbox" data-menu-scope-effects .checked=${this.scopeEffects}>
+            Vintage oscilloscope effects
+          </wa-dropdown-item>
+        </wa-dropdown>
         <button type="button" class="toolbar-button toolbar-palette" data-palette-toggle title="Palette" aria-label="Palette"
           aria-expanded=${String(Boolean(this.paletteOpen))} aria-controls="workspace-palette"
           @click=${() => this.onTogglePalette?.()}>

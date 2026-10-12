@@ -27,7 +27,7 @@ class PlotArea {
 
 /** Draws every scope channel on one time axis and one value axis. */
 export class ScopePlotPainter {
-  paint(element: HTMLCanvasElement, geometry: ScopePlotGeometry): void {
+  paint(element: HTMLCanvasElement, geometry: ScopePlotGeometry, vintage = true): void {
     const rect = element.getBoundingClientRect();
     const width = Math.max(1, rect.width);
     const height = Math.max(1, rect.height);
@@ -37,16 +37,16 @@ export class ScopePlotPainter {
     const context = element.getContext("2d");
     if (!context) return;
     context.setTransform(dpr, 0, 0, dpr, 0, 0);
-    this.draw(context, width, height, geometry);
+    this.draw(context, width, height, geometry, vintage);
   }
 
-  draw(context: CanvasRenderingContext2D, width: number, height: number, geometry: ScopePlotGeometry): void {
+  draw(context: CanvasRenderingContext2D, width: number, height: number, geometry: ScopePlotGeometry, vintage = true): void {
     const area = new PlotArea(width, height);
     context.clearRect(0, 0, width, height);
-    context.fillStyle = "#000000";
+    context.fillStyle = vintage ? "#08100e" : "#000000";
     context.fillRect(0, 0, width, height);
     this.grid(context, area);
-    for (const series of geometry.series) this.stroke(context, area, geometry, series);
+    for (const series of geometry.series) this.stroke(context, area, geometry, series, vintage);
     this.frame(context, area, geometry);
   }
 
@@ -87,7 +87,7 @@ export class ScopePlotPainter {
     context.restore();
   }
 
-  private stroke(context: CanvasRenderingContext2D, area: PlotArea, geometry: ScopePlotGeometry, series: ScopeSeriesGeometry): void {
+  private stroke(context: CanvasRenderingContext2D, area: PlotArea, geometry: ScopePlotGeometry, series: ScopeSeriesGeometry, vintage: boolean): void {
     const points = series.samples
       .map((value, index) => ({ value, time: geometry.sampleTime(series, index) }))
       .filter((point) => Number.isFinite(point.value));
@@ -98,6 +98,11 @@ export class ScopePlotPainter {
     context.lineWidth = 1.75;
     context.lineJoin = "round";
     context.lineCap = "round";
+    if (vintage) {
+      context.shadowColor = series.color;
+      context.shadowBlur = 6;
+      context.filter = "blur(0.35px)";
+    }
     if (points.length === 1) {
       const point = points[0];
       if (!point) return;
@@ -114,6 +119,15 @@ export class ScopePlotPainter {
       if (index === 0) context.moveTo(x, y);
       else context.lineTo(x, y);
     });
+    if (vintage) {
+      context.save();
+      context.globalAlpha = 0.25;
+      context.lineWidth = 3.5;
+      context.filter = "blur(1.5px)";
+      context.shadowBlur = 10;
+      context.stroke();
+      context.restore();
+    }
     context.stroke();
     context.restore();
   }

@@ -12,16 +12,23 @@ export class ScopePlot extends SignalElement {
   static override properties = {
     editor: { attribute: false }, blockId: { attribute: false }, board: { attribute: false },
     runner: { attribute: false }, onClose: { attribute: false },
+    scopeEffects: { type: Boolean },
   };
   declare editor: DiagramEditor | undefined;
   declare blockId: string | undefined;
   declare board: ScopeCaptureBoard | undefined;
   declare runner: DiagramRunController | undefined;
   declare onClose: (() => void) | undefined;
+  declare scopeEffects: boolean;
   private readonly painter = new ScopePlotPainter();
   private geometry: ScopePlotGeometry | undefined;
   private canvas: HTMLCanvasElement | undefined;
   private observer: ResizeObserver | undefined;
+
+  constructor() {
+    super();
+    this.scopeEffects = true;
+  }
 
   protected override updated(): void {
     const canvas = this.querySelector<HTMLCanvasElement>("[data-scope-canvas]") ?? undefined;
@@ -43,7 +50,7 @@ export class ScopePlot extends SignalElement {
   }
 
   private paint(): void {
-    if (this.canvas && this.geometry) this.painter.paint(this.canvas, this.geometry);
+    if (this.canvas && this.geometry) this.painter.paint(this.canvas, this.geometry, this.scopeEffects);
   }
 
   protected override render() {
@@ -55,6 +62,7 @@ export class ScopePlot extends SignalElement {
     if (!geometry) return nothing;
     const extent = geometry.sampleExtent();
     return html`<aside class="scope-plot" data-scope-plot data-scope-block=${this.blockId}
+      data-scope-effects=${this.scopeEffects ? "vintage" : "off"}
       data-axis="shared" data-series-count=${geometry.series.length} data-domain-seconds=${geometry.domainSeconds}
       data-samples=${geometry.series.reduce((count, series) => count + series.samples.length, 0)}
       data-sample-min=${extent?.minimum ?? ""} data-sample-max=${extent?.maximum ?? ""}
@@ -62,7 +70,9 @@ export class ScopePlot extends SignalElement {
       <header class="scope-plot-header"><h2>Scope</h2>
         <button type="button" class="scope-close" data-scope-close @click=${() => this.onClose?.()}>Close</button>
       </header>
-      <canvas class="scope-plot-canvas" data-scope-canvas></canvas>
+      <div class=${`scope-screen${this.scopeEffects ? " is-vintage" : ""}`}>
+        <canvas class="scope-plot-canvas" data-scope-canvas></canvas>
+      </div>
       <ul class="scope-legend">${geometry.series.map((series) => html`
         <li data-scope-series=${series.channel} style=${styleMap({ color: series.color })}>
           <span class="scope-swatch" style=${styleMap({ "background-color": series.color })}></span>${series.label}

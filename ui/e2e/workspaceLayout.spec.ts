@@ -13,7 +13,7 @@ test("shows SVG toolbar controls and changes palette visibility only with its to
     tooltip: button.getAttribute("title"),
     label: button.getAttribute("aria-label"),
   })));
-  expect(controls).toHaveLength(3);
+  expect(controls).toHaveLength(4);
   for (const control of controls) {
     expect(control.text).toBe("");
     expect(control.icons).toBe(1);
@@ -61,7 +61,8 @@ test("places the landscape phone toolbar on the left with its icons at the botto
     const box = button.getBoundingClientRect();
     return { x: box.left, y: box.top, bottom: box.bottom, width: box.width, height: box.height };
   }));
-  expect(buttons[0].y).toBeGreaterThan(200);
+  expect(buttons[0].y).toBe(6);
+  expect(buttons[1].y).toBeGreaterThan(200);
   expect(buttons.at(-1)!.bottom).toBe(384);
   for (const button of buttons) {
     expect(button.x).toBeGreaterThanOrEqual(landscape!.x);
@@ -71,6 +72,15 @@ test("places the landscape phone toolbar on the left with its icons at the botto
   }
   const canvas = element(page, "[data-diagram-canvas]");
   expect((await canvas.boundingBox())!.x).toBe(48);
+  await element(page, "[data-menu-toggle]").click();
+  const menuRun = element(page, "[data-menu-run]");
+  await expect.poll(() => menuRun.visible()).toBe(true);
+  const menuBox = await menuRun.boundingBox();
+  expect(menuBox!.x).toBeGreaterThanOrEqual(0);
+  expect(menuBox!.x + menuBox!.width).toBeLessThanOrEqual(844);
+  await page.screenshot({ path: artifactPath("landscape-phone-menu.png") });
+  await page.keyboard.press("Escape");
+  await expect.poll(() => menuRun.visible()).toBe(false);
   await openPalette(page);
   const palette = element(page, "[data-region=palette]");
   expect((await palette.boundingBox())!.x).toBe(48);
@@ -83,6 +93,32 @@ test("places the landscape phone toolbar on the left with its icons at the botto
   await expect.poll(() => palette.visible()).toBe(false);
   expect(await page.evaluate(() => document.documentElement.scrollHeight - window.innerHeight)).toBe(0);
   await page.screenshot({ path: artifactPath("landscape-phone-toolbar.png") });
+});
+
+test("opens the top-left menu with the keyboard and toggles vintage effects", async ({ page }) => {
+  await page.goto(baseURL());
+  await expect.poll(() => element(page, "[data-splash]").visible()).toBe(false);
+  const toggle = element(page, "[data-menu-toggle]");
+  const box = await toggle.boundingBox();
+  expect(box!.x).toBe(6);
+  expect(box!.y).toBeGreaterThanOrEqual(0);
+  expect(box!.y).toBeLessThan(6);
+  await page.keyboard.press("Tab");
+  await expect.poll(() => toggle.evaluate(button => button === document.activeElement)).toBe(true);
+  await page.keyboard.press("Enter");
+  const effects = element(page, "[data-menu-scope-effects]");
+  await expect.poll(() => effects.visible()).toBe(true);
+  expect(await element(page, "[data-menu-run]").text()).toBe("Run");
+  expect(await effects.getAttribute("aria-checked")).toBe("true");
+  await page.keyboard.press("ArrowDown");
+  await page.keyboard.press("Enter");
+  await expect.poll(() => toggle.getAttribute("aria-expanded")).toBe("false");
+  await expect.poll(() => effects.visible()).toBe(false);
+  await toggle.click();
+  await expect.poll(() => effects.getAttribute("aria-checked")).toBe("false");
+  await page.screenshot({ path: artifactPath("workspace-menu.png") });
+  await page.keyboard.press("Escape");
+  await expect.poll(() => effects.visible()).toBe(false);
 });
 
 test("keeps the desktop workspace inside the viewport while panels scroll", async ({ page }) => {

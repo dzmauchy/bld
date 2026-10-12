@@ -19,6 +19,7 @@ export class Workspace extends SignalElement {
   private runner: DiagramRunController | undefined;
   private readonly board = new ScopeCaptureBoard();
   private readonly paletteOpen = signal(false);
+  private readonly scopeEffects = signal(true);
 
   protected override willUpdate(): void {
     if (this.editor || !this.libraries) return;
@@ -48,11 +49,17 @@ export class Workspace extends SignalElement {
     return html`
       <div class="workspace-shell" ?inert=${this.runner.phase() === "starting" || Boolean(this.runner.error())}
         aria-busy=${String(this.runner.phase() === "starting")}
-        @keydown=${(event: KeyboardEvent) => this.editor?.keyDown(event)}>
+        @keydown=${(event: KeyboardEvent) => {
+          if (event.target instanceof Element && event.target.closest("wa-dropdown")) return;
+          this.editor?.keyDown(event);
+        }}>
         <bld-workspace-toolbar .runner=${this.runner} .editor=${this.editor} .paletteOpen=${this.paletteOpen.get()}
-          .onTogglePalette=${() => this.paletteOpen.set(!this.paletteOpen.get())}></bld-workspace-toolbar>
+          .onTogglePalette=${() => this.paletteOpen.set(!this.paletteOpen.get())}
+          .scopeEffects=${this.scopeEffects.get()}
+          .onToggleScopeEffects=${() => this.scopeEffects.set(!this.scopeEffects.get())}></bld-workspace-toolbar>
         <div class="workspace-content">
-          <bld-diagram-canvas .editor=${this.editor} .board=${this.board} .runner=${this.runner}></bld-diagram-canvas>
+          <bld-diagram-canvas .editor=${this.editor} .board=${this.board} .runner=${this.runner}
+            .scopeEffects=${this.scopeEffects.get()}></bld-diagram-canvas>
           <bld-palette-panel id="workspace-palette" ?hidden=${!this.paletteOpen.get()}
             .libraries=${this.libraries} .editor=${this.editor}></bld-palette-panel>
         </div>

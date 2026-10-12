@@ -11,10 +11,18 @@ import "../scope/ScopePlot.js";
 import { DiagramGrid } from "./geometry.js";
 
 export class DiagramCanvas extends SignalElement {
-  static override properties = { editor: { attribute: false }, board: { attribute: false }, runner: { attribute: false } };
+  static override properties = {
+    editor: { attribute: false }, board: { attribute: false }, runner: { attribute: false }, scopeEffects: { type: Boolean },
+  };
   declare editor: DiagramEditor | undefined;
   declare board: ScopeCaptureBoard | undefined;
   declare runner: DiagramRunController | undefined;
+  declare scopeEffects: boolean;
+
+  constructor() {
+    super();
+    this.scopeEffects = true;
+  }
 
   protected override updated(): void {
     this.editor?.attachCanvas(this.querySelector<HTMLElement>("[data-diagram-canvas]") ?? undefined);
@@ -69,6 +77,7 @@ export class DiagramCanvas extends SignalElement {
           if (runner.phase() === "running") void runner.stop();
         }} .onClose=${() => editor.closeConfiguration()}></bld-block-config-dialog>` : nothing}
       ${inspectedId ? html`<bld-scope-plot .editor=${editor} .blockId=${inspectedId} .board=${board} .runner=${runner}
+        .scopeEffects=${this.scopeEffects}
         .onClose=${() => editor.closeInspection()}></bld-scope-plot>` : nothing}
     </section>`;
   }

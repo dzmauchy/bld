@@ -67,7 +67,7 @@ test("rejects a product with missing source connections and runs the corrected g
   await expect.poll(() => run.getAttribute("data-run-state")).toBe("idle");
 });
 
-test("removes the diagram caption, runs from the toolbar, and plots every scope output", async ({ page }) => {
+test("runs from the menu, plots every scope output, and toggles vintage effects without changing samples", async ({ page }) => {
   await page.goto(baseURL());
   await expect.poll(() => element(page, "[data-splash]").visible()).toBe(false);
   const diagram = element(page, "[data-region=diagram]");
@@ -120,7 +120,9 @@ test("removes the diagram caption, runs from the toolbar, and plots every scope 
   await expect.poll(() => plot.text()).toContain("cos");
   await expect.poll(() => canvas.within("[data-block-ref=ScopeF32]").getAttribute("data-inspected")).toBe("true");
 
-  await run.click();
+  await element(page, "[data-menu-toggle]").click();
+  await expect.poll(() => element(page, "[data-menu-run]").visible()).toBe(true);
+  await element(page, "[data-menu-run]").click();
   await expect.poll(() => run.getAttribute("data-run-state")).toBe("starting");
   await expect.poll(() => run.getAttribute("aria-label")).toBe("Run");
   await expect.poll(() => run.getAttribute("aria-label"), { timeout: 120_000 }).toBe("Stop");
@@ -148,9 +150,36 @@ test("removes the diagram caption, runs from the toolbar, and plots every scope 
   await new Promise((resolve) => setTimeout(resolve, 700));
   await page.screenshot({ path: artifactPath("scope-plot.png") });
 
-  await run.click();
+  await element(page, "[data-menu-toggle]").click();
+  await expect.poll(() => element(page, "[data-menu-run]").text()).toBe("Stop");
+  await element(page, "[data-menu-run]").click();
   await expect.poll(() => run.getAttribute("aria-label")).toBe("Run");
   await expect.poll(() => run.getAttribute("data-run-state")).toBe("idle");
+
+  const vintage = await trace();
+  const samples = await plot.getAttribute("data-samples");
+  expect(await plot.getAttribute("data-scope-effects")).toBe("vintage");
+  const menu = element(page, "[data-menu-toggle]");
+  const effects = element(page, "[data-menu-scope-effects]");
+  await menu.click();
+  await expect.poll(() => effects.visible()).toBe(true);
+  await effects.click();
+  await expect.poll(() => plot.getAttribute("data-scope-effects")).toBe("off");
+  await expect.poll(trace).not.toBe(vintage);
+  expect(await element(page, ".scope-screen").evaluate(screen => getComputedStyle(screen, "::before").content)).toBe("none");
+  expect(await plot.getAttribute("data-samples")).toBe(samples);
+  await page.screenshot({ path: artifactPath("scope-effects-off.png") });
+  await plot.within("[data-scope-close]").click();
+  await expect.poll(() => plot.count()).toBe(0);
+  await canvas.within("[data-block-ref=ScopeF32]").click();
+  await expect.poll(() => plot.getAttribute("data-scope-effects")).toBe("off");
+  await menu.click();
+  await expect.poll(() => effects.getAttribute("aria-checked")).toBe("false");
+  await effects.click();
+  await expect.poll(() => plot.getAttribute("data-scope-effects")).toBe("vintage");
+  await expect.poll(trace).toBe(vintage);
+  expect(await plot.getAttribute("data-samples")).toBe(samples);
+  await page.screenshot({ path: artifactPath("scope-effects-vintage.png") });
 });
 
 test("plots a sliding 1 + sin(t) trace from a constant and a sine generator", async ({ page }) => {
