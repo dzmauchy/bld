@@ -516,12 +516,12 @@ wa-split-panel::part(panel) {
 
 @keyframes diagram-selection-pulse {
   0%, 100% { opacity: 1; }
-  50% { opacity: 0.3; }
+  50% { opacity: 0.9; }
 }
 
 .diagram-block.is-selected,
 .diagram-wire.is-selected {
-  animation: diagram-selection-pulse 1.2s ease-in-out infinite;
+  animation: diagram-selection-pulse 2.4s ease-in-out infinite;
 }
 
 #diagram-wire-arrow {

@@ -79,19 +79,21 @@ async function expectPulse(object: Locator): Promise<void> {
   const pulse = await object.evaluate(async (element) => {
     const samples: number[] = [];
     const animation = getComputedStyle(element).animationName;
-    for (let i = 0; i < 14; i++) {
+    const duration = getComputedStyle(element).animationDuration;
+    for (let i = 0; i < 28; i++) {
       samples.push(Number(getComputedStyle(element).opacity));
       await new Promise((resolve) => setTimeout(resolve, 100));
     }
-    return { animation, minimum: Math.min(...samples), maximum: Math.max(...samples) };
+    return { animation, duration, minimum: Math.min(...samples), maximum: Math.max(...samples) };
   });
   expect(pulse.animation).toBe("diagram-selection-pulse");
-  expect(pulse.minimum).toBeGreaterThanOrEqual(0.29);
-  expect(pulse.minimum).toBeLessThan(0.4);
-  expect(pulse.maximum).toBeGreaterThan(0.9);
+  expect(pulse.duration).toBe("2.4s");
+  expect(pulse.minimum).toBeGreaterThanOrEqual(0.89);
+  expect(pulse.minimum).toBeLessThan(0.92);
+  expect(pulse.maximum).toBeGreaterThan(0.98);
 }
 
-test("selects blocks and connections with a 30% pulse and deletes a wire from the toolbar", async ({ page }) => {
+test("selects blocks and connections with a slow 10% fade and deletes a wire from the toolbar", async ({ page }) => {
   const diagram = new SelectionDiagram(page);
   await expect(diagram.deleteButton).toBeDisabled();
   await diagram.pair();
