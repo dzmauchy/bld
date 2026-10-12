@@ -6,6 +6,7 @@ import type { CompilerRequest, WorkerResponse } from "../messages.ts";
 import { RemoteEmscriptenModule } from "../remoteEmscripten.ts";
 import { SharedToolchainFileSystem } from "../sharedFileSystem.ts";
 import { attachWorker } from "./host.ts";
+import type { CompilationPhaseListener } from "../compilationProgress.ts";
 
 const release = new LlvmProjectRelease();
 const clangWasmUrl = release.assetUrl("clang.wasm");
@@ -24,8 +25,8 @@ export class CompilerWorkerSession {
     await this.compiler.initialize();
   }
 
-  async compile(files: Record<string, string>): Promise<Uint8Array> {
-    return this.compiler.compile(new Map(Object.entries(files)));
+  async compile(files: Record<string, string>, listener?: CompilationPhaseListener): Promise<Uint8Array> {
+    return this.compiler.compile(new Map(Object.entries(files)), listener);
   }
 
   async dumpAst(files: Record<string, string>, mainFile: string): Promise<{ ok: boolean; ast: unknown; stdout: string; stderr: string }> {
@@ -39,14 +40,14 @@ function isCompilerRequest(data: unknown): data is CompilerRequest {
 
 const session = new CompilerWorkerSession();
 
-attachWorker(async (data): Promise<WorkerResponse> => {
+attachWorker(async (data, progress): Promise<WorkerResponse> => {
   if (!isCompilerRequest(data)) throw new Error("invalid compiler worker message");
   if (data.type === "init") {
     await session.init();
     return { id: data.id, type: "ok" };
   }
   if (data.type === "compile") {
-    const wasm = await session.compile(data.files);
+    const wasm = await session.compile(data.files, (event) => progress({ id: data.id, type: "progress", progress: event }));
     return { id: data.id, type: "ok", files: { "/work/a.wasm": wasm } };
   }
   if (data.type === "dump-ast") {

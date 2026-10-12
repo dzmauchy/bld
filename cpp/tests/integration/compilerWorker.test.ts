@@ -4,6 +4,7 @@ import { SharedToolchainFileSystem } from "cpp/sharedFileSystem.ts";
 import { WasmLinker } from "cpp/linker.ts";
 import { CppWasmCompiler, WorkerCppWasmCompiler } from "cpp/compiler.ts";
 import type { WorkerResponse } from "cpp/messages.ts";
+import type { CompilationPhaseEvent } from "cpp/compilationProgress.ts";
 import { Thread } from "cpp/thread.ts";
 import { WorkerMessageDispatcher, type WorkerMessageHandler } from "cpp/workers/host.ts";
 
@@ -13,7 +14,8 @@ class InProcessWorker extends Thread {
 
   constructor(handler: WorkerMessageHandler) {
     super();
-    this.dispatcher = new WorkerMessageDispatcher(handler, (response) => this.handler?.(response));
+    this.dispatcher = new WorkerMessageDispatcher(handler,
+      (response) => this.handler?.(response), (progress) => this.handler?.(progress));
   }
 
   override postMessage(data: unknown): void {
@@ -32,6 +34,58 @@ class InProcessWorker extends Thread {
 }
 
 describe("reusable compiler worker", () => {
+  test("routes phase events to each job without resolving it before the final response", async () => {
+    const gate = Promise.withResolvers<void>();
+    const started = Promise.withResolvers<void>();
+    const wasm = new Uint8Array([0, 97, 115, 109]);
+    const worker = new InProcessWorker(async (data, progress): Promise<WorkerResponse> => {
+      const { id, type } = data as { id: number; type: string };
+      if (type === "compile") {
+        progress({ id, type: "progress", progress: { phase: "compilation", status: "active" } });
+        started.resolve();
+        await gate.promise;
+        progress({ id, type: "progress", progress: { phase: "compilation", status: "completed" } });
+        progress({ id, type: "progress", progress: { phase: "linking", status: "active" } });
+        progress({ id, type: "progress", progress: { phase: "linking", status: "completed" } });
+      }
+      return { id, type: "ok", files: { "/work/a.wasm": wasm } };
+    });
+    const compiler = new WorkerCppWasmCompiler(worker);
+    const firstEvents: CompilationPhaseEvent[] = [];
+    const secondEvents: CompilationPhaseEvent[] = [];
+    let resolved = false;
+    const first = compiler.compile(new Map(), event => firstEvents.push(event)).then(bytes => {
+      resolved = true;
+      return bytes;
+    });
+    await started.promise;
+    const second = compiler.compile(new Map(), event => secondEvents.push(event));
+    await Promise.resolve();
+    expect(resolved).toBe(false);
+    expect(firstEvents).toEqual([
+      { phase: "awaiting-modules", status: "active" },
+      { phase: "awaiting-modules", status: "completed" },
+      { phase: "compilation", status: "active" },
+    ]);
+    expect(secondEvents).toEqual([
+      { phase: "awaiting-modules", status: "active" },
+      { phase: "awaiting-modules", status: "completed" },
+    ]);
+    gate.resolve();
+    expect(await first).toEqual(wasm);
+    expect(await second).toEqual(wasm);
+    expect(firstEvents).toEqual([
+      { phase: "awaiting-modules", status: "active" },
+      { phase: "awaiting-modules", status: "completed" },
+      { phase: "compilation", status: "active" },
+      { phase: "compilation", status: "completed" },
+      { phase: "linking", status: "active" },
+      { phase: "linking", status: "completed" },
+    ]);
+    expect(secondEvents).toEqual(firstEvents);
+    await compiler.close();
+  });
+
   test("AST and compile jobs await the pending startup promise and reuse it afterwards", async () => {
     const gate = Promise.withResolvers<void>();
     const started = Promise.withResolvers<void>();

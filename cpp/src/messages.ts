@@ -1,3 +1,11 @@
+import type { CompilationPhaseEvent } from "./compilationProgress.ts";
+
+export type WorkerProgress = {
+  id: number;
+  type: "progress";
+  progress: CompilationPhaseEvent;
+};
+
 export type WorkerOk = {
   id: number;
   type: "ok";

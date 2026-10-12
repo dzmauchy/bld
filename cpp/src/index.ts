@@ -7,6 +7,8 @@ export { SharedToolchainFileSystem } from "./sharedFileSystem.ts";
 export { isCppSource, isHeader, objectPathFor, workPath, normalizeRelativePath } from "./paths.ts";
 export { CppWasmCompiler, WorkerCppWasmCompiler } from "./compiler.ts";
 export type { ICppCompiler } from "./compiler.ts";
+export { CompilationProgressEmitter } from "./compilationProgress.ts";
+export type { CompilationPhase, CompilationPhaseStatus, CompilationPhaseEvent, CompilationPhaseListener } from "./compilationProgress.ts";
 export { ClangFrontend } from "./clang.ts";
 export { ClangAstDumper, ClangDumpResult } from "./clangAstDumper.ts";
 export { BrowserClangAstDumper } from "./browserClangAstDumper.ts";

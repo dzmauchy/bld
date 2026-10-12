@@ -1,13 +1,15 @@
 import type { Diagram } from "core";
+import type { CompilationPhaseEvent, CompilationPhaseListener } from "cpp";
 import type { ScopeCaptureBoard } from "../scope/scopeCapture.js";
 import { PinSample } from "./pinSample.js";
 import { DiagramConnectionValidator } from "./diagramConnectionValidator.js";
+import { CompilationSteps } from "./compilationSteps.js";
 import { IntervalSchedule, SimulationClock, type RunningRuntime, type RunningSession, type SessionClock } from "./sessionClock.js";
 
 export type RunPhase = "idle" | "starting" | "running" | "stopping";
 
 export interface DiagramCompilerLike {
-  compile(diagram: Diagram): Promise<Uint8Array>;
+  compile(diagram: Diagram, options?: { onPhase?: CompilationPhaseListener }): Promise<Uint8Array>;
 }
 
 export interface RunSessionListener {
@@ -15,6 +17,7 @@ export interface RunSessionListener {
   status(status: string): void;
   revision(revision: number): void;
   error?(error: string | undefined): void;
+  progress?(progress: CompilationSteps): void;
 }
 
 /** Compiles the open diagram, runs it, and feeds scope pins into the capture board. */
@@ -28,6 +31,7 @@ export class DiagramRunSession {
   private statusValue = "";
   private revisionValue = 0;
   private errorValue: string | undefined;
+  private progressValue = CompilationSteps.initial();
 
   constructor(
     private readonly diagram: Diagram,
@@ -63,6 +67,10 @@ export class DiagramRunSession {
     this.setError(undefined);
   }
 
+  progress(): CompilationSteps {
+    return this.progressValue;
+  }
+
   async toggle(): Promise<void> {
     if (this.phaseValue === "stopping") return;
     if (this.phaseValue === "idle") await this.run();
@@ -73,16 +81,21 @@ export class DiagramRunSession {
     if (this.phaseValue !== "idle") return;
     const token = ++this.token;
     this.setError(undefined);
+    this.setProgress(CompilationSteps.initial());
     this.setPhase("starting");
     this.setStatus("Compiling");
     let runtime: RunningRuntime | undefined;
     try {
       new DiagramConnectionValidator().validate(this.diagram);
+      this.noteProgress({ phase: "awaiting-modules", status: "active" });
       this.board.prepare(this.diagram);
       const compiler = await this.compiler();
       if (token !== this.token) return;
-      const wasm = await compiler.compile(this.diagram);
+      const wasm = await compiler.compile(this.diagram, { onPhase: (event) => {
+        if (token === this.token) this.noteProgress(event);
+      } });
       if (token !== this.token) return;
+      this.noteProgress({ phase: "running", status: "active" });
       runtime = this.openRuntime((message) => this.note(message));
       const session = await runtime.instantiate(wasm);
       if (token !== this.token) {
@@ -110,6 +123,7 @@ export class DiagramRunSession {
         this.clock?.stop();
         return;
       }
+      this.noteProgress({ phase: "running", status: "completed" });
       this.setStatus("");
       this.setPhase("running");
     } catch (error) {
@@ -150,9 +164,19 @@ export class DiagramRunSession {
     this.listener?.error?.(error);
   }
 
+  private setProgress(progress: CompilationSteps): void {
+    this.progressValue = progress;
+    this.listener?.progress?.(progress);
+  }
+
+  private noteProgress(event: CompilationPhaseEvent): void {
+    this.setProgress(this.progressValue.withEvent(event));
+  }
+
   private async fail(error: unknown): Promise<void> {
     const message = messageOf(error);
     this.setStatus(message);
+    this.setProgress(this.progressValue.failed());
     this.setError(message);
     await this.stop();
   }

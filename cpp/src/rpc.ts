@@ -1,4 +1,4 @@
-import { messageId, type WorkerOk, type WorkerResponse } from "./messages.ts";
+import { messageId, type WorkerOk, type WorkerResponse, type WorkerProgress } from "./messages.ts";
 import type { Thread } from "./thread.ts";
 
 function isWorkerResponse(message: unknown): message is WorkerResponse {
@@ -31,10 +31,16 @@ export class RpcClient {
   private readonly pending = new Map<number, {
     resolve: (value: WorkerResponse) => void;
     reject: (error: Error) => void;
+    progress?: (message: WorkerProgress) => void;
   }>();
 
   constructor(private readonly thread: Thread) {
     this.thread.onMessage((message) => {
+      if (message !== null && typeof message === "object" && "type" in message && message.type === "progress") {
+        const progress = message as WorkerProgress;
+        this.pending.get(progress.id)?.progress?.(progress);
+        return;
+      }
       if (!isWorkerResponse(message)) return;
       const pending = this.pending.get(message.id);
       if (!pending) return;
@@ -46,11 +52,11 @@ export class RpcClient {
     });
   }
 
-  async request(payload: Record<string, unknown>, transfer = false): Promise<WorkerOk> {
+  async request(payload: Record<string, unknown>, transfer = false, progress?: (message: WorkerProgress) => void): Promise<WorkerOk> {
     if (this.failure) throw this.failure;
     const id = this.nextId++;
     const { promise, resolve, reject } = Promise.withResolvers<WorkerResponse>();
-    this.pending.set(id, { resolve, reject });
+    this.pending.set(id, { resolve, reject, ...(progress ? { progress } : {}) });
     const message = { ...payload, id };
     try {
       if (transfer) {

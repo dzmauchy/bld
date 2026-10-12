@@ -8,6 +8,7 @@ import {
   type RunSessionListener,
 } from "./diagramRunSession.js";
 import type { RunningRuntime, RunningSession, SessionClock } from "./sessionClock.js";
+import { CompilationSteps } from "./compilationSteps.js";
 
 export type { DiagramCompilerLike, RunPhase };
 
@@ -17,6 +18,7 @@ export class DiagramRunController {
   readonly status: () => string;
   readonly revision: () => number;
   readonly error: () => string | undefined;
+  readonly progress: () => CompilationSteps;
   private readonly session: DiagramRunSession;
 
   constructor(
@@ -35,15 +37,18 @@ export class DiagramRunController {
     const status = signal("");
     const revision = signal(0);
     const error = signal<string | undefined>(undefined);
+    const progress = signal(CompilationSteps.initial());
     this.phase = () => phase.get();
     this.status = () => status.get();
     this.revision = () => revision.get();
     this.error = () => error.get();
+    this.progress = () => progress.get();
     const listener: RunSessionListener = {
       phase: (value) => phase.set(value),
       status: (value) => status.set(value),
       revision: (value) => revision.set(value),
       error: (value) => error.set(value),
+      progress: (value) => progress.set(value),
     };
     this.session = new DiagramRunSession(diagram, board, compiler, openRuntime, listener, openClock);
   }

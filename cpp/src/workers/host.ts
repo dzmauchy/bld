@@ -1,12 +1,12 @@
 import { formatUnknownError } from "../errors.ts";
-import { messageId, type WorkerResponse } from "../messages.ts";
+import { messageId, type WorkerResponse, type WorkerProgress } from "../messages.ts";
 
 type BrowserWorkerScope = {
   onmessage: ((event: { data: unknown }) => void) | null;
   postMessage: (message: unknown, transfer?: Transferable[]) => void;
 };
 
-export type WorkerMessageHandler = (data: unknown) => Promise<WorkerResponse | void>;
+export type WorkerMessageHandler = (data: unknown, progress: (message: WorkerProgress) => void) => Promise<WorkerResponse | void>;
 
 export { formatUnknownError };
 
@@ -14,9 +14,10 @@ async function dispatch(
   data: unknown,
   handler: WorkerMessageHandler,
   post: (result: WorkerResponse) => void,
+  progress: (message: WorkerProgress) => void,
 ): Promise<void> {
   try {
-    const result = await Promise.resolve(handler(data));
+    const result = await Promise.resolve(handler(data, progress));
     if (result) post(result);
   } catch (error) {
     post({
@@ -34,10 +35,11 @@ export class WorkerMessageDispatcher {
   constructor(
     private readonly handler: WorkerMessageHandler,
     private readonly post: (result: WorkerResponse) => void,
+    private readonly progress: (message: WorkerProgress) => void = () => {},
   ) {}
 
   dispatch(data: unknown): Promise<void> {
-    const result = this.pending.then(() => dispatch(data, this.handler, this.post));
+    const result = this.pending.then(() => dispatch(data, this.handler, this.post, this.progress));
     this.pending = result.catch(() => {});
     return result;
   }
@@ -54,7 +56,7 @@ export function attachWorker(handler: WorkerMessageHandler): void {
     }
     // Compiler results are owned copies; transferring them leaves shared files intact.
     scope.postMessage(result, [...buffers]);
-  });
+  }, (progress) => scope.postMessage(progress));
   scope.onmessage = (event) => {
     void dispatcher.dispatch(event.data);
   };

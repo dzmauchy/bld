@@ -1,5 +1,5 @@
 import "@awesome.me/webawesome/dist/components/dialog/dialog.js";
-import { html, nothing } from "lit";
+import { html, nothing, svg } from "lit";
 import { SignalElement } from "../elements/SignalElement.js";
 import type { DiagramRunController } from "./diagramRunController.js";
 
@@ -23,7 +23,17 @@ export class RunFeedback extends SignalElement {
         else runner.dismissError();
       }}>
       ${compiling ? html`<div class="compile-progress" role="status">
-        <wa-spinner aria-label="Compiling"></wa-spinner><p>Compiling diagram…</p>
+        <p>Starting diagram…</p>
+        <ol class="compile-steps" aria-label="Diagram startup steps">
+          ${runner.progress().items().map((step) => html`<li class=${`compile-step is-${step.status}`}
+            data-compile-step=${step.phase} data-step-status=${step.status}
+            aria-current=${step.status === "active" ? "step" : nothing}>
+            <span class="compile-step-mark" aria-hidden="true">${step.status === "completed"
+              ? svg`<svg viewBox="0 0 24 24"><path d="m5 12 4 4L19 6"/></svg>`
+              : svg`<svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="7"/></svg>`}</span>
+            <span>${step.label}</span><span class="toolbar-announcement">${step.status}</span>
+          </li>`)}
+        </ol>
       </div>` : html`<p class="run-error-message" data-run-error role="alert">${error}</p>
         <button slot="footer" class="run-error-dismiss" data-dismiss-run-error
           @click=${() => runner.dismissError()}>OK</button>`}

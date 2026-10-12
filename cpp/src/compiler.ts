@@ -3,10 +3,11 @@ import { WasmLinker } from "./linker.ts";
 import { RpcClient } from "./rpc.ts";
 import type { Thread } from "./thread.ts";
 import { SysrootInstaller } from "./sysroot.ts";
+import { CompilationProgressEmitter, type CompilationPhaseListener } from "./compilationProgress.ts";
 
 /** Compiles C++ sources to wasm. Callers pass files; the compiler does not know the diagram model. */
 export interface ICppCompiler {
-  compile(files: Map<string, string>): Promise<Uint8Array>;
+  compile(files: Map<string, string>, listener?: CompilationPhaseListener): Promise<Uint8Array>;
 }
 
 /**
@@ -14,7 +15,7 @@ export interface ICppCompiler {
  * then wasm-ld. Instantiated inside the single compiler worker with tools
  * backed by clang, lld, and the sysroot archive from the clang-wasm release.
  */
-export class CppWasmCompiler implements ICppCompiler {
+export class CppWasmCompiler extends CompilationProgressEmitter implements ICppCompiler {
   private ready: Promise<void> | undefined;
 
   constructor(
@@ -22,6 +23,7 @@ export class CppWasmCompiler implements ICppCompiler {
     private readonly linker: WasmLinker,
     private readonly sysrootUrl: string,
   ) {
+    super();
     if (clang.sharedFileSystem !== linker.sharedFileSystem) {
       throw new Error("clang and lld must use the same shared filesystem");
     }
@@ -45,9 +47,14 @@ export class CppWasmCompiler implements ICppCompiler {
     await new SysrootInstaller(this.clang.sharedFileSystem).install(archive);
   }
 
-  async compile(files: Map<string, string>): Promise<Uint8Array> {
+  async compile(files: Map<string, string>, listener?: CompilationPhaseListener): Promise<Uint8Array> {
+    this.notifyPhase({ phase: "compilation", status: "active" }, listener);
     const objects = await this.clang.compile(files);
-    return this.linker.link(objects);
+    this.notifyPhase({ phase: "compilation", status: "completed" }, listener);
+    this.notifyPhase({ phase: "linking", status: "active" }, listener);
+    const wasm = await this.linker.link(objects);
+    this.notifyPhase({ phase: "linking", status: "completed" }, listener);
+    return wasm;
   }
 
   async dumpAst(
@@ -69,11 +76,12 @@ export class CppWasmCompiler implements ICppCompiler {
 /**
  * Main-thread handle to exactly one clang/lld worker that runs {@link CppWasmCompiler}.
  */
-export class WorkerCppWasmCompiler implements ICppCompiler {
+export class WorkerCppWasmCompiler extends CompilationProgressEmitter implements ICppCompiler {
   private readonly client: RpcClient;
   private ready: Promise<void> | undefined;
 
   constructor(thread: Thread) {
+    super();
     this.client = new RpcClient(thread);
   }
 
@@ -86,12 +94,14 @@ export class WorkerCppWasmCompiler implements ICppCompiler {
     return this.ready;
   }
 
-  async compile(files: Map<string, string>): Promise<Uint8Array> {
+  async compile(files: Map<string, string>, listener?: CompilationPhaseListener): Promise<Uint8Array> {
+    this.notifyPhase({ phase: "awaiting-modules", status: "active" }, listener);
     await this.warmup();
+    this.notifyPhase({ phase: "awaiting-modules", status: "completed" }, listener);
     const response = await this.client.request({
       type: "compile",
       files: Object.fromEntries(files),
-    });
+    }, false, (message) => this.notifyPhase(message.progress, listener));
     const wasm = response.files?.["/work/a.wasm"];
     if (!wasm) throw new Error("compiler did not produce a wasm module");
     return wasm;

@@ -3,7 +3,7 @@
  */
 import type { Diagram } from "./diagram";
 import { normalizeAssetPath } from "./appAssets";
-import { ClangAstDumper, type ICppCompiler } from "cpp";
+import { ClangAstDumper, CompilationProgressEmitter, type CompilationPhaseListener, type ICppCompiler } from "cpp";
 import { CppDiagramBuilder, type DiagramDiagnostic } from "./cppBuilder";
 import { defaultCppBlockCatalog } from "./cppBlockCatalog";
 
@@ -45,6 +45,7 @@ export interface WasmSessionLike {
 
 export interface CompileOptionsLike {
   debug?: boolean;
+  onPhase?: CompilationPhaseListener;
 }
 
 export interface WasmRuntimeLike<TSession extends WasmSessionLike = WasmSessionLike> {
@@ -57,7 +58,7 @@ export interface CompilerOptions {
   cppCompiler?: ICppCompiler;
 }
 
-export class CompilationModel {
+export class CompilationModel extends CompilationProgressEmitter {
   protected profile: WasmProfileName;
   private readonly files = new Map<string, string>();
 
@@ -65,6 +66,7 @@ export class CompilationModel {
     profileOrOptions?: WasmProfileName | CompilerOptions | Record<string, string>,
     initialFiles?: Record<string, string>,
   ) {
+    super();
     const parsed = CompilationModel.parseConstructorArgs(profileOrOptions);
     this.profile = parsed.profile;
     if (parsed.files) this.addFiles(parsed.files);
@@ -153,7 +155,7 @@ export class DiagramCompiler extends CompilationModel {
     return this.emitFiles(diagram).get("diagram.cpp") ?? "";
   }
 
-  async compile(diagram: Diagram, _options?: CompileOptionsLike): Promise<Uint8Array> {
+  async compile(diagram: Diagram, options?: CompileOptionsLike): Promise<Uint8Array> {
     if (this.profile === "mcu") {
       throw new Error("MCU wasm profile is not implemented");
     }
@@ -166,9 +168,8 @@ export class DiagramCompiler extends CompilationModel {
       invalid.assignTo(diagram);
       throw new DiagramCompilationError(invalid.diagnostics);
     }
-    const files = builder.build(diagram);
     try {
-      const wasm = await this.cppCompiler.compile(files);
+      const wasm = await builder.compile(diagram, this.cppCompiler, (event) => this.notifyPhase(event, options?.onPhase));
       for (const block of diagram.getBlocks()) {
         for (const port of [...block.getInputPorts(), ...block.getOutputPorts()]) port.assignAnalysis(port.inferredType, []);
       }
@@ -184,7 +185,10 @@ export class DiagramCompiler extends CompilationModel {
     options?: CompileOptionsLike,
   ): Promise<TSession> {
     const wasm = await this.compile(diagram, options);
-    return runtime.instantiate(wasm);
+    this.notifyPhase({ phase: "running", status: "active" }, options?.onPhase);
+    const session = await runtime.instantiate(wasm);
+    this.notifyPhase({ phase: "running", status: "completed" }, options?.onPhase);
+    return session;
   }
 }
 

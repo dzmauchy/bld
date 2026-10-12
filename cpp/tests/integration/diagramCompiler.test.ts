@@ -1,5 +1,6 @@
 import { expect, test } from "vitest";
-import { Diagram, DiagramCompiler, Palette, PortEndpoint } from "core";
+import { CppDiagramBuilder, Diagram, DiagramCompiler, Palette, PortEndpoint } from "core";
+import type { CompilationPhaseEvent } from "cpp/compilationProgress.ts";
 import { ClangFrontend } from "cpp/clang.ts";
 import { CppWasmCompiler } from "cpp/compiler.ts";
 import { WasmLinker } from "cpp/linker.ts";
@@ -37,11 +38,47 @@ test("diagram compilation emits AST/object in one clang invocation and links tha
   diagram.addBlock("Sink", { x: 0, y: 0 }, "sink");
   diagram.connect(new PortEndpoint("source", "output", "data"), new PortEndpoint("sink", "input", "data"));
   const compiler = new DiagramCompiler({ cppCompiler: backend });
+  const events: CompilationPhaseEvent[] = [];
+  const unsubscribe = compiler.addPhaseListener(event => events.push(event));
   expect(await compiler.compile(diagram)).toEqual(wasm);
+  expect(events).toEqual([
+    { phase: "compilation", status: "active" },
+    { phase: "compilation", status: "completed" },
+    { phase: "linking", status: "active" },
+    { phase: "linking", status: "completed" },
+  ]);
+  unsubscribe();
   expect(clangFactory.runs).toHaveLength(1);
   expect(lldFactory.runs).toHaveLength(1);
   source.setConf("value", 7.25);
   expect(await compiler.compile(diagram)).toEqual(wasm);
   expect(clangFactory.runs).toHaveLength(2);
   expect(lldFactory.runs).toHaveLength(2);
+  expect(events).toHaveLength(4);
+
+  const builder = new CppDiagramBuilder();
+  const builderEvents: CompilationPhaseEvent[] = [];
+  const listener = (event: CompilationPhaseEvent) => builderEvents.push(event);
+  builder.addPhaseListener(listener);
+  const ready = Promise.withResolvers<void>();
+  const instantiated = Promise.withResolvers<void>();
+  const session = { ready: true };
+  const running = builder.run(diagram, backend, {
+    async instantiate(bytes) {
+      expect(bytes).toEqual(wasm);
+      instantiated.resolve();
+      await ready.promise;
+      return session;
+    },
+  });
+  await instantiated.promise;
+  expect(builderEvents).toEqual([
+    ...events, { phase: "running", status: "active" },
+  ]);
+  ready.resolve();
+  expect(await running).toBe(session);
+  expect(builderEvents.at(-1)).toEqual({ phase: "running", status: "completed" });
+  builder.removePhaseListener(listener);
+  await builder.compile(diagram, backend);
+  expect(builderEvents).toHaveLength(6);
 });

@@ -704,15 +704,54 @@ bld-palette-panel[hidden] {
 }
 
 .compile-progress {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 16px;
   padding: 12px;
 }
 
-.compile-progress wa-spinner {
-  font-size: 28px;
+.compile-steps {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  margin: 20px 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.compile-step {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  color: #9299a3;
+}
+
+.compile-step-mark svg {
+  display: block;
+  width: 24px;
+  height: 24px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.compile-step.is-completed {
+  color: #82d99b;
+}
+
+.compile-step.is-active {
+  color: #ffffff;
+  animation: compilation-step-blink 1.2s ease-in-out infinite;
+}
+
+@keyframes compilation-step-blink {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.35; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .compile-step.is-active {
+    animation: none;
+  }
 }
 
 .run-error-message {

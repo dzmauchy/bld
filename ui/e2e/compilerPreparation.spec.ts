@@ -3,6 +3,7 @@ import { closePalette, openPalette, expect, test, element, baseURL, dialog, arti
 interface PreparationProbe {
   requests: string[];
   release(): void;
+  resume(): void;
 }
 
 test("prepares the compiler at startup and shares its pending promise with Run", async ({ page }) => {
@@ -10,13 +11,51 @@ test("prepares the compiler at startup and shares its pending promise with Run",
   page.on("pageerror", (error) => errors.push(error instanceof Error ? error.message : String(error)));
   await page.evaluateOnNewDocument(() => {
     const pending: (() => void)[] = [];
+    const workers: { releaseMessages(): void }[] = [];
+    let gated = true;
     const probe: PreparationProbe = {
       requests: [],
-      release() { pending.splice(0).forEach((send) => send()); },
+      release() {
+        pending.splice(0).forEach((send) => send());
+        workers.forEach(worker => worker.releaseMessages());
+      },
+      resume() { gated = false; this.release(); },
     };
     (window as unknown as { preparationProbe: PreparationProbe }).preparationProbe = probe;
     const OriginalWorker = window.Worker;
     window.Worker = class extends OriginalWorker {
+      private readonly held: MessageEvent[] = [];
+      private paused = false;
+      private forwarding = false;
+
+      constructor(scriptURL: string | URL, options?: WorkerOptions) {
+        super(scriptURL, options);
+        workers.push(this);
+        // Let each phase start, then hold later messages until its UI is inspected.
+        super.addEventListener("message", event => {
+          if (this.forwarding || !gated) return;
+          if (this.paused) {
+            event.stopImmediatePropagation();
+            this.held.push(event);
+          } else if (event.data.type === "progress" && event.data.progress.status === "active") {
+            this.paused = true;
+          }
+        });
+      }
+
+      releaseMessages(): void {
+        this.paused = false;
+        while (this.held.length && !this.paused) {
+          const event = this.held.shift()!;
+          this.forwarding = true;
+          if (gated && event.data.type === "progress" && event.data.progress.status === "active") {
+            this.paused = true;
+          }
+          this.dispatchEvent(new MessageEvent("message", { data: event.data }));
+          this.forwarding = false;
+        }
+      }
+
       override postMessage(message: unknown, options?: Transferable[] | StructuredSerializeOptions): void {
         const type = (message as { type?: string })?.type;
         if (type) probe.requests.push(type);
@@ -25,7 +64,7 @@ test("prepares the compiler at startup and shares its pending promise with Run",
           else super.postMessage(message, options);
         };
         // Hold preparation so Run has to await the startup promise.
-        if (type === "init") pending.push(send);
+        if (gated && (type === "init" || type === "instantiate")) pending.push(send);
         else send();
       }
     };
@@ -59,6 +98,11 @@ test("prepares the compiler at startup and shares its pending promise with Run",
   await expect.poll(() => run.getAttribute("data-run-state")).toBe("starting");
   const blocker = dialog(page, "Compiling diagram");
   await expect.poll(() => blocker.visible()).toBe(true);
+  const phases = ["awaiting-modules", "compilation", "linking", "running"];
+  const step = (phase: string) => element(page, `[data-compile-step=${phase}]`);
+  const states = () => Promise.all(phases.map(phase => step(phase).getAttribute("data-step-status")));
+  await expect.poll(states).toEqual(["active", "pending", "pending", "pending"]);
+  expect(await step("awaiting-modules").evaluate(node => getComputedStyle(node).animationName)).toBe("compilation-step-blink");
   expect(await element(page, ".workspace-shell").getAttribute("inert")).toBe("");
   await page.keyboard.press("Escape");
   await page.mouse.click(28, 24);
@@ -68,6 +112,19 @@ test("prepares the compiler at startup and shares its pending promise with Run",
   expect(await requests()).toEqual(["init"]);
   await page.evaluate(() =>
     (window as unknown as { preparationProbe: PreparationProbe }).preparationProbe.release());
+  await expect.poll(states).toEqual(["completed", "active", "pending", "pending"]);
+  expect(await step("awaiting-modules").within("svg path").count()).toBe(1);
+  expect(await step("compilation").getAttribute("aria-current")).toBe("step");
+  await page.screenshot({ path: artifactPath("compilation-steps.png") });
+  await page.evaluate(() =>
+    (window as unknown as { preparationProbe: PreparationProbe }).preparationProbe.release());
+  await expect.poll(states).toEqual(["completed", "completed", "active", "pending"]);
+  await page.evaluate(() =>
+    (window as unknown as { preparationProbe: PreparationProbe }).preparationProbe.release());
+  await expect.poll(states).toEqual(["completed", "completed", "completed", "active"]);
+  expect(await blocker.visible()).toBe(true);
+  await page.evaluate(() =>
+    (window as unknown as { preparationProbe: PreparationProbe }).preparationProbe.resume());
   await expect.poll(() => run.getAttribute("data-run-state")).toBe("running");
   await expect.poll(() => blocker.visible()).toBe(false);
   await expect.poll(() => element(page, "[data-run-status]").text()).toBe("");

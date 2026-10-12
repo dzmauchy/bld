@@ -5,6 +5,7 @@ import { PinSample } from "ui/view/run/pinSample.ts";
 import { IntervalSchedule, SessionClock, type RunningRuntime, type RunningSession } from "ui/view/run/sessionClock.ts";
 import { ScopeCaptureBoard } from "ui/view/scope/scopeCapture.ts";
 import { ScopePlotGeometry } from "ui/view/scope/scopePlotGeometry.ts";
+import type { CompilationPhaseListener } from "cpp";
 
 const manifest: PackageManifest = {
   id: "demo",
@@ -124,6 +125,70 @@ test("keeps the run control idle when compilation fails", async () => {
     expect(runner.error()).toBeUndefined();
     expect(runtime.closed).toBe(false);
   }
+});
+
+test("checks successful compilation phases and awaits runtime startup before checking Running", async () => {
+  const { diagram } = connectedScope();
+  const compiled = Promise.withResolvers<Uint8Array>();
+  const compiling = Promise.withResolvers<void>();
+  const instantiating = Promise.withResolvers<void>();
+  const instantiated = Promise.withResolvers<RunningSession>();
+  let report: CompilationPhaseListener = () => undefined;
+  const runner = new DiagramRunSession(diagram, new ScopeCaptureBoard(), () => ({
+    compile: async (_diagram, options) => {
+      report = options!.onPhase!;
+      compiling.resolve();
+      return compiled.promise;
+    },
+  }), () => ({
+    instantiate: async () => { instantiating.resolve(); return instantiated.promise; },
+    close: async () => undefined,
+  }), undefined, () => new ManualClock());
+  const states = () => runner.progress().items().map(step => step.status);
+  const starting = runner.run();
+  await compiling.promise;
+  expect(states()).toEqual(["active", "pending", "pending", "pending"]);
+  report({ phase: "awaiting-modules", status: "completed" });
+  report({ phase: "compilation", status: "active" });
+  expect(states()).toEqual(["completed", "active", "pending", "pending"]);
+  report({ phase: "compilation", status: "completed" });
+  report({ phase: "linking", status: "active" });
+  expect(states()).toEqual(["completed", "completed", "active", "pending"]);
+  report({ phase: "linking", status: "completed" });
+  compiled.resolve(new Uint8Array([1]));
+  await instantiating.promise;
+  expect(states()).toEqual(["completed", "completed", "completed", "active"]);
+  expect(runner.phase()).toBe("starting");
+  instantiated.resolve(new FakeSession());
+  await starting;
+  expect(states()).toEqual(["completed", "completed", "completed", "completed"]);
+  expect(runner.phase()).toBe("running");
+  await runner.stop();
+});
+
+test("leaves a failed phase unchecked and ignores progress from a canceled compilation", async () => {
+  const { diagram } = connectedScope();
+  const compiled = Promise.withResolvers<Uint8Array>();
+  const compiling = Promise.withResolvers<void>();
+  let report: CompilationPhaseListener = () => undefined;
+  const runner = new DiagramRunSession(diagram, new ScopeCaptureBoard(), () => ({
+    compile: async (_diagram, options) => {
+      report = options!.onPhase!;
+      report({ phase: "awaiting-modules", status: "completed" });
+      report({ phase: "compilation", status: "active" });
+      compiling.resolve();
+      return compiled.promise;
+    },
+  }), () => new FakeRuntime(() => undefined));
+  const starting = runner.run();
+  await compiling.promise;
+  compiled.reject(new Error("clang failed"));
+  await starting;
+  expect(runner.progress().items().map(step => step.status)).toEqual(["completed", "failed", "pending", "pending"]);
+  expect(runner.error()).toBe("clang failed");
+  const failed = runner.progress();
+  report({ phase: "compilation", status: "completed" });
+  expect(runner.progress()).toBe(failed);
 });
 
 test("rejects missing connections before invoking the compiler or runtime", async () => {

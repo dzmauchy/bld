@@ -7,6 +7,7 @@ import { DisposableToolFactory, writeClangOutputs } from "../toolchainFixture.ts
 import { WasmLinker } from "cpp/linker.ts";
 import type { WorkerResponse } from "cpp/messages.ts";
 import { Thread } from "cpp/thread.ts";
+import type { CompilationPhaseEvent } from "cpp/compilationProgress.ts";
 
 class ScriptedThread extends Thread {
   private handler: ((data: unknown) => void) | undefined;
@@ -35,6 +36,23 @@ class ScriptedThread extends Thread {
 }
 
 describe("CppWasmCompiler", () => {
+  test.each(["compilation", "linking"] as const)("does not complete a failed %s phase", async (phase) => {
+    const files = new SharedToolchainFileSystem();
+    const clang = new DisposableToolFactory(files, (_options, fs, args) => {
+      if (phase === "compilation") return 1;
+      writeClangOutputs(fs, args);
+      return 0;
+    });
+    const lld = new DisposableToolFactory(files, () => 1);
+    const compiler = new CppWasmCompiler(new ClangFrontend(clang.create, "clang.wasm", files),
+      new WasmLinker(lld.create, "lld.wasm", files), "sysroot.tgz");
+    const events: CompilationPhaseEvent[] = [];
+    await expect(compiler.compile(new Map([["main.cpp", "int value;"]]), event => events.push(event))).rejects.toThrow();
+    expect(events.at(-1)).toEqual({ phase, status: "active" });
+    expect(events).not.toContainEqual({ phase, status: "completed" });
+    expect(lld.runs).toHaveLength(phase === "compilation" ? 0 : 1);
+  });
+
   test("compiles sources with clang then links objects with lld", async () => {
     const files = new SharedToolchainFileSystem();
     const objectBytes = new Uint8Array([1, 2, 3, 4]);
@@ -53,6 +71,8 @@ describe("CppWasmCompiler", () => {
     await frontend.boot();
     await linker.boot();
     const compiler = new CppWasmCompiler(frontend, linker, "sysroot.tgz");
+    const events: CompilationPhaseEvent[] = [];
+    compiler.addPhaseListener(event => events.push(event));
 
     const wasm = await compiler.compile(new Map([
       ["add.h", "int add(int, int);"],
@@ -60,6 +80,12 @@ describe("CppWasmCompiler", () => {
     ]));
 
     expect(wasm).toEqual(wasmBytes);
+    expect(events).toEqual([
+      { phase: "compilation", status: "active" },
+      { phase: "compilation", status: "completed" },
+      { phase: "linking", status: "active" },
+      { phase: "linking", status: "completed" },
+    ]);
     expect(clang.runs).toHaveLength(1);
     expect(clang.runs[0]).toContain("/work/add.cpp");
     expect(clang.runs[0]).toContain("-o");

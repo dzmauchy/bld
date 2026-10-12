@@ -1,5 +1,5 @@
 /** Generates C++ using the release metadata and core diagram wiring contract. */
-import { ClangAstDumper, ClangDumpResult, ClangTranslationUnit, type ICppCompiler } from "cpp";
+import { ClangAstDumper, ClangDumpResult, ClangTranslationUnit, CompilationProgressEmitter, type CompilationPhaseListener, type ICppCompiler } from "cpp";
 import { Diagram, DiagramPortTypes } from "./diagram";
 import type { DiagramBlock } from "./diagramBlock";
 import type { Connection } from "./connection";
@@ -9,7 +9,7 @@ import { InferredPortType } from "./inferredPortType";
 import { browserHost } from "./browserHost";
 
 export type { ICppCompiler };
-export abstract class DiagramSourceBuilder {
+export abstract class DiagramSourceBuilder extends CompilationProgressEmitter {
   abstract build(diagram: Diagram): Map<string, string>;
 }
 
@@ -64,6 +64,20 @@ export class CppDiagramBuilder extends DiagramSourceBuilder {
     files.set("wasm_host.hpp", browserHost);
     files.set("diagram.cpp", this.emitDiagram(diagram));
     return files;
+  }
+
+  /** Forwards actual compiler phases to subscribers of this diagram builder. */
+  async compile(diagram: Diagram, compiler: ICppCompiler, listener?: CompilationPhaseListener): Promise<Uint8Array> {
+    return compiler.compile(this.build(diagram), (event) => this.notifyPhase(event, listener));
+  }
+
+  async run<TSession>(diagram: Diagram, compiler: ICppCompiler,
+    runtime: { instantiate(wasm: Uint8Array): Promise<TSession> }, listener?: CompilationPhaseListener): Promise<TSession> {
+    const wasm = await this.compile(diagram, compiler, listener);
+    this.notifyPhase({ phase: "running", status: "active" }, listener);
+    const session = await runtime.instantiate(wasm);
+    this.notifyPhase({ phase: "running", status: "completed" }, listener);
+    return session;
   }
 
   emitDiagram(diagram: Diagram): string {
