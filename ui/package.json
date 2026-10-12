@@ -10,13 +10,14 @@
     "prebuild": "npm run assets",
     "predev": "npm run assets",
     "pretest": "npm run assets",
-    "build": "tsc -b && tsc -b tsconfig.test.json && vite build",
+    "typecheck": "tsc -b tsconfig.json tsconfig.test.json",
+    "build": "npm run typecheck && vite build",
     "preview": "vite preview",
-    "test": "tsc -b && tsc -b tsconfig.test.json && vitest run --config vitest.config.ts && vitest run --config vitest.e2e.config.ts",
-    "test:unit": "tsc -b && tsc -b tsconfig.test.json && vitest run --config vitest.config.ts tests/unit",
+    "test": "vitest run && npm run test:e2e",
+    "test:unit": "vitest run tests/unit",
     "clean": "tsc -b --clean",
     "deploy": "wrangler deploy --config ../wrangler.json",
-    "test:e2e": "vitest run --config vitest.e2e.config.ts"
+    "test:e2e": "vitest run -c vitest.e2e.config.ts"
   },
   "dependencies": {
     "@awesome.me/webawesome": "^3.14.0",
