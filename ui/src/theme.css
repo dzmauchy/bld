@@ -1,3 +1,30 @@
+bld-app,
+bld-workspace {
+  display: block;
+  height: 100%;
+}
+
+bld-palette-panel,
+bld-diagram-canvas {
+  display: block;
+  height: 100%;
+  min-width: 0;
+}
+
+bld-workspace-toolbar,
+bld-diagram-block,
+bld-port-button,
+bld-config-button,
+bld-block-config-dialog,
+bld-scope-plot {
+  display: contents;
+}
+
+bld-palette-button {
+  display: block;
+  width: var(--palette-button-width);
+}
+
 html,
 body,
 #root {

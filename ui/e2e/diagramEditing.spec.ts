@@ -1,6 +1,6 @@
 import { expect, test } from "@playwright/test";
 
-test("drags a palette block, arms another with a fade blink, and inserts it on a canvas click", async ({ page }) => {
+test("ignores palette dragging and inserts selected blocks on canvas clicks", async ({ page }) => {
   await page.goto("/");
   await expect(page.locator("[data-splash]")).toBeHidden();
   const palette = page.locator("[data-region=palette]");
@@ -17,17 +17,21 @@ test("drags a palette block, arms another with a fade blink, and inserts it on a
   await page.mouse.move(sourceBox!.x + sourceBox!.width / 2, sourceBox!.y + sourceBox!.height / 2);
   await page.mouse.down();
   await page.mouse.move(dropX, dropY, { steps: 12 });
-  await expect(page.locator(".palette-drag-ghost")).toBeVisible();
+  await expect(page.locator(".palette-drag-ghost")).toHaveCount(0);
   await page.mouse.up();
   await expect(page.locator(".palette-drag-ghost")).toHaveCount(0);
 
   const dropped = canvas.locator("[data-block-ref=ConstF32]");
+  await expect(dropped).toHaveCount(0);
+  await expect(constant).toHaveAttribute("data-armed", "false");
+  await constant.click();
+  await page.mouse.click(dropX, dropY);
   await expect(dropped).toHaveCount(1);
   const droppedBox = await dropped.boundingBox();
   expect(droppedBox).toBeTruthy();
   expect(Math.abs(droppedBox!.x + droppedBox!.width / 2 - dropX)).toBeLessThan(2);
   expect(Math.abs(droppedBox!.y + droppedBox!.height / 2 - dropY)).toBeLessThan(2);
-  await expect(constant).toHaveAttribute("data-armed", "false");
+  await expect(constant).toHaveAttribute("data-armed", "true");
 
   const scope = palette.locator("[data-block-id=ScopeF32]");
   await scope.scrollIntoViewIfNeeded();
@@ -78,22 +82,20 @@ test("routes a connector around a block with maxGraph", async ({ page }) => {
   const canvasBox = await canvas.boundingBox();
   expect(canvasBox).toBeTruthy();
 
-  async function drop(blockId: string, clientX: number, clientY: number): Promise<void> {
+  async function insert(blockId: string, clientX: number, clientY: number): Promise<void> {
     const source = palette.locator(`[data-block-id=${blockId}]`);
     await source.scrollIntoViewIfNeeded();
     const sourceBox = await source.boundingBox();
     expect(sourceBox).toBeTruthy();
-    await page.mouse.move(sourceBox!.x + sourceBox!.width / 2, sourceBox!.y + sourceBox!.height / 2);
-    await page.mouse.down();
-    await page.mouse.move(clientX, clientY, { steps: 14 });
-    await page.mouse.up();
+    await source.click();
+    await page.mouse.click(clientX, clientY);
     await expect(canvas.locator(`[data-block-ref=${blockId}]`)).toHaveCount(1);
   }
 
   const y = canvasBox!.y + 180;
-  await drop("ScopeF32", canvasBox!.x + 110, y);
-  await drop("SumF32", canvasBox!.x + 330, y);
-  await drop("ConstF32", canvasBox!.x + 550, y);
+  await insert("ScopeF32", canvasBox!.x + 110, y);
+  await insert("SumF32", canvasBox!.x + 330, y);
+  await insert("ConstF32", canvasBox!.x + 550, y);
 
   const output = canvas.locator("[data-block-ref=ScopeF32] [data-port-side=output]");
   const input = canvas.locator("[data-block-ref=ConstF32] [data-port-side=input]");
@@ -101,11 +103,8 @@ test("routes a connector around a block with maxGraph", async ({ page }) => {
   const inputBox = await input.boundingBox();
   expect(outputBox).toBeTruthy();
   expect(inputBox).toBeTruthy();
-  await page.mouse.move(outputBox!.x + outputBox!.width / 2, outputBox!.y + outputBox!.height / 2);
-  await page.mouse.down();
-  await page.mouse.move(inputBox!.x + inputBox!.width / 2, inputBox!.y + inputBox!.height / 2, { steps: 16 });
-  await expect(canvas.locator(".diagram-wire.is-draft")).toBeVisible();
-  await page.mouse.up();
+  await page.mouse.click(outputBox!.x + outputBox!.width / 2, outputBox!.y + outputBox!.height / 2);
+  await page.mouse.click(inputBox!.x + inputBox!.width / 2, inputBox!.y + inputBox!.height / 2);
 
   const wire = canvas.locator("[data-connection]");
   await expect(wire).toHaveCount(1);
@@ -191,15 +190,13 @@ test("draws each multiplexed connection on its own lane and grows that port", as
   const canvasBox = await canvas.boundingBox();
   expect(canvasBox).toBeTruthy();
 
-  async function drop(blockId: string, clientX: number, clientY: number): Promise<void> {
+  async function insert(blockId: string, clientX: number, clientY: number): Promise<void> {
     const source = palette.locator(`[data-block-id=${blockId}]`);
     await source.scrollIntoViewIfNeeded();
     const sourceBox = await source.boundingBox();
     expect(sourceBox).toBeTruthy();
-    await page.mouse.move(sourceBox!.x + sourceBox!.width / 2, sourceBox!.y + sourceBox!.height / 2);
-    await page.mouse.down();
-    await page.mouse.move(clientX, clientY, { steps: 12 });
-    await page.mouse.up();
+    await source.click();
+    await page.mouse.click(clientX, clientY);
     await expect(canvas.locator(`[data-block-ref=${blockId}]`)).toHaveCount(1);
   }
 
@@ -210,17 +207,15 @@ test("draws each multiplexed connection on its own lane and grows that port", as
     const toBox = await to.boundingBox();
     expect(fromBox).toBeTruthy();
     expect(toBox).toBeTruthy();
-    await page.mouse.move(fromBox!.x + fromBox!.width / 2, fromBox!.y + fromBox!.height / 2);
-    await page.mouse.down();
-    await page.mouse.move(toBox!.x + toBox!.width / 2, toBox!.y + toBox!.height / 2, { steps: 16 });
-    await page.mouse.up();
+    await page.mouse.click(fromBox!.x + fromBox!.width / 2, fromBox!.y + fromBox!.height / 2);
+    await page.mouse.click(toBox!.x + toBox!.width / 2, toBox!.y + toBox!.height / 2);
   }
 
   const y = canvasBox!.y + 220;
-  await drop("ScopeF32", canvasBox!.x + 160, y);
-  await drop("SumF32", canvasBox!.x + 420, y);
-  await drop("ConstF32", canvasBox!.x + 700, y - 120);
-  await drop("SinF32", canvasBox!.x + 700, y + 120);
+  await insert("ScopeF32", canvasBox!.x + 160, y);
+  await insert("SumF32", canvasBox!.x + 420, y);
+  await insert("ConstF32", canvasBox!.x + 700, y - 120);
+  await insert("SinF32", canvasBox!.x + 700, y + 120);
 
   await connect("ScopeF32", "output", "SumF32", "input");
   await expect(canvas.locator("[data-connection]")).toHaveCount(1);
@@ -296,19 +291,15 @@ test("opens a configuration dialog from the gear on a block that has parameters"
   await constant.scrollIntoViewIfNeeded();
   const sourceBox = await constant.boundingBox();
   expect(sourceBox).toBeTruthy();
-  await page.mouse.move(sourceBox!.x + sourceBox!.width / 2, sourceBox!.y + sourceBox!.height / 2);
-  await page.mouse.down();
-  await page.mouse.move(canvasBox!.x + 240, canvasBox!.y + 160, { steps: 12 });
-  await page.mouse.up();
+  await constant.click();
+  await canvas.click({ position: { x: 240, y: 160 } });
 
   const cosine = palette.locator("[data-block-id=CosF32]");
   await cosine.scrollIntoViewIfNeeded();
   const cosineBox = await cosine.boundingBox();
   expect(cosineBox).toBeTruthy();
-  await page.mouse.move(cosineBox!.x + cosineBox!.width / 2, cosineBox!.y + cosineBox!.height / 2);
-  await page.mouse.down();
-  await page.mouse.move(canvasBox!.x + 480, canvasBox!.y + 160, { steps: 12 });
-  await page.mouse.up();
+  await cosine.click();
+  await canvas.click({ position: { x: 480, y: 160 } });
 
   await expect(canvas.locator("[data-block-ref=ConstF32] [data-block-config]")).toHaveCount(1);
   await expect(canvas.locator("[data-block-ref=CosF32] [data-block-config]")).toHaveCount(0);

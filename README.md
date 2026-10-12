@@ -3,7 +3,7 @@
 [![TypeScript](https://img.shields.io/badge/TypeScript-5.x-blue.svg)](https://www.typescriptlang.org/)
 [![WebAssembly](https://img.shields.io/badge/WebAssembly-clang%2Flld-654FF0.svg)](https://webassembly.org/)
 [![C++](https://img.shields.io/badge/C%2B%2B-base%20library-00599C.svg)](https://isocpp.org/)
-[![Solid.js](https://img.shields.io/badge/Solid.js-2.0-2c4f7c.svg)](https://www.solidjs.com/)
+[![Lit](https://img.shields.io/badge/Lit-3.3-324fff.svg)](https://lit.dev/)
 [![Rsbuild](https://img.shields.io/badge/Rsbuild-Fast%20Builds-F43F5E.svg)](https://rsbuild.dev/)
 [![License: AGPL-3.0](https://img.shields.io/badge/License-AGPL--3.0-orange.svg)](LICENSE)
 
@@ -54,7 +54,7 @@ The project features a **client-side only** architecture:
 - **Sliding Scope Buffers**: High-rate signal capture in the browser uses a `Float32Array`/`Float64Array` ring with a single write pointer.
 - **Release metadata**: `meta.json` in the base archive lists every block, namespace, port, and parameter. Loading the palette does not invoke Clang. Parameter controls, JSON defaults, vectorized flags, and channel constraints come from that manifest.
 - **Clang type checks**: Clang checks connection compatibility during compilation. Optional AST analysis displays the actual port types. Configuration properties that match their defaults are omitted from the diagram comment.
-- **Production-Ready UI Stack**: Built on Solid.js, Web Awesome, dark mode by default, and bundled with Rsbuild.
+- **Production-Ready UI Stack**: Built on Lit, Web Awesome, dark mode by default, and bundled with Rsbuild.
 
 ---
 
@@ -66,7 +66,7 @@ The repository is structured as an npm multi-workspace monorepo:
 bld/
 ├── core/        # Domain model, Diagram, TypeSystem, C++ builder, wasm session, and scope buffers
 ├── cpp/         # In-browser clang/lld compilation
-└── ui/          # Solid.js frontend, canvas, Web Awesome components, worker runners, and Rsbuild config
+└── ui/          # Lit frontend, canvas, Web Awesome components, worker runners, and Rsbuild config
 ```
 
 ### Package Responsibilities
@@ -75,7 +75,7 @@ bld/
 |---|---|---|
 | **`core`** | Domain model, C++ builder, and wasm session | `Library` points at a tar.gz URL, `LibraryArchive` unpacks it with modern-tar, `MetadataCatalog` reads `meta.json`, `Diagram` is a `mount()` entry point, `CppDiagramBuilder` and `DiagramCompiler` delegate wasm compilation to `cpp`. Worker RPC (`WasmRuntime`, `WasmSession`), host env bindings, and sliding scope buffers live in `core/src/runtime`. |
 | **`cpp`** | In-browser clang/lld | Compiles generated C++ sources to wasm and executes the module in a worker. |
-| **`ui`** | User Interface & Worker Host | Solid.js web app, black UI theme, palette and diagram split view, Rsbuild dev server, Cloudflare Workers static assets (`wrangler.json`, not Pages), browser Worker hosting (`run.worker.ts`). |
+| **`ui`** | User Interface & Worker Host | Lit web app, black UI theme, palette and diagram split view, Rsbuild dev server, Cloudflare Workers static assets (`wrangler.json`, not Pages), browser Worker hosting (`run.worker.ts`). |
 
 ---
 
@@ -86,7 +86,7 @@ The following diagram illustrates the dependency topology and system boundaries 
 ```mermaid
 graph TD
     subgraph BrowserUI["Browser Main Thread (UI)"]
-        UI["ui (Solid.js + Web Awesome)"]
+        UI["ui (Lit + Web Awesome)"]
         Canvas["Diagram Canvas & Controls"]
         UIState["UI Reactive State"]
         WasmRT["WasmRuntime (Host Bridge)"]
@@ -394,7 +394,7 @@ Or build specific workspaces:
 ```bash
 npm run build --workspace=core     # Typechecks model, C++ builder, wasm session, and sliding buffers
 npm run build --workspace=cpp      # Typechecks in-browser clang/lld
-npm run build --workspace=ui       # Bundles Solid.js UI via Rsbuild
+npm run build --workspace=ui       # Bundles Lit UI via Rsbuild
 ```
 
 ### Running the Development Server

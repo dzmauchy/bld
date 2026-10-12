@@ -1,5 +1,4 @@
 import { expect, test } from "@rstest/core";
-import { PLUGIN_SOLID_NAME } from "@rsbuild/plugin-solid";
 import { CoreSchemaCatalog, schemaAssetFiles } from "core";
 import headers from "../../public/_headers?raw";
 import config from "../../rsbuild.config.ts";
@@ -26,12 +25,8 @@ test("rsbuild copies core JSON schemas to /schemas", () => {
   }
 });
 
-test("rsbuild compiles the Solid 2 TSX entry", () => {
-  const names = (config.plugins ?? []).flatMap((plugin) =>
-    plugin && typeof plugin === "object" && "name" in plugin && typeof plugin.name === "string" ? [plugin.name] : [],
-  );
-  expect(names).toContain(PLUGIN_SOLID_NAME);
-  expect(config.source?.entry).toEqual({ index: "./src/index.tsx" });
+test("rsbuild compiles the Lit TypeScript entry", () => {
+  expect(config.source?.entry).toEqual({ index: "./src/index.ts" });
   expect(config.output?.module).toBe(true);
   expect(config.html?.scriptLoading).toBe("module");
   expect(config.output?.overrideBrowserslist).toEqual([

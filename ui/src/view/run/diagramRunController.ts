@@ -1,5 +1,5 @@
 import type { Diagram } from "core";
-import { createSignal, type Accessor } from "solid-js";
+import { signal } from "@lit-labs/signals";
 import type { ScopeCaptureBoard } from "../scope/scopeCapture.js";
 import {
   DiagramRunSession,
@@ -11,11 +11,11 @@ import type { RunningRuntime, RunningSession, SessionClock } from "./sessionCloc
 
 export type { DiagramCompilerLike, RunPhase };
 
-/** Solid view of a diagram run. The button reads these signals. */
+/** Reactive view of a diagram run. The button reads these signals. */
 export class DiagramRunController {
-  readonly phase: Accessor<RunPhase>;
-  readonly status: Accessor<string>;
-  readonly revision: Accessor<number>;
+  readonly phase: () => RunPhase;
+  readonly status: () => string;
+  readonly revision: () => number;
   private readonly session: DiagramRunSession;
 
   constructor(
@@ -30,16 +30,16 @@ export class DiagramRunController {
       onError: (error: unknown) => void,
     ) => SessionClock,
   ) {
-    const phase = createSignal<RunPhase>("idle");
-    const status = createSignal("");
-    const revision = createSignal(0);
-    this.phase = phase[0];
-    this.status = status[0];
-    this.revision = revision[0];
+    const phase = signal<RunPhase>("idle");
+    const status = signal("");
+    const revision = signal(0);
+    this.phase = () => phase.get();
+    this.status = () => status.get();
+    this.revision = () => revision.get();
     const listener: RunSessionListener = {
-      phase: phase[1],
-      status: status[1],
-      revision: revision[1],
+      phase: (value) => phase.set(value),
+      status: (value) => status.set(value),
+      revision: (value) => revision.set(value),
     };
     this.session = new DiagramRunSession(diagram, board, compiler, openRuntime, listener, openClock);
   }

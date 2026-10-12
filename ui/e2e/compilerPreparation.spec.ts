@@ -48,10 +48,8 @@ test("prepares the compiler at startup and shares its pending promise with Run",
   }
   const output = await canvas.locator("[data-block-ref=ScopeF32] [data-port-side=output]").boundingBox();
   const input = await canvas.locator("[data-block-ref=ConstF32] [data-port-side=input]").boundingBox();
-  await page.mouse.move(output!.x + output!.width / 2, output!.y + output!.height / 2);
-  await page.mouse.down();
-  await page.mouse.move(input!.x + input!.width / 2, input!.y + input!.height / 2, { steps: 10 });
-  await page.mouse.up();
+  await page.mouse.click(output!.x + output!.width / 2, output!.y + output!.height / 2);
+  await page.mouse.click(input!.x + input!.width / 2, input!.y + input!.height / 2);
   await expect(canvas.locator("[data-connection]")).toHaveCount(1);
 
   const run = page.locator("[data-run-toggle]");

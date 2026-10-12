@@ -1,14 +1,10 @@
 import { defineConfig } from "@rsbuild/core";
-import { pluginSolid } from "@rsbuild/plugin-solid";
 import { attachLlvmToolchainProxy } from "./scripts/llvmToolchainProxyMiddleware.ts";
 
 export default defineConfig({
-  // @rsbuild/plugin-solid compiles JSX with @solidjs/compiler 2.0.0-rc.9,
-  // matching solid-js and @solidjs/web, so delegated handlers use `_$$click`.
-  plugins: [pluginSolid()],
   source: {
     entry: {
-      index: "./src/index.tsx",
+      index: "./src/index.ts",
     },
   },
   html: {

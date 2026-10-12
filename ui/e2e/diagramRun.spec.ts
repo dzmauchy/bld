@@ -15,21 +15,19 @@ test("removes the diagram caption, runs from the toolbar, and plots every scope 
   const canvasBox = await canvas.boundingBox();
   expect(canvasBox).toBeTruthy();
 
-  async function drop(blockId: string, clientX: number, clientY: number): Promise<void> {
+  async function insert(blockId: string, clientX: number, clientY: number): Promise<void> {
     const source = palette.locator(`[data-block-id=${blockId}]`);
     await source.scrollIntoViewIfNeeded();
     const sourceBox = await source.boundingBox();
     expect(sourceBox).toBeTruthy();
-    await page.mouse.move(sourceBox!.x + sourceBox!.width / 2, sourceBox!.y + sourceBox!.height / 2);
-    await page.mouse.down();
-    await page.mouse.move(clientX, clientY, { steps: 12 });
-    await page.mouse.up();
+    await source.click();
+    await page.mouse.click(clientX, clientY);
   }
 
   const y = canvasBox!.y + 150;
-  await drop("ScopeF32", canvasBox!.x + 130, y);
-  await drop("SinGenF32", canvasBox!.x + 460, y - 80);
-  await drop("CosGenF32", canvasBox!.x + 460, y + 80);
+  await insert("ScopeF32", canvasBox!.x + 130, y);
+  await insert("SinGenF32", canvasBox!.x + 460, y - 80);
+  await insert("CosGenF32", canvasBox!.x + 460, y + 80);
 
   const output = canvas.locator("[data-block-ref=ScopeF32] [data-port-side=output]");
   for (const [index, ref] of ["SinGenF32", "CosGenF32"].entries()) {
@@ -38,10 +36,8 @@ test("removes the diagram caption, runs from the toolbar, and plots every scope 
     const inputBox = await input.boundingBox();
     expect(outputBox).toBeTruthy();
     expect(inputBox).toBeTruthy();
-    await page.mouse.move(outputBox!.x + outputBox!.width / 2, outputBox!.y + outputBox!.height / 2);
-    await page.mouse.down();
-    await page.mouse.move(inputBox!.x + inputBox!.width / 2, inputBox!.y + inputBox!.height / 2, { steps: 16 });
-    await page.mouse.up();
+    await page.mouse.click(outputBox!.x + outputBox!.width / 2, outputBox!.y + outputBox!.height / 2);
+    await page.mouse.click(inputBox!.x + inputBox!.width / 2, inputBox!.y + inputBox!.height / 2);
     await expect(canvas.locator("[data-connection]")).toHaveCount(index + 1);
   }
 
@@ -82,7 +78,7 @@ test("removes the diagram caption, runs from the toolbar, and plots every scope 
   const first = await trace();
   await expect.poll(async () => trace(), { timeout: 5_000 }).not.toBe(first);
   await page.waitForTimeout(700);
-  await page.screenshot({ path: "/opt/cursor/artifacts/scope-plot.png" });
+  await page.screenshot({ path: test.info().outputPath("scope-plot.png") });
 
   await run.click();
   await expect(run).toHaveText("Run");
@@ -98,15 +94,13 @@ test("plots a sliding 1 + sin(t) trace from a constant and a sine generator", as
   const canvasBox = await canvas.boundingBox();
   expect(canvasBox).toBeTruthy();
 
-  async function drop(blockId: string, clientX: number, clientY: number): Promise<void> {
+  async function insert(blockId: string, clientX: number, clientY: number): Promise<void> {
     const source = palette.locator(`[data-block-id=${blockId}]`);
     await source.scrollIntoViewIfNeeded();
     const sourceBox = await source.boundingBox();
     expect(sourceBox).toBeTruthy();
-    await page.mouse.move(sourceBox!.x + sourceBox!.width / 2, sourceBox!.y + sourceBox!.height / 2);
-    await page.mouse.down();
-    await page.mouse.move(clientX, clientY, { steps: 12 });
-    await page.mouse.up();
+    await source.click();
+    await page.mouse.click(clientX, clientY);
     await expect(canvas.locator(`[data-block-ref=${blockId}]`)).toHaveCount(1);
   }
 
@@ -117,17 +111,15 @@ test("plots a sliding 1 + sin(t) trace from a constant and a sine generator", as
     const toBox = await to.boundingBox();
     expect(fromBox).toBeTruthy();
     expect(toBox).toBeTruthy();
-    await page.mouse.move(fromBox!.x + fromBox!.width / 2, fromBox!.y + fromBox!.height / 2);
-    await page.mouse.down();
-    await page.mouse.move(toBox!.x + toBox!.width / 2, toBox!.y + toBox!.height / 2, { steps: 14 });
-    await page.mouse.up();
+    await page.mouse.click(fromBox!.x + fromBox!.width / 2, fromBox!.y + fromBox!.height / 2);
+    await page.mouse.click(toBox!.x + toBox!.width / 2, toBox!.y + toBox!.height / 2);
   }
 
   const y = canvasBox!.y + 200;
-  await drop("ScopeF32", canvasBox!.x + 140, y);
-  await drop("SumF32", canvasBox!.x + 380, y);
-  await drop("ConstF32", canvasBox!.x + 640, y - 110);
-  await drop("SinGenF32", canvasBox!.x + 640, y + 110);
+  await insert("ScopeF32", canvasBox!.x + 140, y);
+  await insert("SumF32", canvasBox!.x + 380, y);
+  await insert("ConstF32", canvasBox!.x + 640, y - 110);
+  await insert("SinGenF32", canvasBox!.x + 640, y + 110);
   await expect(canvas.locator("[data-block-ref=ConstF32] [data-block-config]")).toHaveCount(1);
   await expect(canvas.locator("[data-block-ref=SumF32] [data-block-config]")).toHaveCount(1);
   await expect(canvas.locator("[data-block-ref=ScopeF32] [data-block-config]")).toHaveCount(1);

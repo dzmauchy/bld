@@ -5,8 +5,8 @@ import "@awesome.me/webawesome/dist/components/progress-bar/progress-bar.js";
 import "@awesome.me/webawesome/dist/components/spinner/spinner.js";
 import "@awesome.me/webawesome/dist/components/split-panel/split-panel.js";
 import "./theme.css";
-import { render } from "@solidjs/web";
-import { App } from "./App.js";
+import { html, render } from "lit";
+import "./App.js";
 import { BrowserClangAstDumper, BrowserCppRuntime, ClangAstDumper, ToolchainServiceWorker } from "cpp";
 import { BldSplash } from "./view/splash/BldSplash.js";
 
@@ -22,5 +22,5 @@ const splashScreen = splash instanceof BldSplash ? splash : undefined;
 
 const root = document.querySelector("#root");
 if (root instanceof HTMLElement) {
-  render(() => <App onShown={() => splashScreen?.shown()} />, root);
+  render(html`<bld-app .onShown=${() => splashScreen?.shown()}></bld-app>`, root);
 }

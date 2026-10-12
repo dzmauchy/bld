@@ -1,5 +1,5 @@
 import { Diagram, type BlockDefinition, type Connection } from "core";
-import { createSignal, type Accessor } from "solid-js";
+import { signal } from "@lit-labs/signals";
 import { MaxGraphWireRouter } from "./maxGraphWireRouter.js";
 import type { WireRouter } from "./wireRouter.js";
 import { CanvasPoint, OrthogonalRoute, WirePoint } from "./geometry.js";
@@ -18,24 +18,24 @@ export class DiagramEditor implements DiagramGestureHost {
   private canvas: HTMLElement | undefined;
   private gesture: PointerGesture | undefined;
 
-  readonly selection: Accessor<DiagramSelection>;
+  readonly selection: () => DiagramSelection;
   private readonly setSelection: (selection: DiagramSelection) => void;
 
-  readonly placed: Accessor<readonly PlacedBlock[]>;
+  readonly placed: () => readonly PlacedBlock[];
   private readonly setPlaced: (blocks: readonly PlacedBlock[]) => void;
-  readonly routes: Accessor<readonly WireRoute[]>;
+  readonly routes: () => readonly WireRoute[];
   private readonly setRoutes: (routes: readonly WireRoute[]) => void;
-  readonly armedId: Accessor<string | undefined>;
+  readonly armedId: () => string | undefined;
   private readonly setArmedId: (id: string | undefined) => void;
-  readonly selectedOutput: Accessor<PortHit | undefined>;
+  readonly selectedOutput: () => PortHit | undefined;
   private readonly setSelectedOutput: (port: PortHit | undefined) => void;
-  readonly movingId: Accessor<string | undefined>;
+  readonly movingId: () => string | undefined;
   private readonly setMovingId: (id: string | undefined) => void;
-  readonly inspectedId: Accessor<string | undefined>;
+  readonly inspectedId: () => string | undefined;
   private readonly setInspectedId: (id: string | undefined) => void;
-  readonly configuredId: Accessor<string | undefined>;
+  readonly configuredId: () => string | undefined;
   private readonly setConfiguredId: (id: string | undefined) => void;
-  readonly configRevision: Accessor<number>;
+  readonly configRevision: () => number;
   private readonly setConfigRevision: (revision: number) => void;
 
   private readonly routeMap = new Map<string, WireRoute>();
@@ -48,33 +48,33 @@ export class DiagramEditor implements DiagramGestureHost {
     private readonly onDelete?: () => void,
   ) {
     this.connector = new DiagramConnector(diagram);
-    const selection = createSignal(DiagramSelection.empty());
-    this.selection = selection[0];
-    this.setSelection = selection[1];
-    const placed = createSignal<readonly PlacedBlock[]>([]);
-    this.placed = placed[0];
-    this.setPlaced = placed[1];
-    const routes = createSignal<readonly WireRoute[]>([]);
-    this.routes = routes[0];
-    this.setRoutes = routes[1];
-    const armed = createSignal<string | undefined>();
-    this.armedId = armed[0];
-    this.setArmedId = armed[1];
-    const selectedOutput = createSignal<PortHit | undefined>();
-    this.selectedOutput = selectedOutput[0];
-    this.setSelectedOutput = selectedOutput[1];
-    const moving = createSignal<string | undefined>();
-    this.movingId = moving[0];
-    this.setMovingId = moving[1];
-    const inspected = createSignal<string | undefined>();
-    this.inspectedId = inspected[0];
-    this.setInspectedId = inspected[1];
-    const configured = createSignal<string | undefined>();
-    this.configuredId = configured[0];
-    this.setConfiguredId = configured[1];
-    const configRevision = createSignal(0);
-    this.configRevision = configRevision[0];
-    this.setConfigRevision = configRevision[1];
+    const selection = signal(DiagramSelection.empty());
+    this.selection = () => selection.get();
+    this.setSelection = (value) => selection.set(value);
+    const placed = signal<readonly PlacedBlock[]>([]);
+    this.placed = () => placed.get();
+    this.setPlaced = (value) => placed.set(value);
+    const routes = signal<readonly WireRoute[]>([]);
+    this.routes = () => routes.get();
+    this.setRoutes = (value) => routes.set(value);
+    const armed = signal<string | undefined>(undefined);
+    this.armedId = () => armed.get();
+    this.setArmedId = (value) => armed.set(value);
+    const selectedOutput = signal<PortHit | undefined>(undefined);
+    this.selectedOutput = () => selectedOutput.get();
+    this.setSelectedOutput = (value) => selectedOutput.set(value);
+    const moving = signal<string | undefined>(undefined);
+    this.movingId = () => moving.get();
+    this.setMovingId = (value) => moving.set(value);
+    const inspected = signal<string | undefined>(undefined);
+    this.inspectedId = () => inspected.get();
+    this.setInspectedId = (value) => inspected.set(value);
+    const configured = signal<string | undefined>(undefined);
+    this.configuredId = () => configured.get();
+    this.setConfiguredId = (value) => configured.set(value);
+    const configRevision = signal(0);
+    this.configRevision = () => configRevision.get();
+    this.setConfigRevision = (value) => configRevision.set(value);
     this.router = router ?? new MaxGraphWireRouter((route) => this.acceptRoute(route));
   }
 
