@@ -158,8 +158,8 @@ wa-split-panel::part(panel) {
   --port-outset: calc(var(--port-size) / 2 - 1px);
   --port-stub: 1px;
   --port-rail: 1px;
-  --palette-button-size: 3.25rem;
-  --palette-button-width: calc(var(--palette-button-size) * 1.32);
+  --palette-button-size: 2.5rem;
+  --palette-button-width: 4.25rem;
   --palette-column-slack: 0.1rem;
   --palette-port-emphasis: 0.45;
 }
@@ -274,17 +274,12 @@ wa-split-panel::part(panel) {
   min-height: 0;
   box-sizing: border-box;
   overflow: visible;
-  background:
-    linear-gradient(180deg, rgba(255, 255, 255, 0.16), rgba(255, 255, 255, 0) 46%),
-    linear-gradient(
-      165deg,
-      color-mix(in srgb, var(--block-accent, #0d6efd) 72%, #1c2830) 0%,
-      color-mix(in srgb, var(--block-accent, #0d6efd) 28%, #0e1318) 100%
-    );
+  background: #191f24;
   color: #dee2e6;
-  border: 1px solid color-mix(in srgb, var(--block-accent, #0d6efd) 62%, #243038);
-  border-radius: 5px;
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.4);
+  border: 1px solid #38414a;
+  border-radius: 3px;
+  box-shadow: none;
+  transition: background-color 160ms ease, border-color 160ms ease;
   cursor: grab;
   touch-action: none;
   text-align: left;
@@ -294,15 +289,8 @@ wa-split-panel::part(panel) {
 }
 
 .region-palette .palette-item.flow-node:hover {
-  background:
-    linear-gradient(180deg, rgba(255, 255, 255, 0.22), rgba(255, 255, 255, 0) 50%),
-    linear-gradient(
-      165deg,
-      color-mix(in srgb, var(--block-accent, #0d6efd) 84%, #24323c) 0%,
-      color-mix(in srgb, var(--block-accent, #0d6efd) 38%, #12181e) 100%
-    );
-  border-color: color-mix(in srgb, var(--block-accent, #0d6efd) 78%, #495057);
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.6);
+  background: #222a31;
+  border-color: #55616d;
 }
 
 .region-palette .palette-item.flow-node:focus-visible {
@@ -330,16 +318,22 @@ wa-split-panel::part(panel) {
   outline-offset: 2px;
 }
 
-.region-palette .block-kind-data {
-  --block-accent: #0dcaf0;
+.region-palette .block-kind-data,
+.diagram-block.block-kind-data,
+.palette-drag-ghost.block-kind-data {
+  --block-accent: #6faaa3;
 }
 
-.region-palette .block-kind-process {
-  --block-accent: #0d6efd;
+.region-palette .block-kind-process,
+.diagram-block.block-kind-process,
+.palette-drag-ghost.block-kind-process {
+  --block-accent: #849aba;
 }
 
-.region-palette .block-kind-output {
-  --block-accent: #dc3545;
+.region-palette .block-kind-output,
+.diagram-block.block-kind-output,
+.palette-drag-ghost.block-kind-output {
+  --block-accent: #b49386;
 }
 
 .region-palette .flow-node-body {
@@ -496,7 +490,7 @@ wa-split-panel::part(panel) {
 .diagram-wire {
   fill: none;
   stroke: #8eb6ff;
-  stroke-width: 2;
+  stroke-width: 1.5;
   stroke-linejoin: round;
   stroke-linecap: round;
 }
@@ -529,22 +523,26 @@ wa-split-panel::part(panel) {
 }
 
 .diagram-block {
-  --block-accent: #0d6efd;
+  --block-accent: #849aba;
   position: absolute;
   box-sizing: border-box;
-  border-radius: 6px;
-  border: 1px solid color-mix(in srgb, var(--block-accent) 62%, #243038);
-  background:
-    linear-gradient(180deg, rgba(255, 255, 255, 0.16), rgba(255, 255, 255, 0) 46%),
-    linear-gradient(
-      165deg,
-      color-mix(in srgb, var(--block-accent) 72%, #1c2830) 0%,
-      color-mix(in srgb, var(--block-accent) 28%, #0e1318) 100%
-    );
+  border-radius: 3px;
+  border: 1px solid #38414a;
+  background: #191f24;
   color: #dee2e6;
   cursor: grab;
   touch-action: none;
   z-index: 2;
+  transition: background-color 160ms ease, border-color 160ms ease;
+}
+
+.diagram-block:hover {
+  background: #222a31;
+  border-color: #55616d;
+}
+
+.diagram-block.is-selected {
+  border-color: #7a8896;
 }
 
 .diagram-block.is-moving {
@@ -552,44 +550,35 @@ wa-split-panel::part(panel) {
   z-index: 4;
 }
 
-.diagram-block.block-kind-data {
-  --block-accent: #0dcaf0;
-}
-
-.diagram-block.block-kind-process {
-  --block-accent: #0d6efd;
-}
-
-.diagram-block.block-kind-output {
-  --block-accent: #dc3545;
-}
-
 .diagram-block-body {
   height: 100%;
   display: flex;
-  flex-direction: column;
+  flex-direction: row;
   align-items: center;
   justify-content: center;
-  gap: 4px;
+  gap: 8px;
+  box-sizing: border-box;
+  padding: 0 32px 0 16px;
   pointer-events: none;
 }
 
 .diagram-block-icon {
   display: inline-flex;
+  flex: 0 0 auto;
   color: var(--block-accent, #0d6efd);
 }
 
 .diagram-block-icon svg {
-  width: 16px;
-  height: 16px;
+  width: 14px;
+  height: 14px;
   stroke: currentColor;
   fill: none;
 }
 
 .diagram-block-title {
-  max-width: calc(100% - 28px);
+  min-width: 0;
   font-size: 12px;
-  line-height: 1.1;
+  line-height: 1.2;
   color: #dee2e6;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -598,19 +587,20 @@ wa-split-panel::part(panel) {
 
 .diagram-block-config {
   position: absolute;
-  top: 4px;
-  right: 4px;
+  top: 50%;
+  right: 6px;
+  transform: translateY(-50%);
   z-index: 5;
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 18px;
-  height: 18px;
+  width: 22px;
+  height: 22px;
   padding: 0;
   border: 0;
-  border-radius: 4px;
+  border-radius: 2px;
   background: transparent;
-  color: rgba(255, 255, 255, 0.78);
+  color: #7e8994;
   cursor: pointer;
 }
 
@@ -721,7 +711,7 @@ wa-split-panel::part(panel) {
   left: 50%;
   top: 4px;
   bottom: 4px;
-  width: 2px;
+  width: 1px;
   transform: translateX(-50%);
   border-radius: 1px;
   background: var(--block-accent, #0d6efd);
@@ -756,24 +746,11 @@ wa-split-panel::part(panel) {
   align-items: center;
   justify-content: center;
   box-sizing: border-box;
-  border-radius: 6px;
-  border: 1px solid color-mix(in srgb, var(--block-accent, #0d6efd) 70%, #fff);
-  background: color-mix(in srgb, var(--block-accent, #0d6efd) 55%, #101418);
-  color: #fff;
+  border-radius: 3px;
+  border: 1px solid #7a8896;
+  background: #191f24;
+  color: #dee2e6;
   font-size: 12px;
-  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.45);
-}
-
-.palette-drag-ghost.block-kind-data {
-  --block-accent: #0dcaf0;
-}
-
-.palette-drag-ghost.block-kind-process {
-  --block-accent: #0d6efd;
-}
-
-.palette-drag-ghost.block-kind-output {
-  --block-accent: #dc3545;
 }
 
 .scope-plot {

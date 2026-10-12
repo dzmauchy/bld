@@ -94,15 +94,17 @@ test("splits a black workspace into a palette and a diagram", async ({ page }) =
   await expect(palette.locator("[data-block-id=ScopeF32] .flow-node-icon svg")).toBeVisible();
   const blockButton = await palette.locator("[data-block-id=ConstF32]").boundingBox();
   expect(blockButton).toBeTruthy();
-  expect(blockButton!.height).toBeLessThan(60);
-  expect(blockButton!.width / blockButton!.height).toBeGreaterThan(1.27);
-  expect(blockButton!.width / blockButton!.height).toBeLessThan(1.37);
+  expect(blockButton!.height).toBeLessThan(44);
+  expect(blockButton!.width / blockButton!.height).toBeGreaterThan(1.6);
+  expect(blockButton!.width / blockButton!.height).toBeLessThan(1.8);
   const blockFill = await palette.locator("[data-block-id=ConstF32], [data-block-id=SumF32], [data-block-id=ScopeF32]").evaluateAll((buttons) =>
-    buttons.map((button) => getComputedStyle(button).backgroundImage),
+    buttons.map((button) => ({ image: getComputedStyle(button).backgroundImage, color: getComputedStyle(button).backgroundColor })),
   );
   expect(blockFill).toHaveLength(3);
-  for (const fill of blockFill) expect(fill).toContain("linear-gradient");
-  expect(new Set(blockFill).size).toBe(3);
+  for (const fill of blockFill) {
+    expect(fill.image).toBe("none");
+    expect(fill.color).toBe("rgb(25, 31, 36)");
+  }
   const gpioClip = await palette.locator("[data-block-id=GpioInF32] .flow-node-title").evaluate((element) => element.scrollWidth - element.clientWidth);
   expect(gpioClip).toBeLessThanOrEqual(1);
   const titleSize = await palette.locator("[data-block-id=ConstF32] .flow-node-title").evaluate((element) => {
@@ -214,6 +216,11 @@ test("splits a black workspace into a palette and a diagram", async ({ page }) =
   await diagram.locator("[data-diagram-canvas]").click({ position: { x: 96, y: 80 } });
   await expect(diagram.locator("[data-block-ref=ScopeF32]")).toHaveCount(1);
   await expect(diagram.locator("[data-block-ref=ScopeF32]")).toContainText("Scope");
+  const placed = diagram.locator("[data-block-ref=ScopeF32]");
+  const placedBox = await placed.boundingBox();
+  expect(placedBox!.height).toBeLessThan(50);
+  expect(await placed.evaluate((element) => getComputedStyle(element).backgroundImage)).toBe("none");
+  await page.screenshot({ path: test.info().outputPath("modern-blocks.png") });
 });
 
 test("copies all JSON schemas into ui/dist/schemas", () => {

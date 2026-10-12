@@ -112,10 +112,10 @@ export class FramePort {
  */
 export class DiagramBlockFrame {
   static readonly width = 156;
-  static readonly minHeight = 72;
-  static readonly portPitch = 28;
+  static readonly minHeight = 44;
+  static readonly portPitch = 24;
   static readonly lanePitch = 18;
-  static readonly lanePadding = 20;
+  static readonly lanePadding = 8;
 
   private constructor(
     readonly width: number,
