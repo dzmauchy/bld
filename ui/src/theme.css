@@ -48,29 +48,6 @@ body {
   font-family: ui-sans-serif, system-ui, sans-serif;
 }
 
-#root,
-wa-split-panel {
-  height: 100%;
-  background: #000000;
-  color: #ffffff;
-}
-
-wa-split-panel {
-  --divider-width: 1px;
-  --min: 260px;
-  --max: 420px;
-}
-
-wa-split-panel::part(divider) {
-  background: #2b2b2b;
-}
-
-wa-split-panel::part(start),
-wa-split-panel::part(end),
-wa-split-panel::part(panel) {
-  background: #000000;
-}
-
 .region {
   box-sizing: border-box;
   height: 100%;
@@ -87,70 +64,124 @@ wa-split-panel::part(panel) {
   background: #000000;
 }
 
-.workspace-shell > wa-split-panel {
-  flex: 1 1 auto;
+.workspace-content {
+  position: relative;
+  flex: 1 1 0;
   min-height: 0;
-  height: auto;
-  /* The component resets this row inline when its divider position changes. */
-  grid-template-rows: minmax(0, 1fr) !important;
+  min-width: 0;
+}
+
+.workspace-content > bld-palette-panel {
+  position: absolute;
+  inset: 0 auto 0 0;
+  width: min(calc(var(--palette-width, 160px) + 1px), 100%);
+  z-index: 10;
+  border-right: 1px solid #2b3035;
+  box-sizing: border-box;
+  box-shadow: 6px 0 18px #0008;
+}
+
+bld-palette-panel[hidden] {
+  display: none;
 }
 
 .workspace-toolbar {
   display: flex;
   align-items: center;
-  gap: 12px;
-  flex: 0 0 42px;
-  height: 42px;
-  padding: 0 12px;
+  gap: 6px;
+  flex: 0 0 48px;
+  height: 48px;
+  padding: 2px 6px;
   box-sizing: border-box;
   background: #000000;
   border-bottom: 1px solid #2b2b2b;
 }
 
-.toolbar-run,
-.toolbar-delete {
-  appearance: none;
-  border: 1px solid #3d5f99;
-  background: #163056;
-  color: #ffffff;
+.toolbar-button,
+.toolbar-status {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: 0 0 44px;
+  width: 44px;
+  height: 44px;
+  box-sizing: border-box;
+  padding: 10px;
+  border: 0;
   border-radius: 6px;
-  height: 28px;
-  padding: 0 14px;
-  font: inherit;
-  font-size: 13px;
-  font-weight: 600;
+  background: transparent;
+  color: #c6cbd1;
+}
+
+.toolbar-button {
+  appearance: none;
   cursor: pointer;
 }
 
-.toolbar-delete {
-  background: #24282e;
-  border-color: #515965;
+.toolbar-button svg,
+.toolbar-status svg {
+  width: 24px;
+  height: 24px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.6;
+  stroke-linecap: round;
+  stroke-linejoin: round;
 }
 
-.toolbar-delete:disabled {
+.toolbar-button:hover,
+.toolbar-button[aria-expanded="true"] {
+  background: #20262e;
+  color: #ffffff;
+}
+
+.toolbar-button:focus-visible {
+  outline: 2px solid #8eb6ff;
+  outline-offset: -2px;
+}
+
+.toolbar-button:disabled {
   opacity: 0.4;
   cursor: default;
 }
 
 .toolbar-run[data-run-state="running"],
 .toolbar-run[data-run-state="stopping"] {
-  background: #6d2430;
-  border-color: #dc3545;
+  color: #ff758b;
 }
 
-.toolbar-run:disabled {
-  opacity: 0.6;
+.toolbar-run[data-run-state="starting"] {
   cursor: progress;
 }
 
 .toolbar-status {
-  margin: 0;
-  min-width: 0;
-  color: #b3b3b3;
-  font-size: 12px;
+  color: #e7b567;
+}
+
+.toolbar-announcement {
+  position: absolute;
+  width: 1px;
+  height: 1px;
   overflow: hidden;
-  text-overflow: ellipsis;
+  clip-path: inset(50%);
   white-space: nowrap;
+}
+
+@media (orientation: landscape) and (max-height: 600px) and (pointer: coarse) {
+  .workspace-shell {
+    flex-direction: row;
+  }
+
+  .workspace-toolbar {
+    flex-direction: column;
+    justify-content: flex-end;
+    width: calc(48px + env(safe-area-inset-left));
+    height: 100%;
+    flex-basis: calc(48px + env(safe-area-inset-left));
+    padding: 6px 2px calc(6px + env(safe-area-inset-bottom)) calc(2px + env(safe-area-inset-left));
+    border-bottom: 0;
+    border-right: 1px solid #2b2b2b;
+  }
 }
 
 .region-diagram {

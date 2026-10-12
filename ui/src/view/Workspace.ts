@@ -1,19 +1,15 @@
 import { Diagram, Palette, TypeSystem, type Library } from "core";
 import { html, nothing } from "lit";
+import { signal } from "@lit-labs/signals";
 import { SignalElement } from "./elements/SignalElement.js";
 import { DiagramEditor } from "./diagram/diagramEditor.js";
 import type { DiagramRunController } from "./run/diagramRunController.js";
 import { BrowserDiagramRunner } from "./run/browserDiagramRunner.js";
 import { ScopeCaptureBoard } from "./scope/scopeCapture.js";
-import { PaletteColumn } from "./palette/paletteColumnWidth.js";
+import { PaletteContentWidth } from "./palette/paletteColumnWidth.js";
 import "./palette/PalettePanel.js";
 import "./diagram/DiagramCanvas.js";
 import "./toolbar/WorkspaceToolbar.js";
-
-interface SplitPanelElement extends HTMLElement {
-  position: number;
-  primary?: "start" | "end";
-}
 
 export class Workspace extends SignalElement {
   static override properties = { libraries: { attribute: false } };
@@ -21,6 +17,7 @@ export class Workspace extends SignalElement {
   private editor: DiagramEditor | undefined;
   private runner: DiagramRunController | undefined;
   private readonly board = new ScopeCaptureBoard();
+  private readonly paletteOpen = signal(false);
 
   protected override willUpdate(): void {
     if (this.editor || !this.libraries) return;
@@ -39,23 +36,23 @@ export class Workspace extends SignalElement {
     super.disconnectedCallback();
   }
 
-  protected override firstUpdated(): void {
-    const panel = this.querySelector<SplitPanelElement>("wa-split-panel");
-    if (!panel) return;
-    panel.position = 23;
-    panel.primary = "start";
-    requestAnimationFrame(() => new PaletteColumn(panel).fit());
+  protected override updated(): void {
+    if (!this.paletteOpen.get()) return;
+    const palette = this.querySelector<HTMLElement>("[data-region=palette]");
+    if (palette) this.style.setProperty("--palette-width", `${new PaletteContentWidth(palette).column().pixels()}px`);
   }
 
   protected override render() {
     if (!this.editor || !this.runner || !this.libraries) return nothing;
     return html`
       <div class="workspace-shell" @keydown=${(event: KeyboardEvent) => this.editor?.keyDown(event)}>
-        <bld-workspace-toolbar .runner=${this.runner} .editor=${this.editor}></bld-workspace-toolbar>
-        <wa-split-panel class="workspace">
-          <bld-palette-panel slot="start" .libraries=${this.libraries} .editor=${this.editor}></bld-palette-panel>
-          <bld-diagram-canvas slot="end" .editor=${this.editor} .board=${this.board} .runner=${this.runner}></bld-diagram-canvas>
-        </wa-split-panel>
+        <bld-workspace-toolbar .runner=${this.runner} .editor=${this.editor} .paletteOpen=${this.paletteOpen.get()}
+          .onTogglePalette=${() => this.paletteOpen.set(!this.paletteOpen.get())}></bld-workspace-toolbar>
+        <div class="workspace-content">
+          <bld-diagram-canvas .editor=${this.editor} .board=${this.board} .runner=${this.runner}></bld-diagram-canvas>
+          <bld-palette-panel id="workspace-palette" ?hidden=${!this.paletteOpen.get()}
+            .libraries=${this.libraries} .editor=${this.editor}></bld-palette-panel>
+        </div>
       </div>`;
   }
 }

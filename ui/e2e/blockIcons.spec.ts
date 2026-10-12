@@ -1,5 +1,5 @@
 import { readdirSync } from "node:fs";
-import { expect, test, element, baseURL, fetchAsset, artifactPath } from "./fixtures/browser.ts";
+import { closePalette, openPalette, expect, test, element, baseURL, fetchAsset, artifactPath } from "./fixtures/browser.ts";
 
 
 test("every block SVG has centered artwork and padding inside its viewport", async ({ page }) => {
@@ -46,11 +46,14 @@ test("all palette and canvas block icons are centered above their labels without
   const refs = await palette.within("[data-block-id]").evaluateAll((buttons) => buttons.map((button) => button.getAttribute("data-block-id")!));
   for (const [index, ref] of refs.entries()) {
     const button = palette.within(`[data-block-id=${ref}]`);
+    await openPalette(page);
     await button.scrollIntoViewIfNeeded();
     await button.click();
+    await closePalette(page);
     await canvas.click({ position: { x: 90 + (index % 6) * 200, y: 100 + Math.floor(index / 6) * 160 } });
     await expect.poll(() => canvas.within(`[data-block-ref=${ref}]`).count()).toBe(1);
   }
+  await openPalette(page);
   const geometry = await element(page, "[data-block-id], [data-diagram-block]").evaluateAll((blocks) => blocks.map((block) => {
     const svg = block.querySelector(".flow-node-icon svg, .diagram-block-icon svg") as SVGSVGElement;
     const label = block.querySelector(".flow-node-title, .diagram-block-title")!;

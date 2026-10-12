@@ -43,21 +43,6 @@ export class PaletteContentWidth {
   }
 }
 
-/** Pins the split panel's start column to the measured palette width. */
-export class PaletteColumn {
-  constructor(private readonly panel: HTMLElement) {}
-
-  fit(): void {
-    const palette = this.panel.querySelector("[data-region=palette]");
-    if (!(palette instanceof HTMLElement)) return;
-    const width = new PaletteContentWidth(palette).column().pixels();
-    if (width <= 0) return;
-    const css = `${width}px`;
-    this.panel.style.setProperty("--min", css);
-    this.panel.style.setProperty("--max", css);
-  }
-}
-
 /** Shrink-wrapped width of a palette title, including its padding and markers. */
 class PaletteTitle {
   static readonly selector = ".palette-ns-toggle, .flow-node-title";

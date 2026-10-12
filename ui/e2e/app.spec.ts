@@ -1,4 +1,4 @@
-import { expect, test, element, baseURL, fetchAsset, artifactPath } from "./fixtures/browser.ts";
+import { closePalette, openPalette, expect, test, element, baseURL, fetchAsset, artifactPath } from "./fixtures/browser.ts";
 import { readdirSync, readFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -80,12 +80,12 @@ test("shows the bld icon splash until 100 ms after the parsed workspace is shown
   await expect.poll(() => splash.getAttribute("data-state")).toBe("closed");
 });
 
-test("splits a black workspace into a palette and a diagram", async ({ page }) => {
+test("opens the current palette over a black diagram workspace", async ({ page }) => {
   await page.goto(baseURL());
   await expect.poll(() => element(page, "[data-splash]").visible()).toBe(false);
+  await openPalette(page);
   const palette = element(page, "[data-region=palette]");
   const diagram = element(page, "[data-region=diagram]");
-  await expect.poll(() => element(page, "wa-split-panel").visible()).toBe(true);
   await expect.poll(() => palette.visible()).toBe(true);
   await expect.poll(() => diagram.visible()).toBe(true);
   await expect.poll(() => palette.getAttribute("data-libraries")).toBe("base");
@@ -133,14 +133,14 @@ test("splits a black workspace into a palette and a diagram", async ({ page }) =
   }
   expect(await palette.evaluate((element) => getComputedStyle(element).backgroundColor)).toBe("rgb(28, 33, 37)");
   await expect.poll(() => diagram.within("h1").count()).toBe(0);
-  await expect.poll(() => element(page, "[data-toolbar] [data-run-toggle]").text()).toBe("Run");
+  await expect.poll(() => element(page, "[data-toolbar] [data-run-toggle]").getAttribute("aria-label")).toBe("Run");
   await expect.poll(() => element(page, "[data-toolbar]").visible()).toBe(true);
 
   const paletteBox = await palette.boundingBox();
   const diagramBox = await diagram.boundingBox();
   expect(paletteBox).toBeTruthy();
   expect(diagramBox).toBeTruthy();
-  expect(paletteBox!.x).toBeLessThan(diagramBox!.x);
+  expect(paletteBox!.x).toBe(diagramBox!.x);
   const column = await palette.evaluate((element) => {
     const shrink = (node: Element) => {
       const clone = node.cloneNode(true);
@@ -213,6 +213,7 @@ test("splits a black workspace into a palette and a diagram", async ({ page }) =
 
   const scope = palette.within("[data-block-id=ScopeF32]");
   await scope.click();
+  await closePalette(page);
   await expect.poll(() => scope.getAttribute("data-armed")).toBe("true");
   await expect.poll(() => diagram.within("[data-block-ref=ScopeF32]").count()).toBe(0);
   await diagram.within("[data-diagram-canvas]").click({ position: { x: 96, y: 80 } });
@@ -224,6 +225,7 @@ test("splits a black workspace into a palette and a diagram", async ({ page }) =
   expect(placedBox!.width).toBeLessThan(90);
   expect(await placed.evaluate((element) => getComputedStyle(element).backgroundImage)).toMatch(/^url\(/);
   expect(await placed.evaluate((element) => getComputedStyle(element).backgroundImage)).toContain("linear-gradient");
+  await openPalette(page);
   for (const [icon, label, size] of [
     [placed.within(".diagram-block-icon svg"), placed.within(".diagram-block-title"), 28],
     [scope.within(".flow-node-icon svg"), scope.within(".flow-node-title"), 24],

@@ -1,4 +1,4 @@
-import { expect, test, element, baseURL, dialog as dialogElement, artifactPath } from "./fixtures/browser.ts";
+import { closePalette, openPalette, expect, test, element, baseURL, dialog as dialogElement, artifactPath } from "./fixtures/browser.ts";
 
 test("removes the diagram caption, runs from the toolbar, and plots every scope output", async ({ page }) => {
   await page.goto(baseURL());
@@ -6,7 +6,7 @@ test("removes the diagram caption, runs from the toolbar, and plots every scope 
   const diagram = element(page, "[data-region=diagram]");
   await expect.poll(() => diagram.within("h1").count()).toBe(0);
   const run = element(page, "[data-toolbar] [data-run-toggle]");
-  await expect.poll(() => run.text()).toBe("Run");
+  await expect.poll(() => run.getAttribute("aria-label")).toBe("Run");
   await expect.poll(() => run.getAttribute("data-run-state")).toBe("idle");
 
   const palette = element(page, "[data-region=palette]");
@@ -16,10 +16,12 @@ test("removes the diagram caption, runs from the toolbar, and plots every scope 
 
   async function insert(blockId: string, clientX: number, clientY: number): Promise<void> {
     const source = palette.within(`[data-block-id=${blockId}]`);
+    await openPalette(page);
     await source.scrollIntoViewIfNeeded();
     const sourceBox = await source.boundingBox();
     expect(sourceBox).toBeTruthy();
     await source.click();
+    await closePalette(page);
     await page.mouse.click(clientX, clientY);
   }
 
@@ -53,8 +55,8 @@ test("removes the diagram caption, runs from the toolbar, and plots every scope 
 
   await run.click();
   await expect.poll(() => run.getAttribute("data-run-state")).toBe("starting");
-  await expect.poll(() => run.text()).toBe("Run");
-  await expect.poll(() => run.text(), { timeout: 120_000 }).toBe("Stop");
+  await expect.poll(() => run.getAttribute("aria-label")).toBe("Run");
+  await expect.poll(() => run.getAttribute("aria-label"), { timeout: 120_000 }).toBe("Stop");
   await expect.poll(() => run.getAttribute("data-run-state")).toBe("running");
 
   const trace = () => element(page, "[data-scope-canvas]").evaluate((canvas) => {
@@ -80,7 +82,7 @@ test("removes the diagram caption, runs from the toolbar, and plots every scope 
   await page.screenshot({ path: artifactPath("scope-plot.png") });
 
   await run.click();
-  await expect.poll(() => run.text()).toBe("Run");
+  await expect.poll(() => run.getAttribute("aria-label")).toBe("Run");
   await expect.poll(() => run.getAttribute("data-run-state")).toBe("idle");
 });
 
@@ -94,10 +96,12 @@ test("plots a sliding 1 + sin(t) trace from a constant and a sine generator", as
 
   async function insert(blockId: string, clientX: number, clientY: number): Promise<void> {
     const source = palette.within(`[data-block-id=${blockId}]`);
+    await openPalette(page);
     await source.scrollIntoViewIfNeeded();
     const sourceBox = await source.boundingBox();
     expect(sourceBox).toBeTruthy();
     await source.click();
+    await closePalette(page);
     await page.mouse.click(clientX, clientY);
     await expect.poll(() => canvas.within(`[data-block-ref=${blockId}]`).count()).toBe(1);
   }
@@ -147,7 +151,7 @@ test("plots a sliding 1 + sin(t) trace from a constant and a sine generator", as
 
   const run = element(page, "[data-toolbar] [data-run-toggle]");
   await run.click();
-  await expect.poll(() => run.text(), { timeout: 120_000 }).toBe("Stop");
+  await expect.poll(() => run.getAttribute("aria-label"), { timeout: 120_000 }).toBe("Stop");
   await expect.poll(() => run.getAttribute("data-run-state")).toBe("running");
   await expect.poll(() => element(page, "[data-run-status]").text()).toBe("");
   await expect.poll(() => plot.getAttribute("data-samples"), { timeout: 10_000 }).toBe("100");

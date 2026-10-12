@@ -1,4 +1,4 @@
-import { expect, test, element, baseURL, dialog as dialogElement, artifactPath } from "./fixtures/browser.ts";
+import { closePalette, openPalette, expect, test, element, baseURL, dialog as dialogElement, artifactPath } from "./fixtures/browser.ts";
 
 test("ignores palette dragging and inserts selected blocks on canvas clicks", async ({ page }) => {
   await page.goto(baseURL());
@@ -9,6 +9,7 @@ test("ignores palette dragging and inserts selected blocks on canvas clicks", as
   expect(canvasBox).toBeTruthy();
 
   const constant = palette.within("[data-block-id=ConstF32]");
+  await openPalette(page);
   await constant.scrollIntoViewIfNeeded();
   const sourceBox = await constant.boundingBox();
   expect(sourceBox).toBeTruthy();
@@ -25,6 +26,7 @@ test("ignores palette dragging and inserts selected blocks on canvas clicks", as
   await expect.poll(() => dropped.count()).toBe(0);
   await expect.poll(() => constant.getAttribute("data-armed")).toBe("false");
   await constant.click();
+  await closePalette(page);
   await page.mouse.click(dropX, dropY);
   await expect.poll(() => dropped.count()).toBe(1);
   const droppedBox = await dropped.boundingBox();
@@ -34,21 +36,14 @@ test("ignores palette dragging and inserts selected blocks on canvas clicks", as
   await expect.poll(() => constant.getAttribute("data-armed")).toBe("true");
 
   const scope = palette.within("[data-block-id=ScopeF32]");
+  await openPalette(page);
   await scope.scrollIntoViewIfNeeded();
   await scope.click();
+  await expect.poll(() => palette.visible()).toBe(true);
+  await closePalette(page);
   await expect.poll(() => scope.getAttribute("data-armed")).toBe("true");
   await expect.poll(() => scope.getAttribute("aria-pressed")).toBe("true");
-  const blink = await scope.evaluate(async (element) => {
-    const style = getComputedStyle(element);
-    const samples: number[] = [];
-    for (let index = 0; index < 8; index += 1) {
-      samples.push(Number(getComputedStyle(element).opacity));
-      await new Promise((resolve) => setTimeout(resolve, 120));
-    }
-    return { name: style.animationName, samples };
-  });
-  expect(blink.name).toBe("palette-fade-blink");
-  expect(Math.max(...blink.samples) - Math.min(...blink.samples)).toBeGreaterThan(0.2);
+  await expect.poll(() => palette.visible()).toBe(false);
   await expect.poll(() => canvas.within("[data-block-ref=ScopeF32]").count()).toBe(0);
 
   await canvas.click({ position: { x: 280, y: 120 } });
@@ -62,7 +57,9 @@ test("ignores palette dragging and inserts selected blocks on canvas clicks", as
 
   await canvas.click({ position: { x: 280, y: 260 } });
   await expect.poll(() => stamped.count()).toBe(2);
+  await openPalette(page);
   await scope.click();
+  await closePalette(page);
   await expect.poll(() => scope.getAttribute("data-armed")).toBe("false");
   await canvas.click({ position: { x: 420, y: 80 } });
   await expect.poll(() => stamped.count()).toBe(2);
@@ -84,10 +81,12 @@ test("routes a connector around a block with maxGraph", async ({ page }) => {
 
   async function insert(blockId: string, clientX: number, clientY: number): Promise<void> {
     const source = palette.within(`[data-block-id=${blockId}]`);
+    await openPalette(page);
     await source.scrollIntoViewIfNeeded();
     const sourceBox = await source.boundingBox();
     expect(sourceBox).toBeTruthy();
     await source.click();
+    await closePalette(page);
     await page.mouse.click(clientX, clientY);
     await expect.poll(() => canvas.within(`[data-block-ref=${blockId}]`).count()).toBe(1);
   }
@@ -192,10 +191,12 @@ test("draws each multiplexed connection on its own lane and grows that port", as
 
   async function insert(blockId: string, clientX: number, clientY: number): Promise<void> {
     const source = palette.within(`[data-block-id=${blockId}]`);
+    await openPalette(page);
     await source.scrollIntoViewIfNeeded();
     const sourceBox = await source.boundingBox();
     expect(sourceBox).toBeTruthy();
     await source.click();
+    await closePalette(page);
     await page.mouse.click(clientX, clientY);
     await expect.poll(() => canvas.within(`[data-block-ref=${blockId}]`).count()).toBe(1);
   }
@@ -288,17 +289,21 @@ test("opens a configuration dialog from the gear on a block that has parameters"
   expect(canvasBox).toBeTruthy();
 
   const constant = palette.within("[data-block-id=ConstF32]");
+  await openPalette(page);
   await constant.scrollIntoViewIfNeeded();
   const sourceBox = await constant.boundingBox();
   expect(sourceBox).toBeTruthy();
   await constant.click();
+  await closePalette(page);
   await canvas.click({ position: { x: 240, y: 160 } });
 
   const cosine = palette.within("[data-block-id=CosF32]");
+  await openPalette(page);
   await cosine.scrollIntoViewIfNeeded();
   const cosineBox = await cosine.boundingBox();
   expect(cosineBox).toBeTruthy();
   await cosine.click();
+  await closePalette(page);
   await canvas.click({ position: { x: 480, y: 160 } });
 
   await expect.poll(() => canvas.within("[data-block-ref=ConstF32] [data-block-config]").count()).toBe(1);

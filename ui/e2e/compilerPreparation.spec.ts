@@ -1,4 +1,4 @@
-import { expect, test, element, baseURL } from "./fixtures/browser.ts";
+import { closePalette, openPalette, expect, test, element, baseURL } from "./fixtures/browser.ts";
 
 interface PreparationProbe {
   requests: string[];
@@ -41,8 +41,10 @@ test("prepares the compiler at startup and shares its pending promise with Run",
   const canvas = element(page, "[data-diagram-canvas]");
   for (const [ref, x] of [["ScopeF32", 140], ["ConstF32", 420]] as const) {
     const block = element(page, `[data-block-id=${ref}]`);
+    await openPalette(page);
     await block.scrollIntoViewIfNeeded();
     await block.click();
+    await closePalette(page);
     await canvas.click({ position: { x, y: 180 } });
     await expect.poll(() => canvas.within(`[data-block-ref=${ref}]`).count()).toBe(1);
   }

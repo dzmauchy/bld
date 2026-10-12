@@ -12,7 +12,7 @@ export async function setup(project: TestProject) {
   if (workspace === "ui") await promisify(execFile)(process.execPath, [join(root, "scripts/fetch-base-release.mjs")], { cwd: root });
   const configFile = join(root, "vite.config.ts");
   await build({ root, configFile, logLevel: "warn" });
-  const server = await preview({ root, configFile, logLevel: "warn" });
+  const server = await preview({ root, configFile, logLevel: "warn", preview: { port: 0 } });
   const address = server.httpServer.address();
   if (!address || typeof address === "string") throw new Error("Vite preview did not start");
   project.provide("baseURL", `http://localhost:${address.port}`);

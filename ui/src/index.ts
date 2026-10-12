@@ -3,7 +3,6 @@ import "@awesome.me/webawesome/dist/components/animation/animation.js";
 import "@awesome.me/webawesome/dist/components/card/card.js";
 import "@awesome.me/webawesome/dist/components/progress-bar/progress-bar.js";
 import "@awesome.me/webawesome/dist/components/spinner/spinner.js";
-import "@awesome.me/webawesome/dist/components/split-panel/split-panel.js";
 import "./theme.css";
 import { html, render } from "lit";
 import "./App.js";

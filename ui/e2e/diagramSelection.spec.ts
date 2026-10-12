@@ -1,4 +1,4 @@
-import { expect, test, element, baseURL, dialog as dialogElement, artifactPath, type BrowserElement, type Page } from "./fixtures/browser.ts";
+import { closePalette, openPalette, expect, test, element, baseURL, dialog as dialogElement, artifactPath, type BrowserElement, type Page } from "./fixtures/browser.ts";
 
 
 
@@ -17,11 +17,13 @@ class SelectionDiagram {
 
   async insert(ref: string, x: number, y: number): Promise<void> {
     const source = element(this.page, `[data-region=palette] [data-block-id=${ref}]`);
+    await openPalette(this.page);
     await source.scrollIntoViewIfNeeded();
     const from = await source.boundingBox();
     const canvas = await this.canvas.boundingBox();
     expect(from && canvas).toBeTruthy();
     await source.click();
+    await closePalette(this.page);
     await this.page.mouse.click(canvas!.x + x, canvas!.y + y);
     await expect.poll(() => this.block(ref).count()).toBe(1);
   }

@@ -1,13 +1,18 @@
-import { html, nothing } from "lit";
+import { html, nothing, svg } from "lit";
 import { SignalElement } from "../elements/SignalElement.js";
 import type { DiagramRunController } from "../run/diagramRunController.js";
 import type { DiagramEditor } from "../diagram/diagramEditor.js";
 
 /** Page toolbar. Run becomes Stop once the diagram is running. */
 export class WorkspaceToolbar extends SignalElement {
-  static override properties = { runner: { attribute: false }, editor: { attribute: false } };
+  static override properties = {
+    runner: { attribute: false }, editor: { attribute: false },
+    paletteOpen: { type: Boolean }, onTogglePalette: { attribute: false },
+  };
   declare runner: DiagramRunController | undefined;
   declare editor: DiagramEditor | undefined;
+  declare paletteOpen: boolean;
+  declare onTogglePalette: (() => void) | undefined;
 
   protected override render() {
     if (!this.runner || !this.editor) return nothing;
@@ -16,14 +21,30 @@ export class WorkspaceToolbar extends SignalElement {
     const phase = runner.phase();
     const running = phase === "running" || phase === "stopping";
     return html`
-      <header class="workspace-toolbar" data-toolbar>
-        <button type="button" class="toolbar-run" data-run-toggle data-run-state=${phase}
+      <header class="workspace-toolbar" data-toolbar role="toolbar" aria-label="Diagram tools">
+        <button type="button" class="toolbar-button toolbar-palette" data-palette-toggle title="Palette" aria-label="Palette"
+          aria-expanded=${String(Boolean(this.paletteOpen))} aria-controls="workspace-palette"
+          @click=${() => this.onTogglePalette?.()}>
+          ${svg`<svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg>`}
+        </button>
+        <button type="button" class="toolbar-button toolbar-run" data-run-toggle data-run-state=${phase}
+          title=${running ? "Stop" : "Run"} aria-label=${running ? "Stop" : "Run"}
           ?disabled=${phase === "starting" || phase === "stopping"} aria-pressed=${String(running)}
-          @click=${() => void runner.toggle()}>${running ? "Stop" : "Run"}</button>
-        <button type="button" class="toolbar-delete" data-delete-selected ?disabled=${editor.selection().size === 0}
-          title="Delete selected blocks and connections (Delete / Backspace)" @click=${() => editor.deleteSelected()}>Delete</button>
-        <p class="toolbar-status" data-run-status>${runner.status()}</p>
-      </header>`;
+          @click=${() => void runner.toggle()}>
+          ${running
+            ? svg`<svg viewBox="0 0 24 24" aria-hidden="true"><rect x="5" y="5" width="14" height="14" rx="1"/></svg>`
+            : svg`<svg viewBox="0 0 24 24" aria-hidden="true"><path d="m8 4 12 8-12 8Z"/></svg>`}
+        </button>
+        <button type="button" class="toolbar-button toolbar-delete" data-delete-selected ?disabled=${editor.selection().size === 0}
+          title="Delete selected blocks and connections (Delete / Backspace)" aria-label="Delete selected"
+          @click=${() => editor.deleteSelected()}>
+          ${svg`<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 6h18M9 6V3h6v3M5 6l1 15h12l1-15M10 10v7M14 10v7"/></svg>`}
+        </button>
+        ${runner.status() ? html`<span class="toolbar-status" title=${runner.status()} aria-label=${runner.status()}>
+          ${svg`<svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 7v6M12 16v1"/></svg>`}
+        </span>` : nothing}
+      </header>
+      <span class="toolbar-announcement" data-run-status role="status" aria-live="polite">${runner.status()}</span>`;
   }
 }
 customElements.define("bld-workspace-toolbar", WorkspaceToolbar);

@@ -1,5 +1,5 @@
 import { writeFile } from "node:fs/promises";
-import { expect, test, element, baseURL, dialog as dialogElement, artifactPath } from "./fixtures/browser.ts";
+import { closePalette, openPalette, expect, test, element, baseURL, dialog as dialogElement, artifactPath } from "./fixtures/browser.ts";
 
 
 interface ProfileEvent {
@@ -149,8 +149,10 @@ test("profiles the actual Run button on cold, unchanged, and edited diagrams", a
     ["ScopeF32", 130, 200], ["SumF32", 380, 200], ["ConstF32", 640, 90], ["SinGenF32", 640, 310],
   ] as const) {
     const source = element(page, `[data-block-id=${ref}]`);
+    await openPalette(page);
     await source.scrollIntoViewIfNeeded();
     await source.click();
+    await closePalette(page);
     await canvas.click({ position: { x, y } });
   }
   for (const [from, to] of [["ScopeF32", "SumF32"], ["SumF32", "ConstF32"], ["SumF32", "SinGenF32"]]) {
