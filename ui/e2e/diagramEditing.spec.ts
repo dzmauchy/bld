@@ -31,8 +31,8 @@ test("ignores palette dragging and inserts selected blocks on canvas clicks", as
   await expect.poll(() => dropped.count()).toBe(1);
   const droppedBox = await dropped.boundingBox();
   expect(droppedBox).toBeTruthy();
-  expect(Math.abs(droppedBox!.x + droppedBox!.width / 2 - dropX)).toBeLessThan(2);
-  expect(Math.abs(droppedBox!.y + droppedBox!.height / 2 - dropY)).toBeLessThan(2);
+  expect(Math.abs(droppedBox!.x + droppedBox!.width / 2 - dropX)).toBeLessThanOrEqual(5);
+  expect(Math.abs(droppedBox!.y + droppedBox!.height / 2 - dropY)).toBeLessThanOrEqual(5);
   await expect.poll(() => constant.getAttribute("data-armed")).toBe("true");
 
   const scope = palette.within("[data-block-id=ScopeF32]");
@@ -51,8 +51,8 @@ test("ignores palette dragging and inserts selected blocks on canvas clicks", as
   await expect.poll(() => stamped.count()).toBe(1);
   const stampedBox = await stamped.boundingBox();
   expect(stampedBox).toBeTruthy();
-  expect(Math.abs(stampedBox!.x + stampedBox!.width / 2 - (canvasBox!.x + 280))).toBeLessThan(2);
-  expect(Math.abs(stampedBox!.y + stampedBox!.height / 2 - (canvasBox!.y + 120))).toBeLessThan(2);
+  expect(Math.abs(stampedBox!.x + stampedBox!.width / 2 - (canvasBox!.x + 280))).toBeLessThanOrEqual(5);
+  expect(Math.abs(stampedBox!.y + stampedBox!.height / 2 - (canvasBox!.y + 120))).toBeLessThanOrEqual(5);
   await expect.poll(() => scope.getAttribute("data-armed")).toBe("true");
 
   await canvas.click({ position: { x: 280, y: 260 } });
@@ -150,9 +150,8 @@ test("routes a connector around a block with maxGraph", async ({ page }) => {
       [geometry!.points[0], geometry!.anchors[0]],
       [geometry!.points.at(-1)!, geometry!.anchors[1]],
     ]) {
-      // The block border offsets the visual port center by one CSS pixel.
-      expect(Math.abs(point.x - anchor.x)).toBeLessThan(2);
-      expect(Math.abs(point.y - anchor.y)).toBeLessThan(2);
+      expect(Math.abs(point.x - anchor.x)).toBeLessThan(0.1);
+      expect(Math.abs(point.y - anchor.y)).toBeLessThan(0.1);
     }
   }
   expect((await readGeometry())!.points.length).toBeGreaterThan(2);
@@ -254,6 +253,7 @@ test("draws each multiplexed connection on its own lane and grows that port", as
   });
   expect(lanes?.lanes).toBe("2");
   expect(lanes?.pins.map((pin) => pin.y)).toHaveLength(2);
+  for (const pin of lanes?.pins ?? []) expect(pin.y % 10).toBeCloseTo(0, 5);
   expect(Math.abs((lanes?.pins[1]?.y ?? 0) - (lanes?.pins[0]?.y ?? 0))).toBeGreaterThan(12);
   const departures = (lanes?.wires ?? []).flatMap((wire) => {
     const start = wire.points[0];

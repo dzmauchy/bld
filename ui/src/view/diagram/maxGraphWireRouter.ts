@@ -1,7 +1,7 @@
 import type { Connection, DiagramBlock } from "core";
 import { BaseGraph, CellRenderer, EdgeStyle, ManhattanConnectorConfig, type Cell, type CellState } from "@maxgraph/core";
 import { PlacedBlock } from "./diagramBlockFrame.js";
-import { WirePoint } from "./geometry.js";
+import { DiagramGrid, WirePoint } from "./geometry.js";
 import { WireRoute } from "./wireRoute.js";
 import { WireRouter, type WireRouteListener } from "./wireRouter.js";
 
@@ -30,7 +30,7 @@ export class MaxGraphWireRouter extends WireRouter {
     // connector, with outputs on the right and inputs on the left.
     ManhattanConnectorConfig.startDirections = ["east"];
     ManhattanConnectorConfig.endDirections = ["west"];
-    ManhattanConnectorConfig.step = 14;
+    ManhattanConnectorConfig.step = DiagramGrid.spacing;
     this.graph = new BaseGraph({
       cellRenderer: new RoutingCellRenderer(),
     });

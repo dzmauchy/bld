@@ -522,7 +522,8 @@ bld-palette-panel[hidden] {
   background-image:
     linear-gradient(rgba(255, 255, 255, 0.045) 1px, transparent 1px),
     linear-gradient(90deg, rgba(255, 255, 255, 0.045) 1px, transparent 1px);
-  background-size: 24px 24px;
+  background-size: var(--diagram-grid-spacing) var(--diagram-grid-spacing);
+  background-attachment: local;
   user-select: none;
 }
 
@@ -577,10 +578,11 @@ bld-palette-panel[hidden] {
 
 .diagram-block {
   --block-accent: #849aba;
+  --diagram-block-border: 1px;
   position: absolute;
   box-sizing: border-box;
   border-radius: 3px;
-  border: 1px solid #42484d;
+  border: var(--diagram-block-border) solid #42484d;
   background-color: #202427;
   color: #dee2e6;
   cursor: grab;

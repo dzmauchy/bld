@@ -20,7 +20,11 @@ export class PortButton extends SignalElement {
       class=${`diagram-port is-${port.side}${port.vector ? " is-vector" : ""}${selected ? " is-selected" : ""}`}
       data-port-id=${port.id} data-port-side=${port.side} data-port-lanes=${port.lanes}
       data-selected=${String(selected)} aria-pressed=${String(selected)} aria-label=${`${block.title} ${port.side} ${port.id}`}
-      title=${port.id} style=${styleMap({ left: `${port.x}px`, top: `${port.y}px`, height: port.vector ? `${port.span}px` : undefined })}
+      title=${port.id} style=${styleMap({
+        left: `calc(${port.x}px - var(--diagram-block-border))`,
+        top: `calc(${port.y}px - var(--diagram-block-border))`,
+        height: port.vector ? `${port.span}px` : undefined,
+      })}
       @click=${(event: MouseEvent) => {
         event.stopPropagation();
         editor.selectPort(new PortHit(block.id, port.id, port.side));

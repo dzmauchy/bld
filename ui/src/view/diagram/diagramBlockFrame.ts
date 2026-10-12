@@ -1,5 +1,5 @@
 import type { BlockDefinition, Connection, DiagramBlock } from "core";
-import { WirePoint } from "./geometry.js";
+import { DiagramGrid, WirePoint } from "./geometry.js";
 
 interface PortSpec {
   id: string;
@@ -12,7 +12,7 @@ class BlockContentWidth {
 
   static forDefinition(definition: BlockDefinition): number {
     const minimum = definition.config.size > 0 ? 72 : 48;
-    return Math.ceil(Math.max(minimum, BlockContentWidth.labelWidth(definition.title) + 22));
+    return DiagramGrid.ceil(Math.max(minimum, BlockContentWidth.labelWidth(definition.title) + 22));
   }
 
   private static labelWidth(title: string): number {
@@ -139,11 +139,11 @@ export class FramePort {
  * longer fit.
  */
 export class DiagramBlockFrame {
-  static readonly minWidth = 48;
-  static readonly minHeight = 64;
-  static readonly portPitch = 24;
-  static readonly lanePitch = 18;
-  static readonly lanePadding = 8;
+  static readonly minWidth = DiagramGrid.ceil(48);
+  static readonly minHeight = DiagramGrid.ceil(64);
+  static readonly portPitch = DiagramGrid.ceil(24);
+  static readonly lanePitch = 2 * DiagramGrid.spacing;
+  static readonly lanePadding = DiagramGrid.spacing;
 
   private constructor(
     readonly width: number,
@@ -186,11 +186,11 @@ export class DiagramBlockFrame {
     const outputFans = outputs.map((spec) => layout.fan("output", spec));
     const tallest = Math.max(0, ...inputFans.map((fan) => fan.span), ...outputFans.map((fan) => fan.span));
     const count = Math.max(inputs.length, outputs.length, 1);
-    const height = Math.max(
+    const height = DiagramGrid.ceil(Math.max(
       DiagramBlockFrame.minHeight,
       count * DiagramBlockFrame.portPitch,
       tallest + DiagramBlockFrame.lanePadding,
-    );
+    ));
     const ports = [
       ...DiagramBlockFrame.along("input", inputs, inputFans, height, width),
       ...DiagramBlockFrame.along("output", outputs, outputFans, height, width),
@@ -202,7 +202,7 @@ export class DiagramBlockFrame {
     const x = side === "input" ? 0 : width;
     return specs.map((spec, index) => {
       const fan = fans[index] ?? new ChannelFan(spec.vector, []);
-      const y = Math.round((height * (index + 0.5)) / specs.length);
+      const y = DiagramGrid.snap((height * (index + 0.5)) / specs.length);
       return new FramePort(spec.id, side, x, y, spec.vector, fan.lanes, fan.indexes);
     });
   }
@@ -223,14 +223,15 @@ export class PlacedBlock {
   ) {}
 
   static from(block: DiagramBlock, connections: readonly Connection[] = []): PlacedBlock {
+    const position = DiagramGrid.point(block.x, block.y);
     return new PlacedBlock(
       block.id,
       block.ref,
       block.definition.title,
       block.definition.icon,
       block.definition.category,
-      block.x,
-      block.y,
+      position.x,
+      position.y,
       DiagramBlockFrame.of(block, connections),
       block.definition.config.size > 0,
     );

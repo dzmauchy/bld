@@ -2,7 +2,7 @@ import { Diagram, type BlockDefinition, type Connection } from "core";
 import { signal } from "@lit-labs/signals";
 import { MaxGraphWireRouter } from "./maxGraphWireRouter.js";
 import type { WireRouter } from "./wireRouter.js";
-import { CanvasPoint, OrthogonalRoute, WirePoint } from "./geometry.js";
+import { CanvasPoint, DiagramGrid, OrthogonalRoute, WirePoint } from "./geometry.js";
 import { DiagramBlockFrame, PlacedBlock } from "./diagramBlockFrame.js";
 import { DiagramConnector, PortHit } from "./diagramConnector.js";
 import { BlockMoveGesture, PointerGesture, StampGesture, type DiagramGestureHost } from "./diagramGestures.js";
@@ -140,7 +140,9 @@ export class DiagramEditor implements DiagramGestureHost {
     const rect = canvas.getBoundingClientRect();
     if (!CanvasPoint.inside(rect, clientX, clientY)) return;
     const frame = DiagramBlockFrame.forDefinition(definition);
-    const at = CanvasPoint.centered(CanvasPoint.relative(rect, clientX, clientY), frame.width, frame.height);
+    const relative = CanvasPoint.relative(rect, clientX, clientY);
+    const centered = CanvasPoint.centered(new WirePoint(relative.x + canvas.scrollLeft, relative.y + canvas.scrollTop), frame.width, frame.height);
+    const at = DiagramGrid.point(centered.x, centered.y);
     const block = this.diagram.addBlock(definition, { x: at.x, y: at.y });
     this.router.upsertBlock(block);
     this.publishPlaced();
@@ -168,7 +170,8 @@ export class DiagramEditor implements DiagramGestureHost {
   moveBlock(blockId: string, x: number, y: number): void {
     const block = this.diagram.getBlock(blockId);
     if (!block) return;
-    block.setPosition(Math.max(0, Math.round(x)), Math.max(0, Math.round(y)));
+    const position = DiagramGrid.point(x, y);
+    block.setPosition(position.x, position.y);
     this.router.upsertBlock(block);
     this.refreshProvisional(blockId);
     this.publishPlaced();
@@ -176,7 +179,7 @@ export class DiagramEditor implements DiagramGestureHost {
 
   blockOrigin(blockId: string): WirePoint | undefined {
     const block = this.diagram.getBlock(blockId);
-    return block ? new WirePoint(block.x, block.y) : undefined;
+    return block ? DiagramGrid.point(block.x, block.y) : undefined;
   }
 
   setMoving(blockId: string | undefined): void {

@@ -6,6 +6,23 @@ export class WirePoint {
   ) {}
 }
 
+/** Shared canvas grid for block positions, dimensions, and port anchors. */
+export class DiagramGrid {
+  static readonly spacing = 10;
+
+  static snap(value: number): number {
+    return Math.round(value / this.spacing) * this.spacing;
+  }
+
+  static ceil(value: number): number {
+    return Math.ceil(value / this.spacing) * this.spacing;
+  }
+
+  static point(x: number, y: number): WirePoint {
+    return new WirePoint(Math.max(0, this.snap(x)), Math.max(0, this.snap(y)));
+  }
+}
+
 /** Pointer travel used to tell a click from a drag. */
 export class PointerTravel {
   constructor(
@@ -31,7 +48,7 @@ export class CanvasPoint {
 
   /** Top-left of a block centered on `point`, clamped so it stays on the canvas. */
   static centered(point: WirePoint, width: number, height: number): WirePoint {
-    return new WirePoint(Math.max(0, Math.round(point.x - width / 2)), Math.max(0, Math.round(point.y - height / 2)));
+    return new WirePoint(Math.max(0, point.x - width / 2), Math.max(0, point.y - height / 2));
   }
 }
 
@@ -49,4 +66,3 @@ export class WirePolyline {
     return points.map((point) => `${point.x},${point.y}`).join(" ");
   }
 }
-

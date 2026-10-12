@@ -38,9 +38,9 @@ function demoLibrary(): Library {
 
 test("distributes input and output ports along the block's left and right sides", () => {
   const frame = DiagramBlockFrame.fromPorts(["downstream"], ["channels", "extra"]);
-  expect(frame.port("input", "downstream")).toMatchObject({ x: 0, y: 32 });
-  expect(frame.port("output", "channels")).toMatchObject({ x: frame.width, y: 16 });
-  expect(frame.port("output", "extra")).toMatchObject({ x: frame.width, y: 48 });
+  expect(frame.port("input", "downstream")).toMatchObject({ x: 0, y: 40 });
+  expect(frame.port("output", "channels")).toMatchObject({ x: frame.width, y: 20 });
+  expect(frame.port("output", "extra")).toMatchObject({ x: frame.width, y: 50 });
 });
 
 test("arms a palette block until the same block is clicked again", () => {
@@ -141,6 +141,18 @@ test("connects an output to an input from either endpoint order", () => {
   expect(connector.tryConnect(new PortHit(scope.id, "channels", "output"), new PortHit(constant.id, "downstream", "input"))).toBeUndefined();
   const other = diagram.addBlock("ScopeF32", { x: 10, y: 120 });
   expect(connector.tryConnect(new PortHit(other.id, "channels", "output"), new PortHit(constant.id, "downstream", "input"))).toBeUndefined();
+});
+
+test("retains grid-aligned ports when rendering a block with an imported off-grid position", () => {
+  const diagram = new Diagram("diagram", "Diagram", demoLibrary().palette);
+  const block = diagram.addBlock("SumF32", { x: 13, y: 27 });
+  const placed = PlacedBlock.from(block);
+  expect([placed.x, placed.y]).toEqual([10, 30]);
+  for (const port of placed.frame.ports) {
+    const anchor = placed.anchor(port.side, port.id)!;
+    expect(anchor.x % 10).toBe(0);
+    expect(anchor.y % 10).toBe(0);
+  }
 });
 
 test("gives each scope output its own channel when several sources are connected", () => {

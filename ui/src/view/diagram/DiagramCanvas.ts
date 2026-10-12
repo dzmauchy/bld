@@ -8,6 +8,7 @@ import type { ScopeCaptureBoard } from "../scope/scopeCapture.js";
 import "./DiagramBlockView.js";
 import "./BlockConfigDialog.js";
 import "../scope/ScopePlot.js";
+import { DiagramGrid } from "./geometry.js";
 
 export class DiagramCanvas extends SignalElement {
   static override properties = { editor: { attribute: false }, board: { attribute: false }, runner: { attribute: false } };
@@ -44,6 +45,7 @@ export class DiagramCanvas extends SignalElement {
     const inspectedId = editor.inspectedId();
     return html`<section class="region region-diagram" data-region="diagram">
       <div class=${`diagram-canvas${editor.armedId() ? " is-armed" : ""}`} data-diagram-canvas tabindex="0"
+        style=${styleMap({ "--diagram-grid-spacing": `${DiagramGrid.spacing}px` })}
         aria-label="Diagram canvas" data-armed=${editor.armedId() ?? ""} @pointerdown=${(event: PointerEvent) => editor.canvasPointerDown(event)}>
         <div class="diagram-extent" style=${styleMap({ width: `${width}px`, height: `${height}px` })}></div>
         <svg class="diagram-wires" data-diagram-wires>

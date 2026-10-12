@@ -221,7 +221,7 @@ test("opens the current palette over a black diagram workspace", async ({ page }
   await expect.poll(() => diagram.within("[data-block-ref=ScopeF32]").text()).toContain("Scope");
   const placed = diagram.within("[data-block-ref=ScopeF32]");
   const placedBox = await placed.boundingBox();
-  expect(placedBox!.height).toBeLessThan(70);
+  expect(placedBox!.height).toBe(70);
   expect(placedBox!.width).toBeLessThan(90);
   expect(await placed.evaluate((element) => getComputedStyle(element).backgroundImage)).toMatch(/^url\(/);
   expect(await placed.evaluate((element) => getComputedStyle(element).backgroundImage)).toContain("linear-gradient");
