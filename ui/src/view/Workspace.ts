@@ -10,6 +10,7 @@ import { PaletteContentWidth } from "./palette/paletteColumnWidth.js";
 import "./palette/PalettePanel.js";
 import "./diagram/DiagramCanvas.js";
 import "./toolbar/WorkspaceToolbar.js";
+import "./run/RunFeedback.js";
 
 export class Workspace extends SignalElement {
   static override properties = { libraries: { attribute: false } };
@@ -45,7 +46,9 @@ export class Workspace extends SignalElement {
   protected override render() {
     if (!this.editor || !this.runner || !this.libraries) return nothing;
     return html`
-      <div class="workspace-shell" @keydown=${(event: KeyboardEvent) => this.editor?.keyDown(event)}>
+      <div class="workspace-shell" ?inert=${this.runner.phase() === "starting" || Boolean(this.runner.error())}
+        aria-busy=${String(this.runner.phase() === "starting")}
+        @keydown=${(event: KeyboardEvent) => this.editor?.keyDown(event)}>
         <bld-workspace-toolbar .runner=${this.runner} .editor=${this.editor} .paletteOpen=${this.paletteOpen.get()}
           .onTogglePalette=${() => this.paletteOpen.set(!this.paletteOpen.get())}></bld-workspace-toolbar>
         <div class="workspace-content">
@@ -53,7 +56,8 @@ export class Workspace extends SignalElement {
           <bld-palette-panel id="workspace-palette" ?hidden=${!this.paletteOpen.get()}
             .libraries=${this.libraries} .editor=${this.editor}></bld-palette-panel>
         </div>
-      </div>`;
+      </div>
+      <bld-run-feedback .runner=${this.runner}></bld-run-feedback>`;
   }
 }
 

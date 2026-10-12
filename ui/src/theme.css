@@ -16,6 +16,7 @@ bld-diagram-block,
 bld-port-button,
 bld-config-button,
 bld-block-config-dialog,
+bld-run-feedback,
 bld-scope-plot {
   display: contents;
 }
@@ -690,6 +691,43 @@ bld-palette-panel[hidden] {
   background: #121212;
   color: #ffffff;
   border: 1px solid #2b2b2b;
+}
+
+.run-feedback {
+  --width: 26rem;
+}
+
+.run-feedback::part(dialog) {
+  background: #121212;
+  color: #ffffff;
+  border: 1px solid #2b2b2b;
+}
+
+.compile-progress {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 16px;
+  padding: 12px;
+}
+
+.compile-progress wa-spinner {
+  font-size: 28px;
+}
+
+.run-error-message {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.run-error-dismiss {
+  padding: 8px 20px;
+  border: 1px solid #515965;
+  border-radius: 6px;
+  background: #24282e;
+  color: #ffffff;
+  font: inherit;
+  cursor: pointer;
 }
 
 .block-config-form {

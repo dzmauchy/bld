@@ -119,8 +119,48 @@ test("keeps the run control idle when compilation fails", async () => {
     await runner.toggle();
     expect(runner.phase()).toBe("idle");
     expect(runner.status()).toBe("port mismatch");
+    expect(runner.error()).toBe("port mismatch");
+    runner.dismissError();
+    expect(runner.error()).toBeUndefined();
     expect(runtime.closed).toBe(false);
   }
+});
+
+test("rejects missing connections before invoking the compiler or runtime", async () => {
+  const { diagram } = connectedScope();
+  diagram.disconnect(diagram.getConnections()[0]!.id);
+  let compileCount = 0;
+  let runtimeCount = 0;
+  const runner = new DiagramRunSession(diagram, new ScopeCaptureBoard(), () => {
+    compileCount++;
+    return { compile: async () => new Uint8Array([1]) };
+  }, () => {
+    runtimeCount++;
+    return new FakeRuntime(() => undefined);
+  });
+  await runner.run();
+  expect(runner.phase()).toBe("idle");
+  expect(runner.error()).toContain("sin: port “downstream” has no connection.");
+  expect(compileCount).toBe(0);
+  expect(runtimeCount).toBe(0);
+});
+
+test("closes the session and runtime when startup fails after instantiation", async () => {
+  const { diagram } = connectedScope();
+  const session = new FakeSession();
+  session.activeIntervalCount = async () => { throw new Error("Interval setup failed"); };
+  let runtimeClosed = false;
+  const runner = new DiagramRunSession(diagram, new ScopeCaptureBoard(), () => ({
+    compile: async () => new Uint8Array([1]),
+  }), () => ({
+    instantiate: async () => session,
+    close: async () => { runtimeClosed = true; },
+  }));
+  await runner.run();
+  expect(runner.phase()).toBe("idle");
+  expect(runner.error()).toBe("Interval setup failed");
+  expect(session.closed).toBe(true);
+  expect(runtimeClosed).toBe(true);
 });
 
 class FakeSession implements RunningSession {

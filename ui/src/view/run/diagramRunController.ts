@@ -16,6 +16,7 @@ export class DiagramRunController {
   readonly phase: () => RunPhase;
   readonly status: () => string;
   readonly revision: () => number;
+  readonly error: () => string | undefined;
   private readonly session: DiagramRunSession;
 
   constructor(
@@ -33,13 +34,16 @@ export class DiagramRunController {
     const phase = signal<RunPhase>("idle");
     const status = signal("");
     const revision = signal(0);
+    const error = signal<string | undefined>(undefined);
     this.phase = () => phase.get();
     this.status = () => status.get();
     this.revision = () => revision.get();
+    this.error = () => error.get();
     const listener: RunSessionListener = {
       phase: (value) => phase.set(value),
       status: (value) => status.set(value),
       revision: (value) => revision.set(value),
+      error: (value) => error.set(value),
     };
     this.session = new DiagramRunSession(diagram, board, compiler, openRuntime, listener, openClock);
   }
@@ -50,5 +54,9 @@ export class DiagramRunController {
 
   stop(): Promise<void> {
     return this.session.stop();
+  }
+
+  dismissError(): void {
+    this.session.dismissError();
   }
 }

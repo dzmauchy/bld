@@ -1,4 +1,4 @@
-import { closePalette, openPalette, expect, test, element, baseURL } from "./fixtures/browser.ts";
+import { closePalette, openPalette, expect, test, element, baseURL, dialog, artifactPath } from "./fixtures/browser.ts";
 
 interface PreparationProbe {
   requests: string[];
@@ -57,10 +57,19 @@ test("prepares the compiler at startup and shares its pending promise with Run",
   const run = element(page, "[data-run-toggle]");
   await run.click();
   await expect.poll(() => run.getAttribute("data-run-state")).toBe("starting");
+  const blocker = dialog(page, "Compiling diagram");
+  await expect.poll(() => blocker.visible()).toBe(true);
+  expect(await element(page, ".workspace-shell").getAttribute("inert")).toBe("");
+  await page.keyboard.press("Escape");
+  await page.mouse.click(28, 24);
+  expect(await blocker.visible()).toBe(true);
+  expect(await element(page, "[data-palette-toggle]").getAttribute("aria-expanded")).toBe("false");
+  await page.screenshot({ path: artifactPath("compiling-dialog.png") });
   expect(await requests()).toEqual(["init"]);
   await page.evaluate(() =>
     (window as unknown as { preparationProbe: PreparationProbe }).preparationProbe.release());
   await expect.poll(() => run.getAttribute("data-run-state")).toBe("running");
+  await expect.poll(() => blocker.visible()).toBe(false);
   await expect.poll(() => element(page, "[data-run-status]").text()).toBe("");
   await run.click();
   await expect.poll(() => run.getAttribute("data-run-state")).toBe("idle");

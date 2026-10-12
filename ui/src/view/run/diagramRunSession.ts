@@ -1,6 +1,7 @@
 import type { Diagram } from "core";
 import type { ScopeCaptureBoard } from "../scope/scopeCapture.js";
 import { PinSample } from "./pinSample.js";
+import { DiagramConnectionValidator } from "./diagramConnectionValidator.js";
 import { IntervalSchedule, SimulationClock, type RunningRuntime, type RunningSession, type SessionClock } from "./sessionClock.js";
 
 export type RunPhase = "idle" | "starting" | "running" | "stopping";
@@ -13,6 +14,7 @@ export interface RunSessionListener {
   phase(phase: RunPhase): void;
   status(status: string): void;
   revision(revision: number): void;
+  error?(error: string | undefined): void;
 }
 
 /** Compiles the open diagram, runs it, and feeds scope pins into the capture board. */
@@ -25,6 +27,7 @@ export class DiagramRunSession {
   private phaseValue: RunPhase = "idle";
   private statusValue = "";
   private revisionValue = 0;
+  private errorValue: string | undefined;
 
   constructor(
     private readonly diagram: Diagram,
@@ -52,6 +55,14 @@ export class DiagramRunSession {
     return this.revisionValue;
   }
 
+  error(): string | undefined {
+    return this.errorValue;
+  }
+
+  dismissError(): void {
+    this.setError(undefined);
+  }
+
   async toggle(): Promise<void> {
     if (this.phaseValue === "stopping") return;
     if (this.phaseValue === "idle") await this.run();
@@ -61,10 +72,12 @@ export class DiagramRunSession {
   async run(): Promise<void> {
     if (this.phaseValue !== "idle") return;
     const token = ++this.token;
+    this.setError(undefined);
     this.setPhase("starting");
     this.setStatus("Compiling");
     let runtime: RunningRuntime | undefined;
     try {
+      new DiagramConnectionValidator().validate(this.diagram);
       this.board.prepare(this.diagram);
       const compiler = await this.compiler();
       if (token !== this.token) return;
@@ -85,8 +98,7 @@ export class DiagramRunSession {
       if (period !== undefined) {
         const onTick = () => this.publish();
         const onError = (error: unknown) => {
-          this.setStatus(messageOf(error));
-          void this.stop();
+          void this.fail(error);
         };
         const clock = this.openClock
           ? this.openClock(session, period, onTick, onError)
@@ -103,8 +115,7 @@ export class DiagramRunSession {
     } catch (error) {
       if (runtime) await runtime.close().catch(() => undefined);
       if (token !== this.token) return;
-      this.setStatus(messageOf(error));
-      this.setPhase("idle");
+      await this.fail(error);
     }
   }
 
@@ -132,6 +143,18 @@ export class DiagramRunSession {
   private setStatus(status: string): void {
     this.statusValue = status;
     this.listener?.status(status);
+  }
+
+  private setError(error: string | undefined): void {
+    this.errorValue = error;
+    this.listener?.error?.(error);
+  }
+
+  private async fail(error: unknown): Promise<void> {
+    const message = messageOf(error);
+    this.setStatus(message);
+    this.setError(message);
+    await this.stop();
   }
 
   private note(message: unknown): void {
