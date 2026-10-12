@@ -77,12 +77,13 @@ export class WorkerCppWasmCompiler implements ICppCompiler {
     this.client = new RpcClient(thread);
   }
 
-  async warmup(): Promise<void> {
+  /** Shared preparation promise used by startup, AST analysis, and compilation. */
+  warmup(): Promise<void> {
     this.ready ??= this.init().catch((error: unknown) => {
       this.ready = undefined;
       throw error;
     });
-    await this.ready;
+    return this.ready;
   }
 
   async compile(files: Map<string, string>): Promise<Uint8Array> {

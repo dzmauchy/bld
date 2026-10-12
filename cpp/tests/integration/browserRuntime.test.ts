@@ -32,6 +32,10 @@ test("AST clients share the compiler runtime and can reuse the shared API after 
   try {
     const dumper = BrowserClangAstDumper.shared();
     const files = new Map([["main.cpp", "int value;"]]);
+    const preparation = runtime.prepareCompiler();
+    expect(runtime.prepareCompiler()).toBe(preparation);
+    expect(runtime.workerCreateCount).toBe(1);
+    await preparation;
     await dumper.dumpAsync(files, "main.cpp");
     expect(runtime.workerCreateCount).toBe(1);
     expect(BrowserCppRuntime.shared()).toBe(runtime);

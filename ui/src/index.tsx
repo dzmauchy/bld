@@ -7,10 +7,14 @@ import "@awesome.me/webawesome/dist/components/split-panel/split-panel.js";
 import "./theme.css";
 import { render } from "@solidjs/web";
 import { App } from "./App.js";
-import { BrowserClangAstDumper, ClangAstDumper, ToolchainServiceWorker } from "cpp";
+import { BrowserClangAstDumper, BrowserCppRuntime, ClangAstDumper, ToolchainServiceWorker } from "cpp";
 import { BldSplash } from "./view/splash/BldSplash.js";
 
 await new ToolchainServiceWorker().claim();
+// Start downloading and compiling clang/lld while the workspace loads. Both
+// diagram analysis and Run await this promise through the shared compiler.
+// A failed preload is retried by the next job, which reports its own error.
+void BrowserCppRuntime.shared().prepareCompiler().catch(() => {});
 ClangAstDumper.register(BrowserClangAstDumper.shared());
 
 const splash = document.querySelector(BldSplash.tagName);

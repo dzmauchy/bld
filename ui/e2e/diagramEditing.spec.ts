@@ -177,7 +177,9 @@ test("routes a connector around a block with maxGraph", async ({ page }) => {
   await move("SumF32", 0, 140);
   await move("ScopeF32", 0, -60);
   await move("ConstF32", 0, 70);
-  expect(wasmRequests).toEqual([]);
+  // Startup prepares the two compiler modules; editing starts no diagram wasm.
+  expect(wasmRequests.every((url) => /\/(clang|lld)\.wasm$/.test(new URL(url).pathname))).toBe(true);
+  expect(new Set(wasmRequests).size).toBe(wasmRequests.length);
   expect(errors).toEqual([]);
 });
 

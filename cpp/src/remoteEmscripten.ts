@@ -2,7 +2,9 @@ import type { EmscriptenModuleFactory, EmscriptenModuleOptions } from "./emscrip
 
 /**
  * Loads an Emscripten JS glue module and its wasm from remote URLs.
- * The compiled module is kept so later boots do not download the wasm again.
+ * Retains the compilation promise and compiled module across tool instances.
+ * Worker preparation starts these promises; later jobs instantiate the same
+ * module with fresh memory without downloading or compiling it again.
  */
 export class RemoteEmscriptenModule {
   private factory: Promise<EmscriptenModuleFactory> | undefined;

@@ -32,6 +32,41 @@ class InProcessWorker extends Thread {
 }
 
 describe("reusable compiler worker", () => {
+  test("AST and compile jobs await the pending startup promise and reuse it afterwards", async () => {
+    const gate = Promise.withResolvers<void>();
+    const started = Promise.withResolvers<void>();
+    const requests: string[] = [];
+    const wasm = new Uint8Array([0, 97, 115, 109]);
+    const worker = new InProcessWorker(async (data): Promise<WorkerResponse> => {
+      const { id, type } = data as { id: number; type: string };
+      requests.push(type);
+      if (type === "init") {
+        started.resolve();
+        await gate.promise;
+      }
+      return { id, type: "ok", result: 0, ast: {}, files: { "/work/a.wasm": wasm } };
+    });
+    const compiler = new WorkerCppWasmCompiler(worker);
+    try {
+      const startup = compiler.warmup();
+      expect(compiler.warmup()).toBe(startup);
+      await started.promise;
+      const analysis = compiler.dumpAst(new Map(), "main.cpp");
+      const compiled = compiler.compile(new Map());
+      await Promise.resolve();
+      expect(requests).toEqual(["init"]);
+      gate.resolve();
+      await Promise.all([startup, analysis]);
+      expect(await compiled).toEqual(wasm);
+      expect(compiler.warmup()).toBe(startup);
+      await compiler.compile(new Map());
+      expect(requests).toEqual(["init", "dump-ast", "compile", "compile"]);
+    } finally {
+      gate.resolve();
+      await compiler.close();
+    }
+  });
+
   test("queues overlapping AST and compile jobs and continues after a failed job", async () => {
     const gate = Promise.withResolvers<void>();
     const started = Promise.withResolvers<void>();

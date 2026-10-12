@@ -49,8 +49,13 @@ export class BrowserCppRuntime {
     return this.createdWorkers;
   }
 
+  /** Prepares clang/lld in the shared worker without starting an execution worker. */
+  prepareCompiler(): Promise<void> {
+    return this.compiler.warmup();
+  }
+
   async warmup(): Promise<void> {
-    await Promise.all([this.compiler.warmup(), this.executor.warmup()]);
+    await Promise.all([this.prepareCompiler(), this.executor.warmup()]);
   }
 
   async close(): Promise<void> {
