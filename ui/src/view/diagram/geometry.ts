@@ -14,8 +14,8 @@ export class DiagramGrid {
     return Math.round(value / this.spacing) * this.spacing;
   }
 
-  static ceil(value: number): number {
-    return Math.ceil(value / this.spacing) * this.spacing;
+  static ceil(value: number, spacing = this.spacing): number {
+    return Math.ceil(value / spacing) * spacing;
   }
 
   static point(x: number, y: number): WirePoint {

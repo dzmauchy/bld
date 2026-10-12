@@ -40,7 +40,11 @@ test("distributes input and output ports along the block's left and right sides"
   const frame = DiagramBlockFrame.fromPorts(["downstream"], ["channels", "extra"]);
   expect(frame.port("input", "downstream")).toMatchObject({ x: 0, y: 40 });
   expect(frame.port("output", "channels")).toMatchObject({ x: frame.width, y: 20 });
-  expect(frame.port("output", "extra")).toMatchObject({ x: frame.width, y: 50 });
+  expect(frame.port("output", "extra")).toMatchObject({ x: frame.width, y: 60 });
+  expect(frame.height).toBe(80);
+  const expanded = DiagramBlockFrame.fromPorts([], ["first", "second", "third"]);
+  expect(expanded.height).toBe(100);
+  for (const port of expanded.ports) expect(port.y % 10).toBe(0);
 });
 
 test("arms a palette block until the same block is clicked again", () => {

@@ -39,6 +39,7 @@ test("snaps block placement and each drag update to the nearest 10px grid point"
   await expect.poll(position).toEqual({ x: "200px", y: "120px" });
   await expectPortsOnGrid(page);
   const box = (await block.boundingBox())!;
+  expect(box.height).toBe(80);
   const x = box.x + box.width / 2;
   const y = box.y + box.height / 2;
   await page.mouse.move(x, y);
@@ -65,6 +66,6 @@ test("keeps placement and ports snapped in canvas coordinates after scrolling", 
   await insert(page, "SinF32", 233, 157);
   await expect.poll(() => element(page, "[data-block-ref=SinF32]").evaluate((node) => ({
     x: (node as HTMLElement).style.left, y: (node as HTMLElement).style.top,
-  }))).toEqual({ x: "210px", y: "300px" });
+  }))).toEqual({ x: "210px", y: "290px" });
   await expectPortsOnGrid(page);
 });

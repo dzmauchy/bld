@@ -140,7 +140,8 @@ export class FramePort {
  */
 export class DiagramBlockFrame {
   static readonly minWidth = DiagramGrid.ceil(48);
-  static readonly minHeight = DiagramGrid.ceil(64);
+  static readonly heightSpacing = 2 * DiagramGrid.spacing;
+  static readonly minHeight = DiagramGrid.ceil(64, DiagramBlockFrame.heightSpacing);
   static readonly portPitch = DiagramGrid.ceil(24);
   static readonly lanePitch = 2 * DiagramGrid.spacing;
   static readonly lanePadding = DiagramGrid.spacing;
@@ -190,7 +191,7 @@ export class DiagramBlockFrame {
       DiagramBlockFrame.minHeight,
       count * DiagramBlockFrame.portPitch,
       tallest + DiagramBlockFrame.lanePadding,
-    ));
+    ), DiagramBlockFrame.heightSpacing);
     const ports = [
       ...DiagramBlockFrame.along("input", inputs, inputFans, height, width),
       ...DiagramBlockFrame.along("output", outputs, outputFans, height, width),
