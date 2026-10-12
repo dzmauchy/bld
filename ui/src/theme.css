@@ -158,7 +158,7 @@ wa-split-panel::part(panel) {
   --port-outset: calc(var(--port-size) / 2 - 1px);
   --port-stub: 1px;
   --port-rail: 1px;
-  --palette-button-size: 2.5rem;
+  --palette-button-size: 3.375rem;
   --palette-button-width: 4.25rem;
   --palette-column-slack: 0.1rem;
   --palette-port-emphasis: 0.45;
@@ -265,8 +265,9 @@ wa-split-panel::part(panel) {
 }
 
 .region-palette .palette-item.flow-node {
+  position: relative;
   display: grid;
-  grid-template-columns: auto minmax(0, 1fr) auto;
+  grid-template-columns: minmax(0, 1fr);
   align-items: center;
   width: var(--palette-button-width);
   min-width: 0;
@@ -274,9 +275,9 @@ wa-split-panel::part(panel) {
   min-height: 0;
   box-sizing: border-box;
   overflow: visible;
-  background: #191f24;
+  background-color: #202427;
   color: #dee2e6;
-  border: 1px solid #38414a;
+  border: 1px solid #42484d;
   border-radius: 3px;
   box-shadow: none;
   transition: background-color 160ms ease, border-color 160ms ease;
@@ -289,7 +290,9 @@ wa-split-panel::part(panel) {
 }
 
 .region-palette .palette-item.flow-node:hover {
-  background: #222a31;
+  --block-surface-top: #384047;
+  --block-surface-bottom: #202629;
+  background-color: #2a2e31;
   border-color: #55616d;
 }
 
@@ -341,9 +344,9 @@ wa-split-panel::part(panel) {
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  gap: 1px;
+  gap: 4px;
   min-width: 0;
-  padding: 2px 0;
+  padding: 2px 3px;
 }
 
 .region-palette .flow-node-title {
@@ -361,21 +364,25 @@ wa-split-panel::part(panel) {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 14px;
-  height: 14px;
+  width: 24px;
+  height: 24px;
   color: var(--block-accent, #0d6efd);
   line-height: 0;
 }
 
 .region-palette .flow-node-icon svg {
-  width: 14px;
-  height: 14px;
+  display: block;
+  width: 24px;
+  height: 24px;
   stroke: currentColor;
   fill: none;
-  overflow: visible;
+  overflow: hidden;
 }
 
 .region-palette .flow-node-port-col {
+  position: absolute;
+  top: 50%;
+  transform: translateY(-50%);
   display: flex;
   flex-direction: column;
   justify-content: center;
@@ -386,10 +393,12 @@ wa-split-panel::part(panel) {
 }
 
 .region-palette .flow-node-port-col.is-in {
+  left: 0;
   align-items: flex-start;
 }
 
 .region-palette .flow-node-port-col.is-out {
+  right: 0;
   align-items: flex-end;
 }
 
@@ -527,8 +536,8 @@ wa-split-panel::part(panel) {
   position: absolute;
   box-sizing: border-box;
   border-radius: 3px;
-  border: 1px solid #38414a;
-  background: #191f24;
+  border: 1px solid #42484d;
+  background-color: #202427;
   color: #dee2e6;
   cursor: grab;
   touch-action: none;
@@ -537,7 +546,9 @@ wa-split-panel::part(panel) {
 }
 
 .diagram-block:hover {
-  background: #222a31;
+  --block-surface-top: #384047;
+  --block-surface-bottom: #202629;
+  background-color: #2a2e31;
   border-color: #55616d;
 }
 
@@ -553,24 +564,30 @@ wa-split-panel::part(panel) {
 .diagram-block-body {
   height: 100%;
   display: flex;
-  flex-direction: row;
+  flex-direction: column;
   align-items: center;
   justify-content: center;
-  gap: 8px;
+  gap: 4px;
   box-sizing: border-box;
-  padding: 0 32px 0 16px;
+  padding: 7px 10px;
   pointer-events: none;
 }
 
 .diagram-block-icon {
   display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  line-height: 0;
   flex: 0 0 auto;
   color: var(--block-accent, #0d6efd);
 }
 
 .diagram-block-icon svg {
-  width: 14px;
-  height: 14px;
+  display: block;
+  width: 28px;
+  height: 28px;
   stroke: currentColor;
   fill: none;
 }
@@ -587,15 +604,14 @@ wa-split-panel::part(panel) {
 
 .diagram-block-config {
   position: absolute;
-  top: 50%;
-  right: 6px;
-  transform: translateY(-50%);
+  top: 4px;
+  right: 4px;
   z-index: 5;
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 22px;
-  height: 22px;
+  width: 18px;
+  height: 18px;
   padding: 0;
   border: 0;
   border-radius: 2px;
@@ -748,9 +764,18 @@ wa-split-panel::part(panel) {
   box-sizing: border-box;
   border-radius: 3px;
   border: 1px solid #7a8896;
-  background: #191f24;
+  background-color: #202427;
   color: #dee2e6;
   font-size: 12px;
+}
+
+.region-palette .palette-item.flow-node,
+.diagram-block,
+.palette-drag-ghost {
+  background-image: url("../public/textures/matte.svg"),
+    linear-gradient(160deg, var(--block-surface-top, #30373c), #202427 58%, var(--block-surface-bottom, #181c1f));
+  background-size: 128px 128px, 100% 100%;
+  background-repeat: repeat, no-repeat;
 }
 
 .scope-plot {

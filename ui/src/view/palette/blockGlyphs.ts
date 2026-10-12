@@ -97,13 +97,12 @@ export class BlockGlyphCatalog {
 
   constructor(sources: Readonly<Record<string, string>> = glyphSources) {
     for (const [file, svg] of Object.entries(sources)) {
-      this.byStem.set(file.replace(/\.svg$/i, ""), innerSvg(svg));
+      this.byStem.set(file.replace(/\.svg$/i, ""), iconSvg(svg));
     }
   }
 
   markup(icon: string | undefined): string {
-    const body = this.resolve(icon);
-    return `<svg xmlns="http://www.w3.org/2000/svg" class="block-icon" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${body}</svg>`;
+    return this.resolve(icon);
   }
 
   private resolve(icon: string | undefined): string {
@@ -126,7 +125,6 @@ function stemOf(icon: string | undefined): string {
   return file.replace(/\.(svg|png)$/i, "");
 }
 
-function innerSvg(svg: string): string {
-  const match = svg.match(/<svg\b[^>]*>([\s\S]*)<\/svg>/i);
-  return (match?.[1] ?? "").trim();
+function iconSvg(svg: string): string {
+  return svg.trim().replace(/<svg\b([^>]*)>/i, '<svg$1 class="block-icon" aria-hidden="true" focusable="false">');
 }

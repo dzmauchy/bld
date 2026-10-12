@@ -94,16 +94,17 @@ test("splits a black workspace into a palette and a diagram", async ({ page }) =
   await expect(palette.locator("[data-block-id=ScopeF32] .flow-node-icon svg")).toBeVisible();
   const blockButton = await palette.locator("[data-block-id=ConstF32]").boundingBox();
   expect(blockButton).toBeTruthy();
-  expect(blockButton!.height).toBeLessThan(44);
-  expect(blockButton!.width / blockButton!.height).toBeGreaterThan(1.6);
-  expect(blockButton!.width / blockButton!.height).toBeLessThan(1.8);
+  expect(blockButton!.height).toBeLessThan(60);
+  expect(blockButton!.width / blockButton!.height).toBeGreaterThan(1.2);
+  expect(blockButton!.width / blockButton!.height).toBeLessThan(1.4);
   const blockFill = await palette.locator("[data-block-id=ConstF32], [data-block-id=SumF32], [data-block-id=ScopeF32]").evaluateAll((buttons) =>
     buttons.map((button) => ({ image: getComputedStyle(button).backgroundImage, color: getComputedStyle(button).backgroundColor })),
   );
   expect(blockFill).toHaveLength(3);
   for (const fill of blockFill) {
-    expect(fill.image).toBe("none");
-    expect(fill.color).toBe("rgb(25, 31, 36)");
+    expect(fill.image).toMatch(/^url\(/);
+    expect(fill.image).toContain("linear-gradient");
+    expect(fill.color).toBe("rgb(32, 36, 39)");
   }
   const gpioClip = await palette.locator("[data-block-id=GpioInF32] .flow-node-title").evaluate((element) => element.scrollWidth - element.clientWidth);
   expect(gpioClip).toBeLessThanOrEqual(1);
@@ -218,9 +219,21 @@ test("splits a black workspace into a palette and a diagram", async ({ page }) =
   await expect(diagram.locator("[data-block-ref=ScopeF32]")).toContainText("Scope");
   const placed = diagram.locator("[data-block-ref=ScopeF32]");
   const placedBox = await placed.boundingBox();
-  expect(placedBox!.height).toBeLessThan(50);
-  expect(await placed.evaluate((element) => getComputedStyle(element).backgroundImage)).toBe("none");
-  await page.screenshot({ path: test.info().outputPath("modern-blocks.png") });
+  expect(placedBox!.height).toBeLessThan(70);
+  expect(placedBox!.width).toBeLessThan(90);
+  expect(await placed.evaluate((element) => getComputedStyle(element).backgroundImage)).toMatch(/^url\(/);
+  expect(await placed.evaluate((element) => getComputedStyle(element).backgroundImage)).toContain("linear-gradient");
+  for (const [icon, label, size] of [
+    [placed.locator(".diagram-block-icon svg"), placed.locator(".diagram-block-title"), 28],
+    [scope.locator(".flow-node-icon svg"), scope.locator(".flow-node-title"), 24],
+  ] as const) {
+    const iconBox = await icon.boundingBox();
+    const labelBox = await label.boundingBox();
+    expect(iconBox!.width).toBe(size);
+    expect(iconBox!.y + iconBox!.height).toBeLessThan(labelBox!.y);
+    expect(await label.evaluate((element) => element.scrollWidth - element.clientWidth)).toBeLessThanOrEqual(1);
+  }
+  await page.screenshot({ path: test.info().outputPath("matte-blocks.png") });
 });
 
 test("copies all JSON schemas into ui/dist/schemas", () => {

@@ -1,3 +1,5 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round">
-  <rect x="3.5" y="3.5" width="9" height="9" rx="1"/>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" preserveAspectRatio="xMidYMid meet" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
+  <g transform="translate(12 12) scale(2) translate(-8 -8)" stroke-width="0.8">
+    <rect x="3.5" y="3.5" width="9" height="9" rx="1"/>
+  </g>
 </svg>

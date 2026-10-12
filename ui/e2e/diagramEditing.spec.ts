@@ -266,6 +266,19 @@ test("draws each multiplexed connection on its own lane and grows that port", as
   expect(departures).toHaveLength(2);
   expect(new Set(departures.map((wire) => Math.round(wire.y))).size).toBe(2);
 
+  const contentFit = await canvas.locator("[data-diagram-block]").evaluateAll((blocks) => blocks.map((block) => {
+    const label = block.querySelector(".diagram-block-title") as HTMLElement;
+    return {
+      ref: block.getAttribute("data-block-ref"),
+      width: block.getBoundingClientRect().width,
+      clipped: label.scrollWidth - label.clientWidth,
+    };
+  }));
+  for (const block of contentFit) {
+    expect(block.width).toBeLessThan(100);
+    expect(block.clipped).toBeLessThanOrEqual(1);
+  }
+  expect(contentFit.find((block) => block.ref === "SinF32")!.width).toBeLessThan(contentFit.find((block) => block.ref === "ConstF32")!.width);
   await page.screenshot({ path: test.info().outputPath("multiplexed-ports.png") });
 });
 

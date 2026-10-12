@@ -38,9 +38,9 @@ function demoLibrary(): Library {
 
 test("distributes input and output ports along the block's left and right sides", () => {
   const frame = DiagramBlockFrame.fromPorts(["downstream"], ["channels", "extra"]);
-  expect(frame.port("input", "downstream")).toMatchObject({ x: 0, y: 24 });
-  expect(frame.port("output", "channels")).toMatchObject({ x: frame.width, y: 12 });
-  expect(frame.port("output", "extra")).toMatchObject({ x: frame.width, y: 36 });
+  expect(frame.port("input", "downstream")).toMatchObject({ x: 0, y: 32 });
+  expect(frame.port("output", "channels")).toMatchObject({ x: frame.width, y: 16 });
+  expect(frame.port("output", "extra")).toMatchObject({ x: frame.width, y: 48 });
 });
 
 test("arms a palette block until the same block is clicked again", () => {

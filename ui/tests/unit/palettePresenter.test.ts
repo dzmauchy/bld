@@ -109,4 +109,15 @@ test("glyph catalog resolves library icon names to stroke svgs", () => {
   expect(glyphs.markup("sum.svg")).toContain("M8 3.2v9.6");
   expect(glyphs.markup("missing.svg")).toContain("M5.5 8h5");
   expect(glyphs.markup("scope.svg").match(/<svg/g)).toHaveLength(1);
+  expect(glyphs.markup("cos.svg")).toContain('viewBox="0 0 24 24"');
+  expect(glyphs.markup("cos.svg")).toContain('preserveAspectRatio="xMidYMid meet"');
+});
+
+test("glyph catalog preserves each SVG's viewport instead of clipping it to a fixed box", () => {
+  const glyphs = new BlockGlyphCatalog({
+    "wide.svg": '<svg viewBox="0 0 48 24" preserveAspectRatio="xMidYMid meet"><path d="M4 12H44" /></svg>',
+  });
+  expect(glyphs.markup("wide.svg")).toContain('viewBox="0 0 48 24"');
+  expect(glyphs.markup("wide.svg")).toContain('class="block-icon"');
+  expect(glyphs.markup("wide.svg").match(/<svg/g)).toHaveLength(1);
 });

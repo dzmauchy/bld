@@ -111,9 +111,9 @@ test("selects blocks and connections with a slow 10% fade and deletes a wire fro
   await expect(diagram.deleteButton).toBeDisabled();
   // A later reroute must not resurrect the deleted edge.
   const origin = await constant.boundingBox();
-  await page.mouse.move(origin!.x + 70, origin!.y + 35);
+  await page.mouse.move(origin!.x + origin!.width / 2, origin!.y + origin!.height / 2);
   await page.mouse.down();
-  await page.mouse.move(origin!.x + 70, origin!.y + 105, { steps: 8 });
+  await page.mouse.move(origin!.x + origin!.width / 2, origin!.y + origin!.height / 2 + 70, { steps: 8 });
   await page.mouse.up();
   await expect(diagram.canvas.locator("[data-connection]")).toHaveCount(0);
   await diagram.connect("ScopeF32", "ConstF32");

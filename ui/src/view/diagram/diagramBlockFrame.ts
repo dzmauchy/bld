@@ -6,6 +6,34 @@ interface PortSpec {
   vector: boolean;
 }
 
+/** Fits the stacked icon, complete label, and optional configuration control. */
+class BlockContentWidth {
+  private static readonly labelWidths = new Map<string, number>();
+
+  static forDefinition(definition: BlockDefinition): number {
+    const minimum = definition.config.size > 0 ? 72 : 48;
+    return Math.ceil(Math.max(minimum, BlockContentWidth.labelWidth(definition.title) + 22));
+  }
+
+  private static labelWidth(title: string): number {
+    if (typeof document === "undefined") return title.length * 7;
+    const cached = this.labelWidths.get(title);
+    if (cached !== undefined) return cached;
+    const label = document.createElement("span");
+    label.className = "diagram-block-title";
+    label.textContent = title;
+    Object.assign(label.style, { position: "absolute", visibility: "hidden", width: "max-content", pointerEvents: "none" });
+    document.body.appendChild(label);
+    try {
+      const width = label.getBoundingClientRect().width;
+      this.labelWidths.set(title, width);
+      return width;
+    } finally {
+      label.remove();
+    }
+  }
+}
+
 /** Channels already wired to one port, in ascending vector-index order. */
 class ChannelFan {
   readonly indexes: readonly number[];
@@ -111,8 +139,8 @@ export class FramePort {
  * longer fit.
  */
 export class DiagramBlockFrame {
-  static readonly width = 156;
-  static readonly minHeight = 44;
+  static readonly minWidth = 48;
+  static readonly minHeight = 64;
   static readonly portPitch = 24;
   static readonly lanePitch = 18;
   static readonly lanePadding = 8;
@@ -128,6 +156,7 @@ export class DiagramBlockFrame {
       block.getInputPorts().map((port) => ({ id: port.id, vector: port.vector })),
       block.getOutputPorts().map((port) => ({ id: port.id, vector: port.vector })),
       ChannelLayout.forBlock(block.id, connections),
+      BlockContentWidth.forDefinition(block.definition),
     );
   }
 
@@ -136,6 +165,7 @@ export class DiagramBlockFrame {
       [...definition.inputs.values()].map((port) => ({ id: port.id, vector: port.vector })),
       [...definition.outputs.values()].map((port) => ({ id: port.id, vector: port.vector })),
       ChannelLayout.empty(),
+      BlockContentWidth.forDefinition(definition),
     );
   }
 
@@ -151,7 +181,7 @@ export class DiagramBlockFrame {
     return this.ports.find((port) => port.side === side && port.id === portId);
   }
 
-  private static create(inputs: readonly PortSpec[], outputs: readonly PortSpec[], layout: ChannelLayout): DiagramBlockFrame {
+  private static create(inputs: readonly PortSpec[], outputs: readonly PortSpec[], layout: ChannelLayout, width = DiagramBlockFrame.minWidth): DiagramBlockFrame {
     const inputFans = inputs.map((spec) => layout.fan("input", spec));
     const outputFans = outputs.map((spec) => layout.fan("output", spec));
     const tallest = Math.max(0, ...inputFans.map((fan) => fan.span), ...outputFans.map((fan) => fan.span));
@@ -162,14 +192,14 @@ export class DiagramBlockFrame {
       tallest + DiagramBlockFrame.lanePadding,
     );
     const ports = [
-      ...DiagramBlockFrame.along("input", inputs, inputFans, height),
-      ...DiagramBlockFrame.along("output", outputs, outputFans, height),
+      ...DiagramBlockFrame.along("input", inputs, inputFans, height, width),
+      ...DiagramBlockFrame.along("output", outputs, outputFans, height, width),
     ];
-    return new DiagramBlockFrame(DiagramBlockFrame.width, height, ports);
+    return new DiagramBlockFrame(width, height, ports);
   }
 
-  private static along(side: "input" | "output", specs: readonly PortSpec[], fans: readonly ChannelFan[], height: number): FramePort[] {
-    const x = side === "input" ? 0 : DiagramBlockFrame.width;
+  private static along(side: "input" | "output", specs: readonly PortSpec[], fans: readonly ChannelFan[], height: number, width: number): FramePort[] {
+    const x = side === "input" ? 0 : width;
     return specs.map((spec, index) => {
       const fan = fans[index] ?? new ChannelFan(spec.vector, []);
       const y = Math.round((height * (index + 0.5)) / specs.length);
