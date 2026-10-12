@@ -7,7 +7,7 @@ import { GearIcon } from "./GearIcon.js";
 import type { DiagramRunController } from "../run/diagramRunController.js";
 import { ScopePlot } from "../scope/ScopePlot.js";
 import type { ScopeCaptureBoard } from "../scope/scopeCapture.js";
-import { WirePolyline } from "./geometry.js";
+import { PortHit } from "./diagramConnector.js";
 
 export function DiagramCanvas(props: { editor: DiagramEditor; board: ScopeCaptureBoard; runner: DiagramRunController }) {
   const extent = () => {
@@ -23,14 +23,13 @@ export function DiagramCanvas(props: { editor: DiagramEditor; board: ScopeCaptur
     for (const route of props.editor.routes()) {
       for (const point of route.points) grow(point.x + 32, point.y + 32);
     }
-    for (const point of props.editor.draft() ?? []) grow(point.x + 32, point.y + 32);
     return { width, height };
   };
 
   return (
     <section class="region region-diagram" data-region="diagram" slot="end">
       <div
-        class={`diagram-canvas${props.editor.armedId() ? " is-armed" : ""}${props.editor.receiving() ? " is-receiving" : ""}`}
+        class={`diagram-canvas${props.editor.armedId() ? " is-armed" : ""}`}
         data-diagram-canvas
         tabindex={0}
         aria-label="Diagram canvas"
@@ -60,9 +59,6 @@ export function DiagramCanvas(props: { editor: DiagramEditor; board: ScopeCaptur
               </g>
             )}
           </For>
-          <Show when={props.editor.draft()}>
-            {(points) => <polyline class="diagram-wire is-draft" points={WirePolyline.pointsAttribute(points())} />}
-          </Show>
         </svg>
         <For each={props.editor.placed()} keyed={(block) => block.id}>
           {(block) => (
@@ -105,8 +101,16 @@ export function DiagramCanvas(props: { editor: DiagramEditor; board: ScopeCaptur
               </Show>
               <For each={block().frame.ports} keyed={(port) => `${port.side}:${port.id}`}>
                 {(port) => (
-                  <span
-                    class={`diagram-port is-${port().side}${port().vector ? " is-vector" : ""}`}
+                  <button
+                    type="button"
+                    class={`diagram-port is-${port().side}${port().vector ? " is-vector" : ""}${props.editor.isPortSelected(block().id, port().id, port().side) ? " is-selected" : ""}`}
+                    data-selected={props.editor.isPortSelected(block().id, port().id, port().side) ? "true" : "false"}
+                    aria-pressed={props.editor.isPortSelected(block().id, port().id, port().side) ? "true" : "false"}
+                    aria-label={`${block().title} ${port().side} ${port().id}`}
+                    onClick={(event) => {
+                      event.stopPropagation();
+                      props.editor.selectPort(new PortHit(block().id, port().id, port().side));
+                    }}
                     data-port-id={port().id}
                     data-port-side={port().side}
                     data-port-lanes={port().lanes}
@@ -130,7 +134,7 @@ export function DiagramCanvas(props: { editor: DiagramEditor; board: ScopeCaptur
                         )}
                       </For>
                     </Show>
-                  </span>
+                  </button>
                 )}
               </For>
             </article>
@@ -171,25 +175,5 @@ export function DiagramCanvas(props: { editor: DiagramEditor; board: ScopeCaptur
         )}
       </Show>
     </section>
-  );
-}
-
-export function DragGhostView(props: { editor: DiagramEditor }) {
-  return (
-    <Show when={props.editor.ghost()}>
-      {(ghost) => (
-        <div
-          class={`palette-drag-ghost ${ghost().accentClass}`}
-          aria-hidden="true"
-          style={{
-            width: `${ghost().width}px`,
-            height: `${ghost().height}px`,
-            transform: `translate(${ghost().x}px, ${ghost().y}px) translate(-50%, -50%)`,
-          }}
-        >
-          {ghost().title}
-        </div>
-      )}
-    </Show>
   );
 }

@@ -57,7 +57,7 @@ test("arms a palette block until the same block is clicked again", () => {
   expect(arm.definition).toBeUndefined();
 });
 
-test("centers a dropped block on the pointer and keeps it on the canvas", () => {
+test("centers an inserted block on the pointer and keeps it on the canvas", () => {
   expect(CanvasPoint.centered(new WirePoint(200, 100), 156, 72)).toEqual(new WirePoint(122, 64));
   expect(CanvasPoint.centered(new WirePoint(10, 4), 156, 72).x).toBe(0);
   expect(CanvasPoint.centered(new WirePoint(10, 4), 156, 72).y).toBe(0);
@@ -126,7 +126,7 @@ test("gives every multiplexed connection its own lane and grows only that side",
   expect(low?.x).toBe(grown.x);
 });
 
-test("connects an output to an input from either drag direction", () => {
+test("connects an output to an input from either endpoint order", () => {
   const library = demoLibrary();
   const diagram = new Diagram("diagram", "Diagram", library.palette);
   const scope = diagram.addBlock("ScopeF32", { x: 10, y: 10 });
@@ -199,11 +199,8 @@ function pointer(x: number, y: number): PointerEvent {
 function gestureHost(selected: string[], moved: number[][]): DiagramGestureHost {
   return {
     canvasElement: () => undefined,
-    armDefinition() {},
     armedDefinition: () => undefined,
     place() {},
-    showGhost() {},
-    setReceiving() {},
     moveBlock(_blockId, x, y) {
       moved.push([x, y]);
     },
@@ -212,8 +209,5 @@ function gestureHost(selected: string[], moved: number[][]): DiagramGestureHost 
     selectBlock(blockId) {
       selected.push(blockId);
     },
-    connect() {},
-    setDraft() {},
-    anchor: () => undefined,
   };
 }

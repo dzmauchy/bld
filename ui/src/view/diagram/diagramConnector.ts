@@ -1,6 +1,6 @@
 import { Diagram, InputPortEndpoint, OutputPortEndpoint, type Connection } from "core";
 
-/** A connector the pointer is holding or releasing. */
+/** A diagram port chosen as a connection endpoint. */
 export class PortHit {
   constructor(
     readonly blockId: string,
@@ -40,7 +40,7 @@ export class PortHit {
   }
 }
 
-/** Orders a drag so the diagram connection always runs from an output to an input. */
+/** Orders endpoints so the diagram connection always runs from an output to an input. */
 export class ConnectionRequest {
   constructor(
     readonly source: PortHit,
@@ -59,7 +59,7 @@ export class ConnectionRequest {
   }
 }
 
-/** Applies a connector drag to the diagram model. */
+/** Applies a connection request to the diagram model. */
 export class DiagramConnector {
   constructor(private readonly diagram: Diagram) {}
 

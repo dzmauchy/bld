@@ -50,14 +50,3 @@ export class WirePolyline {
   }
 }
 
-/** Floating preview of a palette block following the pointer. */
-export class DragGhost {
-  constructor(
-    readonly title: string,
-    readonly x: number,
-    readonly y: number,
-    readonly width: number,
-    readonly height: number,
-    readonly accentClass: string,
-  ) {}
-}

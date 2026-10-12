@@ -2,16 +2,16 @@ import { Diagram, type BlockDefinition, type Connection } from "core";
 import { createSignal, type Accessor } from "solid-js";
 import { MaxGraphWireRouter } from "./maxGraphWireRouter.js";
 import type { WireRouter } from "./wireRouter.js";
-import { CanvasPoint, DragGhost, OrthogonalRoute, WirePoint } from "./geometry.js";
+import { CanvasPoint, OrthogonalRoute, WirePoint } from "./geometry.js";
 import { DiagramBlockFrame, PlacedBlock } from "./diagramBlockFrame.js";
 import { DiagramConnector, PortHit } from "./diagramConnector.js";
-import { BlockMoveGesture, PaletteDragGesture, PointerGesture, PortWireGesture, StampGesture, type DiagramGestureHost } from "./diagramGestures.js";
+import { BlockMoveGesture, PointerGesture, StampGesture, type DiagramGestureHost } from "./diagramGestures.js";
 import { PaletteArm } from "./paletteArm.js";
 import { ScopeBlock } from "../scope/scopeBlock.js";
 import { WireRoute } from "./wireRoute.js";
 import { DiagramSelection } from "./diagramSelection.js";
 
-/** Canvas session: palette drag, click-to-insert, block moves, and connector drags. */
+/** Canvas session: click-to-insert, block moves, and output-to-input selection. */
 export class DiagramEditor implements DiagramGestureHost {
   private readonly connector: DiagramConnector;
   private readonly arm = new PaletteArm();
@@ -27,14 +27,10 @@ export class DiagramEditor implements DiagramGestureHost {
   private readonly setRoutes: (routes: readonly WireRoute[]) => void;
   readonly armedId: Accessor<string | undefined>;
   private readonly setArmedId: (id: string | undefined) => void;
-  readonly ghost: Accessor<DragGhost | undefined>;
-  private readonly setGhost: (ghost: DragGhost | undefined) => void;
-  readonly receiving: Accessor<boolean>;
-  private readonly setReceivingSignal: (active: boolean) => void;
+  readonly selectedOutput: Accessor<PortHit | undefined>;
+  private readonly setSelectedOutput: (port: PortHit | undefined) => void;
   readonly movingId: Accessor<string | undefined>;
   private readonly setMovingId: (id: string | undefined) => void;
-  readonly draft: Accessor<readonly WirePoint[] | undefined>;
-  private readonly setDraftPoints: (points: readonly WirePoint[] | undefined) => void;
   readonly inspectedId: Accessor<string | undefined>;
   private readonly setInspectedId: (id: string | undefined) => void;
   readonly configuredId: Accessor<string | undefined>;
@@ -64,18 +60,12 @@ export class DiagramEditor implements DiagramGestureHost {
     const armed = createSignal<string | undefined>();
     this.armedId = armed[0];
     this.setArmedId = armed[1];
-    const ghost = createSignal<DragGhost | undefined>();
-    this.ghost = ghost[0];
-    this.setGhost = ghost[1];
-    const receiving = createSignal(false);
-    this.receiving = receiving[0];
-    this.setReceivingSignal = receiving[1];
+    const selectedOutput = createSignal<PortHit | undefined>();
+    this.selectedOutput = selectedOutput[0];
+    this.setSelectedOutput = selectedOutput[1];
     const moving = createSignal<string | undefined>();
     this.movingId = moving[0];
     this.setMovingId = moving[1];
-    const draft = createSignal<readonly WirePoint[] | undefined>();
-    this.draft = draft[0];
-    this.setDraftPoints = draft[1];
     const inspected = createSignal<string | undefined>();
     this.inspectedId = inspected[0];
     this.setInspectedId = inspected[1];
@@ -98,6 +88,7 @@ export class DiagramEditor implements DiagramGestureHost {
 
   destroy(): void {
     this.clearGesture();
+    this.setSelectedOutput(undefined);
     this.router.destroy();
   }
 
@@ -107,12 +98,6 @@ export class DiagramEditor implements DiagramGestureHost {
 
   canvasElement(): HTMLElement | undefined {
     return this.canvas;
-  }
-
-  palettePointerDown(definition: BlockDefinition, event: PointerEvent): void {
-    if (event.button !== 0 || this.gesture) return;
-    this.clearSelection();
-    this.begin(new PaletteDragGesture(this, definition, event));
   }
 
   canvasPointerDown(event: PointerEvent): void {
@@ -126,11 +111,7 @@ export class DiagramEditor implements DiagramGestureHost {
       return;
     }
     const port = PortHit.fromTarget(event.target);
-    if (port) {
-      event.preventDefault();
-      this.begin(new PortWireGesture(this, port, event));
-      return;
-    }
+    if (port) return;
     const blockId = PortHit.blockIdFromTarget(event.target);
     if (blockId) {
       event.preventDefault();
@@ -145,6 +126,7 @@ export class DiagramEditor implements DiagramGestureHost {
   }
 
   armDefinition(definition: BlockDefinition): void {
+    this.clearSelection();
     this.setArmedId(this.arm.toggle(definition)?.id);
   }
 
@@ -164,12 +146,23 @@ export class DiagramEditor implements DiagramGestureHost {
     this.publishPlaced();
   }
 
-  showGhost(ghost: DragGhost | undefined): void {
-    this.setGhost(ghost);
+  selectPort(port: PortHit): void {
+    const block = this.diagram.getBlock(port.blockId);
+    if (!block?.definition.getPort(port.portId, port.side)) return;
+    this.disarmPalette();
+    if (port.side === "output") {
+      const selected = this.isPortSelected(port.blockId, port.portId, port.side);
+      this.clearSelection();
+      this.setSelectedOutput(selected ? undefined : port);
+      return;
+    }
+    const output = this.selectedOutput();
+    if (output && this.connect(output, port)) this.setSelectedOutput(undefined);
   }
 
-  setReceiving(active: boolean): void {
-    this.setReceivingSignal(active);
+  isPortSelected(blockId: string, portId: string, side: "input" | "output"): boolean {
+    const output = this.selectedOutput();
+    return output?.blockId === blockId && output.portId === portId && output.side === side;
   }
 
   moveBlock(blockId: string, x: number, y: number): void {
@@ -194,6 +187,7 @@ export class DiagramEditor implements DiagramGestureHost {
     const block = this.diagram.getBlock(blockId);
     if (!block) return;
     this.disarmPalette();
+    this.setSelectedOutput(undefined);
     this.setSelection(this.selection().selectBlock(blockId, additive));
     if (ScopeBlock.isScope(block)) this.setInspectedId(blockId);
   }
@@ -201,10 +195,12 @@ export class DiagramEditor implements DiagramGestureHost {
   selectConnection(connectionId: string, additive = false): void {
     if (!this.diagram.getConnection(connectionId)) return;
     this.disarmPalette();
+    this.setSelectedOutput(undefined);
     this.setSelection(this.selection().selectConnection(connectionId, additive));
   }
 
   clearSelection(): void {
+    this.setSelectedOutput(undefined);
     this.setSelection(DiagramSelection.empty());
   }
 
@@ -214,9 +210,6 @@ export class DiagramEditor implements DiagramGestureHost {
     this.onDelete?.();
     this.clearGesture();
     this.setMoving(undefined);
-    this.setDraft(undefined);
-    this.showGhost(undefined);
-    this.setReceiving(false);
     const connections = new Set(selection.connections());
     for (const connection of this.diagram.getConnections()) {
       if (selection.hasBlock(connection.from.blockId) || selection.hasBlock(connection.to.blockId)) connections.add(connection.id);
@@ -263,6 +256,7 @@ export class DiagramEditor implements DiagramGestureHost {
   openConfiguration(blockId: string): void {
     const block = this.diagram.getBlock(blockId);
     if (!block || block.definition.config.size === 0) return;
+    this.setSelectedOutput(undefined);
     this.setConfiguredId(blockId);
   }
 
@@ -274,16 +268,13 @@ export class DiagramEditor implements DiagramGestureHost {
     this.setConfigRevision(this.configRevision() + 1);
   }
 
-  connect(from: PortHit, to: PortHit): void {
+  private connect(from: PortHit, to: PortHit): boolean {
     const connection = this.connector.tryConnect(from, to);
-    if (!connection) return;
+    if (!connection) return false;
     this.publishPlaced();
     this.acceptRoute(this.provisional(connection));
     this.router.addLink(connection);
-  }
-
-  setDraft(points: readonly WirePoint[] | undefined): void {
-    this.setDraftPoints(points);
+    return true;
   }
 
   anchor(blockId: string, side: "input" | "output", portId: string, vectorIndex?: number): WirePoint | undefined {

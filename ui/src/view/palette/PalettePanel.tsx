@@ -11,7 +11,7 @@ import {
 export function PalettePanel(props: {
   libraries: readonly Library[];
   armedId: Accessor<string | undefined>;
-  onPointerDown: (definition: BlockDefinition, event: PointerEvent) => void;
+  onSelect: (definition: BlockDefinition) => void;
 }) {
   const groups = new LibraryListPalettePresenter(props.libraries).present();
   const libraryIds = props.libraries.map((library) => library.id).join(" ");
@@ -28,7 +28,7 @@ export function PalettePanel(props: {
               expansion={expansion}
               onToggle={(id) => setExpansion((current) => current.toggled(id))}
               armedId={props.armedId}
-              onPointerDown={props.onPointerDown}
+              onSelect={props.onSelect}
             />
           )}
         </For>
@@ -43,7 +43,7 @@ function PaletteFolder(props: {
   expansion: Accessor<PaletteExpansion>;
   onToggle: (id: string) => void;
   armedId: Accessor<string | undefined>;
-  onPointerDown: (definition: BlockDefinition, event: PointerEvent) => void;
+  onSelect: (definition: BlockDefinition) => void;
 }) {
   const open = () => props.expansion().has(props.group.id);
   return (
@@ -72,7 +72,7 @@ function PaletteFolder(props: {
                     data-armed={props.armedId() === block.id ? "true" : "false"}
                     aria-pressed={props.armedId() === block.id ? "true" : "false"}
                     title={block.description || block.title}
-                    onPointerDown={(event) => props.onPointerDown(block, event)}
+                    onClick={() => props.onSelect(block)}
                   >
                     <div class="flow-node-port-col is-in">
                       <For each={portsOf(block.inputs)}>{(port) => <PortMark port={port} side="in" />}</For>
@@ -97,7 +97,7 @@ function PaletteFolder(props: {
                 expansion={props.expansion}
                 onToggle={props.onToggle}
                 armedId={props.armedId}
-                onPointerDown={props.onPointerDown}
+                onSelect={props.onSelect}
               />
             )}
           </For>

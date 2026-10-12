@@ -1,6 +1,6 @@
 import { Diagram, Palette, TypeSystem, type Library } from "core";
 import { onCleanup } from "solid-js";
-import { DiagramCanvas, DragGhostView } from "./diagram/DiagramCanvas.js";
+import { DiagramCanvas } from "./diagram/DiagramCanvas.js";
 import { DiagramEditor } from "./diagram/diagramEditor.js";
 import { BrowserDiagramRunner } from "./run/browserDiagramRunner.js";
 import { ScopeCaptureBoard } from "./scope/scopeCapture.js";
@@ -33,11 +33,10 @@ export function Workspace(props: { libraries: readonly Library[] }) {
         <PalettePanel
           libraries={props.libraries}
           armedId={editor.armedId}
-          onPointerDown={(definition, event) => editor.palettePointerDown(definition, event)}
+          onSelect={(definition) => editor.armDefinition(definition)}
         />
         <DiagramCanvas editor={editor} board={board} runner={runner} />
       </wa-split-panel>
-      <DragGhostView editor={editor} />
     </div>
   );
 }
