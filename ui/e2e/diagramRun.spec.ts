@@ -1,5 +1,68 @@
 import { closePalette, openPalette, expect, test, element, baseURL, dialog as dialogElement, artifactPath } from "./fixtures/browser.ts";
 
+interface SignalTimingProbe {
+  times: number[];
+  delayedTicks: number;
+}
+
+test("keeps sine samples evenly spaced when worker calls are delayed with vintage effects enabled", async ({ page }) => {
+  await page.evaluateOnNewDocument(() => {
+    const probe: SignalTimingProbe = { times: [], delayedTicks: 0 };
+    (window as unknown as { signalTimingProbe: SignalTimingProbe }).signalTimingProbe = probe;
+    const OriginalWorker = window.Worker;
+    window.Worker = class extends OriginalWorker {
+      override postMessage(message: unknown, options?: Transferable[] | StructuredSerializeOptions): void {
+        const request = message as { type?: string; name?: string; args?: number[] };
+        const send = () => {
+          if (Array.isArray(options)) super.postMessage(message, options);
+          else super.postMessage(message, options);
+        };
+        if (request.type === "invoke" && request.name === "setNow") probe.times.push(request.args![0]!);
+        if (request.type === "invoke" && request.name === "tick" && probe.delayedTicks > 0) {
+          probe.delayedTicks--;
+          setTimeout(send, 120);
+        } else send();
+      }
+    };
+  });
+  await page.goto(baseURL());
+  await expect.poll(() => element(page, "[data-splash]").visible()).toBe(false);
+  const canvas = element(page, "[data-diagram-canvas]");
+  for (const [ref, x] of [["ScopeF32", 160], ["SinGenF32", 420]] as const) {
+    await openPalette(page);
+    const source = element(page, `[data-block-id=${ref}]`);
+    await source.scrollIntoViewIfNeeded();
+    await source.click();
+    await closePalette(page);
+    await canvas.click({ position: { x, y: 180 } });
+  }
+  await canvas.within("[data-block-ref=ScopeF32] [data-port-side=output]").click();
+  await canvas.within("[data-block-ref=SinGenF32] [data-port-side=input]").click();
+  await canvas.within("[data-block-ref=ScopeF32]").click();
+  const plot = element(page, "[data-scope-plot]");
+  const run = element(page, "[data-run-toggle]");
+  await run.click();
+  await expect.poll(() => run.getAttribute("data-run-state")).toBe("running");
+  await expect.poll(async () => Number(await plot.getAttribute("data-samples"))).toBeGreaterThan(20);
+  expect(await plot.getAttribute("data-scope-effects")).toBe("vintage");
+  const count = await page.evaluate(() => {
+    const probe = (window as unknown as { signalTimingProbe: SignalTimingProbe }).signalTimingProbe;
+    probe.delayedTicks = 6;
+    return probe.times.length;
+  });
+  await expect.poll(() => page.evaluate(() =>
+    (window as unknown as { signalTimingProbe: SignalTimingProbe }).signalTimingProbe.delayedTicks)).toBe(0);
+  await expect.poll(() => page.evaluate(() =>
+    (window as unknown as { signalTimingProbe: SignalTimingProbe }).signalTimingProbe.times.length)).toBeGreaterThan(count + 6);
+  await run.click();
+  await expect.poll(() => run.getAttribute("data-run-state")).toBe("idle");
+  const times = await page.evaluate(() =>
+    (window as unknown as { signalTimingProbe: SignalTimingProbe }).signalTimingProbe.times);
+  expect(times[0]).toBe(10);
+  expect(times.slice(1).every((time, index) => time - times[index]! === 10)).toBe(true);
+  await page.screenshot({ path: artifactPath("sine-with-delayed-worker.png") });
+});
+
 test("rejects a product with missing source connections and runs the corrected generator diagram", async ({ page }) => {
   await page.goto(baseURL());
   await expect.poll(() => element(page, "[data-splash]").visible()).toBe(false);
@@ -115,6 +178,8 @@ test("runs from the menu, plots every scope output, and toggles vintage effects 
   await expect.poll(() => plot.getAttribute("data-axis")).toBe("shared");
   await expect.poll(() => plot.getAttribute("data-series-count")).toBe("2");
   await expect.poll(() => plot.getAttribute("data-domain-seconds")).toBe("60");
+  expect(await plot.getAttribute("data-axis-seconds")).toBe("60");
+  expect(await plot.getAttribute("data-window-capacity")).toBe("6000");
   await expect.poll(() => plot.within("[data-scope-series]").count()).toBe(2);
   await expect.poll(() => plot.text()).toContain("sin");
   await expect.poll(() => plot.text()).toContain("cos");
@@ -250,12 +315,18 @@ test("plots a sliding 1 + sin(t) trace from a constant and a sine generator", as
   await expect.poll(() => run.getAttribute("aria-label"), { timeout: 120_000 }).toBe("Stop");
   await expect.poll(() => run.getAttribute("data-run-state")).toBe("running");
   await expect.poll(() => element(page, "[data-run-status]").text()).toBe("");
+  expect(await plot.getAttribute("data-window-capacity")).toBe("100");
+  await expect.poll(async () => Number(await plot.getAttribute("data-samples"))).toBeGreaterThan(10);
+  expect(Number(await plot.getAttribute("data-samples"))).toBeLessThan(100);
+  expect(await plot.getAttribute("data-axis-seconds")).toBe("1");
+  await page.screenshot({ path: artifactPath("scope-partial-fixed-window.png") });
   await expect.poll(() => plot.getAttribute("data-samples"), { timeout: 10_000 }).toBe("100");
   await expect.poll(async () => Number(await plot.getAttribute("data-sample-min"))).toBeLessThan(0.1);
   await expect.poll(async () => Number(await plot.getAttribute("data-sample-max"))).toBeGreaterThan(1.9);
   const previous = await plot.getAttribute("data-last");
   await expect.poll(() => plot.getAttribute("data-last")).not.toBe(previous);
   await expect.poll(() => plot.getAttribute("data-samples")).toBe("100");
+  expect(await plot.getAttribute("data-axis-seconds")).toBe("1");
   expect(Number(await plot.getAttribute("data-sample-min"))).toBeGreaterThanOrEqual(-0.001);
   expect(Number(await plot.getAttribute("data-sample-max"))).toBeLessThanOrEqual(2.001);
   await page.screenshot({ path: artifactPath("sine-sum-scope.png") });

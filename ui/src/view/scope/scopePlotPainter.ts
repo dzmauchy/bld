@@ -88,10 +88,7 @@ export class ScopePlotPainter {
   }
 
   private stroke(context: CanvasRenderingContext2D, area: PlotArea, geometry: ScopePlotGeometry, series: ScopeSeriesGeometry, vintage: boolean): void {
-    const points = series.samples
-      .map((value, index) => ({ value, time: geometry.sampleTime(series, index) }))
-      .filter((point) => Number.isFinite(point.value));
-    if (points.length === 0) return;
+    if (series.buffer.size === 0) return;
     context.save();
     context.strokeStyle = series.color;
     context.fillStyle = series.color;
@@ -103,23 +100,29 @@ export class ScopePlotPainter {
       context.shadowBlur = 6;
       context.filter = "blur(0.35px)";
     }
-    if (points.length === 1) {
-      const point = points[0];
-      if (!point) return;
-      context.beginPath();
-      context.arc(area.x(point.time, geometry.axisSeconds), area.y(point.value, geometry.minimum, geometry.maximum), 2.5, 0, Math.PI * 2);
-      context.fill();
-      context.restore();
-      return;
-    }
     context.beginPath();
-    points.forEach((point, index) => {
-      const x = area.x(point.time, geometry.axisSeconds);
-      const y = area.y(point.value, geometry.minimum, geometry.maximum);
-      if (index === 0) context.moveTo(x, y);
-      else context.lineTo(x, y);
-    });
-    if (vintage) {
+    let connected = false;
+    let count = 0;
+    let x = 0;
+    let y = 0;
+    for (let index = 0; index < series.buffer.capacity; index++) {
+      const value = series.buffer.at(index);
+      if (!Number.isFinite(value)) {
+        connected = false;
+        continue;
+      }
+      x = area.x(geometry.sampleTime(series, index), geometry.axisSeconds);
+      y = area.y(value, geometry.minimum, geometry.maximum);
+      if (!connected) context.moveTo(x, y);
+      context.lineTo(x, y);
+      connected = true;
+      count++;
+    }
+    if (count === 1) {
+      context.beginPath();
+      context.arc(x, y, 2.5, 0, Math.PI * 2);
+      context.fill();
+    } else if (count > 1 && vintage) {
       context.save();
       context.globalAlpha = 0.25;
       context.lineWidth = 3.5;
@@ -128,7 +131,7 @@ export class ScopePlotPainter {
       context.stroke();
       context.restore();
     }
-    context.stroke();
+    if (count > 1) context.stroke();
     context.restore();
   }
 }

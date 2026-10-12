@@ -6,7 +6,9 @@ export abstract class SlidingBuffer<TArray extends Float32Array | Float64Array> 
   protected write = 0;
   protected filled = 0;
 
-  constructor(readonly data: TArray) {}
+  constructor(readonly data: TArray) {
+    this.data.fill(Number.NaN);
+  }
 
   get capacity(): number {
     return this.data.length;
@@ -27,21 +29,10 @@ export abstract class SlidingBuffer<TArray extends Float32Array | Float64Array> 
     if (this.filled < this.data.length) this.filled += 1;
   }
 
-  snapshot(): TArray {
-    if (this.filled < this.data.length) return this.data.slice(0, this.filled) as TArray;
-    const oldest = this.write;
-    const first = this.data.subarray(oldest);
-    const second = this.data.subarray(0, oldest);
-    const copy = new (this.data.constructor as { new (length: number): TArray })(this.data.length);
-    copy.set(first, 0);
-    copy.set(second, first.length);
-    return copy;
-  }
-
+  /** Reads the fixed window from oldest to newest, including unfilled NaN slots. */
   at(index: number): number {
-    if (this.filled === 0) return Number.NaN;
-    const start = this.filled < this.data.length ? 0 : this.write;
-    return this.data[(start + index) % this.data.length] ?? Number.NaN;
+    if (index < 0 || index >= this.data.length) return Number.NaN;
+    return this.data[(this.write + index) % this.data.length] ?? Number.NaN;
   }
 
   last(): number {
@@ -53,7 +44,7 @@ export abstract class SlidingBuffer<TArray extends Float32Array | Float64Array> 
   clear(): void {
     this.write = 0;
     this.filled = 0;
-    this.data.fill(0);
+    this.data.fill(Number.NaN);
   }
 }
 
@@ -63,8 +54,11 @@ export class SlidingScopeBuffer extends SlidingBuffer<Float32Array> {
   }
 
   static fromPeriod(periodSeconds: number, precisionMs: number): SlidingScopeBuffer {
-    const samples = Math.max(1, Math.floor((periodSeconds * 1000) / Math.max(1, precisionMs)));
-    return new SlidingScopeBuffer(samples);
+    return new SlidingScopeBuffer(this.capacityFor(periodSeconds, precisionMs));
+  }
+
+  static capacityFor(periodSeconds: number, precisionMs: number): number {
+    return Math.max(1, Math.floor((periodSeconds * 1000) / Math.max(1, precisionMs)));
   }
 }
 

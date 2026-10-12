@@ -41,29 +41,32 @@ test("plots every scope output on one time domain and one value range", () => {
   expect(monitor?.series().map((series) => series.label)).toEqual(["sin", "cos"]);
   expect(board.accept(0, 0, 0)).toBe(true);
   expect(board.accept(0, 1, 10)).toBe(true);
+  expect(monitor?.series()[0]?.buffer.size).toBe(0);
+  expect(board.sample(1000)).toBe(true);
   const geometry = ScopePlotGeometry.fromMonitor(monitor!);
   expect(geometry.series).toHaveLength(2);
   expect(geometry.domainSeconds).toBe(2);
   expect(geometry.sampleSeconds).toBe(1);
   expect(geometry.minimum).toBeLessThan(0);
   expect(geometry.maximum).toBeGreaterThan(10);
-  const newest = (plot: ScopePlotGeometry) => plot.series.map((series) => plot.sampleTime(series, series.samples.length - 1));
+  const newest = (plot: ScopePlotGeometry) => plot.series.map((series) => plot.sampleTime(series, series.buffer.capacity - 1));
   expect(newest(geometry)).toEqual([2, 2]);
   const oldest = geometry.sampleTime(geometry.series[0]!, 0);
   board.accept(0, 0, 1);
+  board.sample(1000);
   const scrolled = ScopePlotGeometry.fromMonitor(monitor!);
-  expect(scrolled.axisSeconds).toBe(1);
-  expect(scrolled.axisSeconds).toBeLessThan(scrolled.domainSeconds);
-  expect(scrolled.sampleTime(scrolled.series[0]!, 0)).toBeLessThan(oldest);
-  expect(scrolled.sampleTime(scrolled.series[0]!, scrolled.series[0]!.samples.length - 1)).toBe(scrolled.axisSeconds);
-  expect(scrolled.series[0]?.samples).toEqual([0, 1]);
-  expect(scrolled.series[1]?.samples).toEqual([10]);
+  expect(scrolled.axisSeconds).toBe(2);
+  expect(scrolled.sampleTime(scrolled.series[0]!, 0)).toBe(oldest);
+  expect(scrolled.sampleTime(scrolled.series[0]!, scrolled.series[0]!.buffer.capacity - 1)).toBe(scrolled.axisSeconds);
+  expect([scrolled.series[0]!.buffer.at(0), scrolled.series[0]!.buffer.at(1)]).toEqual([0, 1]);
+  expect([scrolled.series[1]!.buffer.at(0), scrolled.series[1]!.buffer.at(1)]).toEqual([10, 10]);
+  expect(scrolled.series[0]!.buffer).toBe(geometry.series[0]!.buffer);
 });
 
 test("runs the diagram, then the run control becomes stop", async () => {
   const { diagram, scopeId } = connectedScope();
   const board = new ScopeCaptureBoard();
-  const clock = new ManualClock();
+  let clock: ManualClock | undefined;
   let compileCount = 0;
   let runtime: FakeRuntime | undefined;
   {
@@ -81,7 +84,7 @@ test("runs the diagram, then the run control becomes stop", async () => {
         return runtime;
       },
       undefined,
-      () => clock,
+      (_session, _period, onTick) => clock = new ManualClock(onTick),
     );
     expect(runner.phase()).toBe("idle");
     const starting = runner.run();
@@ -89,15 +92,19 @@ test("runs the diagram, then the run control becomes stop", async () => {
     await starting;
     expect(runner.phase()).toBe("running");
     expect(compileCount).toBe(1);
-    expect(clock.started).toBe(true);
+    expect(clock?.started).toBe(true);
+    expect(runner.revision()).toBe(0);
+    clock?.tick(100);
     expect(runner.revision()).toBe(1);
     const geometry = ScopePlotGeometry.fromMonitor(board.monitorFor(diagram, scopeId)!);
-    expect(geometry.series.map((series) => series.samples)).toEqual([[0.5], [-2]]);
+    expect(geometry.series.map((series) => series.buffer.last())).toEqual([0.5, -2]);
     expect(geometry.minimum).toBeLessThan(-2);
     expect(geometry.maximum).toBeGreaterThan(0.5);
     await runner.toggle();
     expect(runner.phase()).toBe("idle");
-    expect(clock.started).toBe(false);
+    expect(clock?.started).toBe(false);
+    clock?.tick(100);
+    expect(runner.revision()).toBe(1);
     expect(runtime?.closed).toBe(true);
     expect(runtime?.session.closed).toBe(true);
   }
@@ -259,8 +266,12 @@ class FakeRuntime implements RunningRuntime {
 
 class ManualClock extends SessionClock {
   started = false;
+  constructor(private readonly onTick: () => void = () => undefined) { super(); }
   override start(): void { this.started = true; }
   override stop(): void { this.started = false; }
+  tick(count = 1): void {
+    for (let index = 0; index < count && this.started; index++) this.onTick();
+  }
 }
 
 function connectedScope(): { diagram: Diagram; scopeId: string } {

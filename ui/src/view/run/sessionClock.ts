@@ -31,11 +31,12 @@ export abstract class SessionClock {
   abstract stop(): void;
 }
 
-/** Advances wasm time from the wall clock and ticks every source interval. */
+/** Advances simulation time in uniform source intervals, independent of drawing and RPC delays. */
 export class SimulationClock extends SessionClock {
   private stopped = true;
-  private origin = 0;
-  private timer: ReturnType<typeof setTimeout> | undefined;
+  private busy = false;
+  private elapsedMilliseconds = 0;
+  private timer: ReturnType<typeof setInterval> | undefined;
 
   constructor(
     private readonly session: RunningSession,
@@ -47,40 +48,35 @@ export class SimulationClock extends SessionClock {
   }
 
   override start(): void {
+    if (!this.stopped) return;
     this.stopped = false;
-    this.origin = clockNow();
-    this.schedule(this.periodMs);
+    this.elapsedMilliseconds = 0;
+    this.timer = setInterval(() => { void this.step(); }, this.periodMs);
   }
 
   override stop(): void {
     this.stopped = true;
-    if (this.timer !== undefined) clearTimeout(this.timer);
+    if (this.timer !== undefined) clearInterval(this.timer);
     this.timer = undefined;
   }
 
-  private schedule(delay: number): void {
-    this.timer = setTimeout(() => {
-      void this.step();
-    }, delay);
-  }
-
   private async step(): Promise<void> {
-    if (this.stopped) return;
-    const started = clockNow();
+    if (this.stopped || this.busy) return;
+    this.busy = true;
     try {
-      await this.session.setNow(Math.max(0, Math.round(started - this.origin)));
+      // Scope buffers place samples at their configured interval. Wall-clock
+      // jumps here compress missed time into one plotted sample and distort the signal.
+      this.elapsedMilliseconds += this.periodMs;
+      await this.session.setNow(Math.round(this.elapsedMilliseconds));
+      if (this.stopped) return;
       await this.session.tick();
+      if (this.stopped) return;
       this.onTick();
     } catch (error) {
       this.stop();
       this.onError(error);
-      return;
+    } finally {
+      this.busy = false;
     }
-    if (this.stopped) return;
-    this.schedule(Math.max(0, this.periodMs - (clockNow() - started)));
   }
-}
-
-function clockNow(): number {
-  return typeof performance === "undefined" ? Date.now() : performance.now();
 }

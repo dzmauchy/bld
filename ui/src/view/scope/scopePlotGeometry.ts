@@ -1,4 +1,4 @@
-import type { ScopeChannelTrace, ScopeMonitor } from "./scopeCapture.js";
+import type { ScopeChannelTrace, ScopeChannelWindow, ScopeMonitor } from "./scopeCapture.js";
 
 /** Stroke colors for scope channels drawn on one pair of axes. */
 export class ScopeSeriesStyle {
@@ -22,11 +22,11 @@ export class ScopeSeriesGeometry {
     readonly channel: number,
     readonly label: string,
     readonly color: string,
-    readonly samples: readonly number[],
+    readonly buffer: ScopeChannelWindow,
   ) {}
 
   static fromTrace(trace: ScopeChannelTrace, index: number): ScopeSeriesGeometry {
-    return new ScopeSeriesGeometry(trace.channel, trace.label, ScopeSeriesStyle.color(index), trace.values());
+    return new ScopeSeriesGeometry(trace.channel, trace.label, ScopeSeriesStyle.color(index), trace.buffer);
   }
 }
 
@@ -50,17 +50,9 @@ export class ScopePlotGeometry {
     return new ScopePlotGeometry(monitor.domainSeconds, monitor.sampleSeconds, range.minimum, range.maximum, series);
   }
 
-  /**
-   * Seconds shown on the shared time axis.
-   * The axis grows with the samples until it reaches the scope period, then the trace scrolls.
-   */
+  /** The full configured period is always visible, including unused NaN slots. */
   get axisSeconds(): number {
-    let span = 0;
-    for (const series of this.series) {
-      if (series.samples.length > 1) span = Math.max(span, (series.samples.length - 1) * this.sampleSeconds);
-    }
-    if (span <= 0) return this.domainSeconds;
-    return Math.min(this.domainSeconds, span);
+    return this.domainSeconds;
   }
 
   /** Smallest and largest finite samples, without axis padding. */
@@ -68,7 +60,8 @@ export class ScopePlotGeometry {
     let minimum = Infinity;
     let maximum = -Infinity;
     for (const series of this.series) {
-      for (const value of series.samples) {
+      for (let index = 0; index < series.buffer.capacity; index++) {
+        const value = series.buffer.at(index);
         if (!Number.isFinite(value)) continue;
         minimum = Math.min(minimum, value);
         maximum = Math.max(maximum, value);
@@ -80,7 +73,7 @@ export class ScopePlotGeometry {
 
   /** Seconds from the left edge of the shared time axis. The newest sample is on the right. */
   sampleTime(series: ScopeSeriesGeometry, index: number): number {
-    const age = (series.samples.length - 1 - index) * this.sampleSeconds;
+    const age = (series.buffer.capacity - 1 - index) * this.sampleSeconds;
     return this.axisSeconds - age;
   }
 
@@ -88,7 +81,8 @@ export class ScopePlotGeometry {
     let minimum = Infinity;
     let maximum = -Infinity;
     for (const item of series) {
-      for (const value of item.samples) {
+      for (let index = 0; index < item.buffer.capacity; index++) {
+        const value = item.buffer.at(index);
         if (!Number.isFinite(value)) continue;
         minimum = Math.min(minimum, value);
         maximum = Math.max(maximum, value);

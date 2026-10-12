@@ -64,9 +64,10 @@ export class ScopePlot extends SignalElement {
     return html`<aside class="scope-plot" data-scope-plot data-scope-block=${this.blockId}
       data-scope-effects=${this.scopeEffects ? "vintage" : "off"}
       data-axis="shared" data-series-count=${geometry.series.length} data-domain-seconds=${geometry.domainSeconds}
-      data-samples=${geometry.series.reduce((count, series) => count + series.samples.length, 0)}
+      data-axis-seconds=${geometry.axisSeconds} data-window-capacity=${geometry.series[0]?.buffer.capacity ?? 0}
+      data-samples=${geometry.series.reduce((count, series) => count + series.buffer.size, 0)}
       data-sample-min=${extent?.minimum ?? ""} data-sample-max=${extent?.maximum ?? ""}
-      data-last=${geometry.series.map((series) => String(series.samples.at(-1) ?? "")).join(" ")}>
+      data-last=${geometry.series.map((series) => series.buffer.size ? String(series.buffer.last()) : "").join(" ")}>
       <header class="scope-plot-header"><h2>Scope</h2>
         <button type="button" class="scope-close" data-scope-close @click=${() => this.onClose?.()}>Close</button>
       </header>

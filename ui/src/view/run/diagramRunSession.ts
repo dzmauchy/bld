@@ -26,7 +26,6 @@ export class DiagramRunSession {
   private wasmSession: RunningSession | undefined;
   private runtime: RunningRuntime | undefined;
   private clock: SessionClock | undefined;
-  private dirty = false;
   private phaseValue: RunPhase = "idle";
   private statusValue = "";
   private revisionValue = 0;
@@ -96,7 +95,9 @@ export class DiagramRunSession {
       } });
       if (token !== this.token) return;
       this.noteProgress({ phase: "running", status: "active" });
-      runtime = this.openRuntime((message) => this.note(message));
+      runtime = this.openRuntime((message) => {
+        if (token === this.token) this.note(message);
+      });
       const session = await runtime.instantiate(wasm);
       if (token !== this.token) {
         await this.shutdown(session, runtime);
@@ -105,11 +106,13 @@ export class DiagramRunSession {
       this.wasmSession = session;
       this.runtime = runtime;
       runtime = undefined;
-      this.publish();
       const period = await IntervalSchedule.milliseconds(session);
       if (token !== this.token) return;
       if (period !== undefined) {
-        const onTick = () => this.publish();
+        const onTick = () => {
+          if (token !== this.token) return;
+          if (this.board.sample(period)) this.publish();
+        };
         const onError = (error: unknown) => {
           void this.fail(error);
         };
@@ -184,12 +187,10 @@ export class DiagramRunSession {
   private note(message: unknown): void {
     const sample = PinSample.read(message);
     if (!sample) return;
-    if (this.board.accept(sample.blockIndex, sample.channel, sample.value)) this.dirty = true;
+    this.board.accept(sample.blockIndex, sample.channel, sample.value);
   }
 
   private publish(): void {
-    if (!this.dirty) return;
-    this.dirty = false;
     this.revisionValue += 1;
     this.listener?.revision(this.revisionValue);
   }
