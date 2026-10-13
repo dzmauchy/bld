@@ -1,11 +1,61 @@
-import { describe, expect, test } from "vitest";
+import { describe, expect, test, vi } from "vitest";
 import { ClangFrontend } from "cpp/clang.ts";
 import { SharedToolchainFileSystem } from "cpp/sharedFileSystem.ts";
 import { DisposableToolFactory, writeClangOutputs } from "../toolchainFixture.ts";
 import { WasmLinker } from "cpp/linker.ts";
 import { ObjectFile } from "cpp/object-file.ts";
+import { CppWasmCompiler } from "cpp/compiler.ts";
+import { gzipSync } from "node:zlib";
 
 describe("clang frontend and wasm linker", () => {
+  test("preparation releases idle tool heaps and keeps shared files for compilation", async () => {
+    const fs = new SharedToolchainFileSystem();
+    const wasm = new Uint8Array([0, 97, 115, 109]);
+    const clang = new DisposableToolFactory(fs, (_options, files, args) => { writeClangOutputs(files, args); return 0; });
+    const lld = new DisposableToolFactory(fs, (_options, files, args) => { files.writeTree(args.at(-1)!, wasm); return 0; });
+    const compiler = new CppWasmCompiler(new ClangFrontend(clang.create, "clang.wasm", fs),
+      new WasmLinker(lld.create, "lld.wasm", fs), "sysroot.tgz");
+    const fetch = vi.spyOn(globalThis, "fetch").mockResolvedValue(new Response(new Uint8Array(gzipSync(new Uint8Array(1024)))));
+    try {
+      await compiler.initialize();
+      expect(clang.boots).toBe(1);
+      expect(lld.boots).toBe(1);
+      expect(await compiler.compile(new Map([["main.cpp", "int value;"]]))).toEqual(wasm);
+      expect(clang.boots).toBe(2);
+      expect(lld.boots).toBe(2);
+    } finally {
+      fetch.mockRestore();
+    }
+  });
+
+  test("keeps native diagnostics when an abort persists after the single retry", async () => {
+    const fs = new SharedToolchainFileSystem();
+    const factory = new DisposableToolFactory(fs, (options) => {
+      options?.printErr?.("LLVM ERROR: native compilation failed");
+      throw new WebAssembly.RuntimeError("Aborted()");
+    });
+    const linker = new WasmLinker(factory.create, "lld.wasm", fs);
+    fs.writeTree("/work/main.o", new Uint8Array([42]));
+    await expect(linker.link([new ObjectFile("/work/main.o", fs)])).rejects.toThrow("LLVM ERROR: native compilation failed");
+    expect(factory.runs).toHaveLength(2);
+  });
+
+  test("reboots the linker before retrying a first-run abort", async () => {
+    const fs = new SharedToolchainFileSystem();
+    const wasm = new Uint8Array([0, 97, 115, 109]);
+    let attempts = 0;
+    const factory = new DisposableToolFactory(fs, (_options, files, args) => {
+      if (++attempts === 1) throw new WebAssembly.RuntimeError("Aborted(first-run linker failure)");
+      files.writeTree(args.at(-1)!, wasm);
+      return 0;
+    });
+    const linker = new WasmLinker(factory.create, "lld.wasm", fs);
+    fs.writeTree("/work/main.o", new Uint8Array([42]));
+    await expect(linker.link([new ObjectFile("/work/main.o", fs)])).resolves.toEqual(wasm);
+    expect(factory.boots).toBe(2);
+    expect(attempts).toBe(2);
+  });
+
   test("clang writes headers and sources then emits one object per translation unit", async () => {
     const fs = new SharedToolchainFileSystem();
     let compiled = "";

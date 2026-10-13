@@ -193,22 +193,12 @@ test("runs from the menu, plots every scope output, and toggles vintage effects 
   await expect.poll(() => run.getAttribute("aria-label"), { timeout: 120_000 }).toBe("Stop");
   await expect.poll(() => run.getAttribute("data-run-state")).toBe("running");
 
-  const trace = () => element(page, "[data-scope-canvas]").evaluate((canvas) => {
-    const element = canvas as HTMLCanvasElement;
-    const context = element.getContext("2d");
-    if (!context || element.width === 0) return "";
-    const { data } = context.getImageData(0, 0, element.width, element.height);
-    let ink = 0;
-    let checksum = 0;
-    for (let index = 0; index < data.length; index += 16) {
-      const red = data[index] ?? 0;
-      const green = data[index + 1] ?? 0;
-      const blue = data[index + 2] ?? 0;
-      checksum = (checksum + red * 3 + green * 5 + blue * 7) % 1000003;
-      if (red + green + blue > 180) ink += 1;
-    }
-    return `${ink}:${checksum}`;
-  });
+  const trace = () => plot.within("[data-scope-trace]").evaluateAll(paths => paths.map(path => path.getAttribute("d") ?? "").join(" "));
+  const filter = () => plot.within("[data-scope-trace]").first().evaluate(path => getComputedStyle(path).filter);
+  expect(await plot.within("canvas").count()).toBe(0);
+  expect(await plot.within("[data-scope-svg]").count()).toBe(1);
+  expect(await plot.within("path[data-scope-trace]").count()).toBe(2);
+  expect(await filter()).not.toBe("none");
   await expect.poll(trace, { timeout: 10_000 }).not.toBe("");
   const first = await trace();
   await expect.poll(async () => trace(), { timeout: 5_000 }).not.toBe(first);
@@ -230,7 +220,8 @@ test("runs from the menu, plots every scope output, and toggles vintage effects 
   await expect.poll(() => effects.visible()).toBe(true);
   await effects.click();
   await expect.poll(() => plot.getAttribute("data-scope-effects")).toBe("off");
-  await expect.poll(trace).not.toBe(vintage);
+  await expect.poll(filter).toBe("none");
+  expect(await trace()).toBe(vintage);
   expect(await element(page, ".scope-screen").evaluate(screen => getComputedStyle(screen, "::before").content)).toBe("none");
   expect(await plot.getAttribute("data-samples")).toBe(samples);
   await page.screenshot({ path: artifactPath("scope-effects-off.png") });
@@ -242,9 +233,21 @@ test("runs from the menu, plots every scope output, and toggles vintage effects 
   await expect.poll(() => effects.getAttribute("aria-checked")).toBe("false");
   await effects.click();
   await expect.poll(() => plot.getAttribute("data-scope-effects")).toBe("vintage");
+  await expect.poll(filter).not.toBe("none");
   await expect.poll(trace).toBe(vintage);
   expect(await plot.getAttribute("data-samples")).toBe(samples);
   await page.screenshot({ path: artifactPath("scope-effects-vintage.png") });
+  for (const viewport of [{ width: 800, height: 600 }, { width: 390, height: 844 }]) {
+    await page.setViewport(viewport);
+    await expect.poll(() => plot.within("[data-scope-svg]").evaluate(node => {
+      const svg = node as SVGSVGElement;
+      const box = svg.getBoundingClientRect();
+      return Math.round(box.width) === svg.viewBox.baseVal.width && Math.round(box.height) === svg.viewBox.baseVal.height;
+    })).toBe(true);
+    expect(await plot.getAttribute("data-samples")).toBe(samples);
+    expect(await trace()).not.toBe("");
+  }
+  await page.screenshot({ path: artifactPath("scope-svg-narrow.png") });
 });
 
 test("plots a sliding 1 + sin(t) trace from a constant and a sine generator", async ({ page }) => {

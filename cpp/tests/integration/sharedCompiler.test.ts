@@ -99,8 +99,9 @@ describe("shared clang/lld storage", () => {
       expect(files.writeCount("/sysroot/include/test.h")).toBe(1);
       expect(files.writeCount("/sysroot/lib/clang/23/lib/wasi/libclang_rt.builtins-wasm32.a")).toBe(1);
       expect(files.copiedObjects).toBe(0);
-      expect(clangFactory.boots).toBe(2);
-      expect(linkerFactory.boots).toBe(2);
+      // Preparation validates one disposable runtime; each job gets a fresh heap.
+      expect(clangFactory.boots).toBe(3);
+      expect(linkerFactory.boots).toBe(3);
     } finally {
       globalThis.fetch = originalFetch;
     }

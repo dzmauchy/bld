@@ -948,10 +948,50 @@ bld-palette-panel[hidden] {
   cursor: pointer;
 }
 
-.scope-plot-canvas {
+.scope-plot-svg {
+  position: absolute;
+  inset: 0;
   display: block;
   width: 100%;
   height: 100%;
+  background: #000000;
+}
+
+.scope-grid,
+.scope-frame,
+.scope-trace {
+  fill: none;
+  vector-effect: non-scaling-stroke;
+}
+
+.scope-grid {
+  stroke: #ffffff14;
+  stroke-width: 1;
+}
+
+.scope-frame {
+  stroke: #3a3a3a;
+  stroke-width: 1;
+}
+
+.scope-axis-label {
+  fill: #9aa0a6;
+  font: 11px ui-sans-serif, system-ui, sans-serif;
+}
+
+.scope-trace {
+  stroke: currentColor;
+  stroke-width: 1.75;
+  stroke-linejoin: round;
+  stroke-linecap: round;
+}
+
+.scope-screen.is-vintage .scope-plot-svg {
+  background: #08100e;
+}
+
+.scope-screen.is-vintage .scope-trace {
+  filter: blur(0.2px) drop-shadow(0 0 3px currentColor);
 }
 
 .scope-screen {

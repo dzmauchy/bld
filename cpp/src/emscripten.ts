@@ -63,7 +63,7 @@ export abstract class EmscriptenTool {
       printErr: (text) => {
         this.stderr.push(text);
       },
-    });
+    }).catch((error: unknown) => { throw this.failure(error); });
     if (!this.runtime.PROXYFS || !this.runtime.FS.mount) {
       this.runtime = undefined;
       throw new Error(`${this.programName} must export FS.mount and PROXYFS`);
@@ -108,9 +108,14 @@ export abstract class EmscriptenTool {
     this.stdout = [];
     this.stderr = [];
     runtime.FS.chdir("/");
-    const code = this.callMain(runtime, [...args]);
-    this.flushStdio(runtime);
-    return { code, stdout: this.logs.stdout, stderr: this.logs.stderr };
+    try {
+      const code = this.callMain(runtime, [...args]);
+      this.flushStdio(runtime);
+      return { code, stdout: this.logs.stdout, stderr: this.logs.stderr };
+    } catch (error) {
+      this.flushStdio(runtime);
+      throw this.failure(error);
+    }
   }
 
   get logs(): { stdout: string; stderr: string } {
@@ -127,6 +132,7 @@ export abstract class EmscriptenTool {
     } catch (error) {
       if (!this.canRecover(error) || !this.wasmUrl) throw error;
       await this.recoverFromAbort();
+      await this.ensureReady();
       return job();
     }
   }
@@ -135,6 +141,11 @@ export abstract class EmscriptenTool {
     if (isAbortError(error)) return true;
     const message = error instanceof Error ? error.message : formatUnknownError(error);
     return /no such file or directory/i.test(message);
+  }
+
+  private failure(error: unknown): Error {
+    const details = [this.logs.stderr, this.logs.stdout].filter(Boolean).join("\n");
+    return new Error(`${this.programName}: ${formatUnknownError(error)}${details ? `\n${details}` : ""}`, { cause: error });
   }
 
   private async recoverFromAbort(): Promise<void> {

@@ -9,6 +9,7 @@ import {
 } from "./diagramRunSession.js";
 import type { RunningRuntime, RunningSession, SessionClock } from "./sessionClock.js";
 import { CompilationSteps } from "./compilationSteps.js";
+import { DisplayRevision } from "./displayRevision.js";
 
 export type { DiagramCompilerLike, RunPhase };
 
@@ -38,15 +39,19 @@ export class DiagramRunController {
     const revision = signal(0);
     const error = signal<string | undefined>(undefined);
     const progress = signal(CompilationSteps.initial());
+    const display = new DisplayRevision(value => revision.set(value));
     this.phase = () => phase.get();
     this.status = () => status.get();
     this.revision = () => revision.get();
     this.error = () => error.get();
     this.progress = () => progress.get();
     const listener: RunSessionListener = {
-      phase: (value) => phase.set(value),
+      phase: (value) => {
+        if (value === "idle" || value === "stopping") display.flush();
+        phase.set(value);
+      },
       status: (value) => status.set(value),
-      revision: (value) => revision.set(value),
+      revision: (value) => display.update(value),
       error: (value) => error.set(value),
       progress: (value) => progress.set(value),
     };

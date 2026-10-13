@@ -1,11 +1,11 @@
-import { html, nothing } from "lit";
+import { html, nothing, svg } from "lit";
 import { styleMap } from "lit/directives/style-map.js";
 import { SignalElement } from "../elements/SignalElement.js";
 import type { ScopeCaptureBoard } from "./scopeCapture.js";
 import type { DiagramEditor } from "../diagram/diagramEditor.js";
 import type { DiagramRunController } from "../run/diagramRunController.js";
-import { ScopePlotGeometry } from "./scopePlotGeometry.js";
-import { ScopePlotPainter } from "./scopePlotPainter.js";
+import { ScopePlotGeometry, ScopeSeriesStyle } from "./scopePlotGeometry.js";
+import { ScopePlotLayout } from "./scopePlotLayout.js";
 
 /** Live plot of every output on the selected scope. */
 export class ScopePlot extends SignalElement {
@@ -20,9 +20,9 @@ export class ScopePlot extends SignalElement {
   declare runner: DiagramRunController | undefined;
   declare onClose: (() => void) | undefined;
   declare scopeEffects: boolean;
-  private readonly painter = new ScopePlotPainter();
-  private geometry: ScopePlotGeometry | undefined;
-  private canvas: HTMLCanvasElement | undefined;
+  private screen: HTMLElement | undefined;
+  private width = 1000;
+  private height = 180;
   private observer: ResizeObserver | undefined;
 
   constructor() {
@@ -31,26 +31,29 @@ export class ScopePlot extends SignalElement {
   }
 
   protected override updated(): void {
-    const canvas = this.querySelector<HTMLCanvasElement>("[data-scope-canvas]") ?? undefined;
-    if (canvas !== this.canvas) {
+    const screen = this.querySelector<HTMLElement>(".scope-screen") ?? undefined;
+    if (screen !== this.screen) {
       this.observer?.disconnect();
-      this.canvas = canvas;
-      if (canvas && typeof ResizeObserver !== "undefined") {
-        this.observer = new ResizeObserver(() => this.paint());
-        this.observer.observe(canvas);
+      this.screen = screen;
+      if (screen && typeof ResizeObserver !== "undefined") {
+        this.observer = new ResizeObserver(([entry]) => {
+          if (!entry) return;
+          const width = Math.max(1, Math.round(entry.contentRect.width));
+          const height = Math.max(1, Math.round(entry.contentRect.height));
+          if (width === this.width && height === this.height) return;
+          this.width = width;
+          this.height = height;
+          this.requestUpdate();
+        });
+        this.observer.observe(screen);
       }
     }
-    this.paint();
   }
 
   override disconnectedCallback(): void {
     this.observer?.disconnect();
-    this.canvas = undefined;
+    this.screen = undefined;
     super.disconnectedCallback();
-  }
-
-  private paint(): void {
-    if (this.canvas && this.geometry) this.painter.paint(this.canvas, this.geometry, this.scopeEffects);
   }
 
   protected override render() {
@@ -58,9 +61,10 @@ export class ScopePlot extends SignalElement {
     this.editor?.placed();
     this.editor?.routes();
     const monitor = this.editor && this.blockId ? this.board?.monitorFor(this.editor.model, this.blockId) : undefined;
-    const geometry = this.geometry = monitor ? ScopePlotGeometry.fromMonitor(monitor) : undefined;
+    const geometry = monitor ? ScopePlotGeometry.fromMonitor(monitor) : undefined;
     if (!geometry) return nothing;
     const extent = geometry.sampleExtent();
+    const layout = new ScopePlotLayout(this.width, this.height);
     return html`<aside class="scope-plot" data-scope-plot data-scope-block=${this.blockId}
       data-scope-effects=${this.scopeEffects ? "vintage" : "off"}
       data-axis="shared" data-series-count=${geometry.series.length} data-domain-seconds=${geometry.domainSeconds}
@@ -72,7 +76,21 @@ export class ScopePlot extends SignalElement {
         <button type="button" class="scope-close" data-scope-close @click=${() => this.onClose?.()}>Close</button>
       </header>
       <div class=${`scope-screen${this.scopeEffects ? " is-vintage" : ""}`}>
-        <canvas class="scope-plot-canvas" data-scope-canvas></canvas>
+        <svg class="scope-plot-svg" data-scope-svg viewBox=${`0 0 ${this.width} ${this.height}`}
+          preserveAspectRatio="none" role="img" aria-label="Scope signals over time">
+          <path class="scope-grid" d=${layout.gridPath()}></path>
+          <g class="scope-traces">${geometry.series.map(series => svg`
+            <path class="scope-trace" data-scope-trace=${series.channel}
+              style=${styleMap({ color: series.color })} d=${layout.tracePath(geometry, series)}></path>`)}</g>
+          <rect class="scope-frame" x=${layout.left} y=${layout.top}
+            width=${layout.right - layout.left} height=${layout.bottom - layout.top}></rect>
+          <g class="scope-axis-label">
+            <text x=${layout.left} y=${layout.bottom + 6} dominant-baseline="hanging">0s</text>
+            <text x=${layout.right} y=${layout.bottom + 6} text-anchor="end" dominant-baseline="hanging">${ScopeSeriesStyle.label(geometry.axisSeconds)}s</text>
+            <text x=${layout.left - 6} y=${layout.top + 11} text-anchor="end">${ScopeSeriesStyle.label(geometry.maximum)}</text>
+            <text x=${layout.left - 6} y=${layout.bottom - 11} text-anchor="end" dominant-baseline="hanging">${ScopeSeriesStyle.label(geometry.minimum)}</text>
+          </g>
+        </svg>
       </div>
       <ul class="scope-legend">${geometry.series.map((series) => html`
         <li data-scope-series=${series.channel} style=${styleMap({ color: series.color })}>

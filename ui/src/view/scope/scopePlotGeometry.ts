@@ -42,12 +42,14 @@ export class ScopePlotGeometry {
     readonly minimum: number,
     readonly maximum: number,
     readonly series: readonly ScopeSeriesGeometry[],
+    private readonly extent = ScopePlotGeometry.extent(series),
   ) {}
 
   static fromMonitor(monitor: ScopeMonitor): ScopePlotGeometry {
     const series = monitor.series().map((trace, index) => ScopeSeriesGeometry.fromTrace(trace, index));
-    const range = ScopePlotGeometry.range(series);
-    return new ScopePlotGeometry(monitor.domainSeconds, monitor.sampleSeconds, range.minimum, range.maximum, series);
+    const extent = ScopePlotGeometry.extent(series);
+    const range = ScopePlotGeometry.range(extent);
+    return new ScopePlotGeometry(monitor.domainSeconds, monitor.sampleSeconds, range.minimum, range.maximum, series, extent);
   }
 
   /** The full configured period is always visible, including unused NaN slots. */
@@ -57,11 +59,15 @@ export class ScopePlotGeometry {
 
   /** Smallest and largest finite samples, without axis padding. */
   sampleExtent(): { minimum: number; maximum: number } | undefined {
+    return this.extent;
+  }
+
+  private static extent(series: readonly ScopeSeriesGeometry[]): { minimum: number; maximum: number } | undefined {
     let minimum = Infinity;
     let maximum = -Infinity;
-    for (const series of this.series) {
-      for (let index = 0; index < series.buffer.capacity; index++) {
-        const value = series.buffer.at(index);
+    for (const item of series) {
+      for (let index = 0; index < item.buffer.size; index++) {
+        const value = item.buffer.data[index]!;
         if (!Number.isFinite(value)) continue;
         minimum = Math.min(minimum, value);
         maximum = Math.max(maximum, value);
@@ -77,18 +83,9 @@ export class ScopePlotGeometry {
     return this.axisSeconds - age;
   }
 
-  private static range(series: readonly ScopeSeriesGeometry[]): { minimum: number; maximum: number } {
-    let minimum = Infinity;
-    let maximum = -Infinity;
-    for (const item of series) {
-      for (let index = 0; index < item.buffer.capacity; index++) {
-        const value = item.buffer.at(index);
-        if (!Number.isFinite(value)) continue;
-        minimum = Math.min(minimum, value);
-        maximum = Math.max(maximum, value);
-      }
-    }
-    if (!Number.isFinite(minimum) || !Number.isFinite(maximum)) return { minimum: -1, maximum: 1 };
+  private static range(extent: { minimum: number; maximum: number } | undefined): { minimum: number; maximum: number } {
+    if (!extent) return { minimum: -1, maximum: 1 };
+    const { minimum, maximum } = extent;
     if (minimum === maximum) {
       const pad = Math.max(Math.abs(minimum) * 0.1, 1);
       return { minimum: minimum - pad, maximum: maximum + pad };

@@ -4,6 +4,7 @@ import { RpcClient } from "./rpc.ts";
 import type { Thread } from "./thread.ts";
 import { SysrootInstaller } from "./sysroot.ts";
 import { CompilationProgressEmitter, type CompilationPhaseListener } from "./compilationProgress.ts";
+import { isAbortError } from "./errors.ts";
 
 /** Compiles C++ sources to wasm. Callers pass files; the compiler does not know the diagram model. */
 export interface ICppCompiler {
@@ -38,13 +39,18 @@ export class CppWasmCompiler extends CompilationProgressEmitter implements ICppC
   }
 
   private async boot(): Promise<void> {
-    // Let both boots finish before a failed initialization can be retried.
-    const boots = await Promise.allSettled([this.clang.boot(), this.linker.boot()]);
-    for (const boot of boots) {
-      if (boot.status === "rejected") throw boot.reason;
+    try {
+      // Let both boots finish before a failed initialization can be retried.
+      const boots = await Promise.allSettled([this.clang.boot(), this.linker.boot()]);
+      for (const boot of boots) {
+        if (boot.status === "rejected") throw boot.reason;
+      }
+      const archive = await this.fetchSysroot();
+      await new SysrootInstaller(this.clang.sharedFileSystem).install(archive);
+    } finally {
+      // Preparation retains compiled modules and shared files, not two idle Wasm heaps.
+      await Promise.all([this.clang.recycle(), this.linker.recycle()]);
     }
-    const archive = await this.fetchSysroot();
-    await new SysrootInstaller(this.clang.sharedFileSystem).install(archive);
   }
 
   async compile(files: Map<string, string>, listener?: CompilationPhaseListener): Promise<Uint8Array> {
@@ -131,6 +137,11 @@ export class WorkerCppWasmCompiler extends CompilationProgressEmitter implements
   }
 
   private async init(): Promise<void> {
-    await this.client.request({ type: "init" });
+    try {
+      await this.client.request({ type: "init" });
+    } catch (error) {
+      if (!isAbortError(error)) throw error;
+      await this.client.request({ type: "init" });
+    }
   }
 }

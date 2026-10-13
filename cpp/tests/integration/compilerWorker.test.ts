@@ -34,6 +34,34 @@ class InProcessWorker extends Thread {
 }
 
 describe("reusable compiler worker", () => {
+  test("shares a single automatic retry when first-run module compilation aborts", async () => {
+    let attempts = 0;
+    const requests: string[] = [];
+    const wasm = new Uint8Array([0, 97, 115, 109]);
+    const worker = new InProcessWorker(async data => {
+      const { id, type } = data as { id: number; type: string };
+      requests.push(type);
+      if (type === "init" && ++attempts === 1) throw new WebAssembly.CompileError("WebAssembly.compile(): compilation aborted");
+      return { id, type: "ok", files: { "/work/a.wasm": wasm } };
+    });
+    const compiler = new WorkerCppWasmCompiler(worker);
+    await Promise.all([compiler.warmup(), compiler.warmup(), compiler.compile(new Map())]);
+    expect(requests).toEqual(["init", "init", "compile"]);
+    await compiler.close();
+  });
+
+  test("does not loop when module compilation keeps aborting", async () => {
+    let attempts = 0;
+    const worker = new InProcessWorker(async () => {
+      attempts++;
+      throw new WebAssembly.CompileError("WebAssembly.compile(): compilation aborted");
+    });
+    const compiler = new WorkerCppWasmCompiler(worker);
+    await expect(compiler.warmup()).rejects.toThrow("compilation aborted");
+    expect(attempts).toBe(2);
+    await compiler.close();
+  });
+
   test("routes phase events to each job without resolving it before the final response", async () => {
     const gate = Promise.withResolvers<void>();
     const started = Promise.withResolvers<void>();
@@ -205,7 +233,7 @@ test("failed initialization waits for both tools before allowing a retry", async
   await new Promise<void>((resolve) => setTimeout(resolve, 0));
   expect(settled).toBe(false);
   gate.resolve();
-  expect(await initializing).toBe("clang unavailable");
+  expect(await initializing).toBe("clang: clang unavailable");
   await expect(compiler.initialize()).rejects.toThrow("clang unavailable");
   expect(boots).toBe(2);
 });
