@@ -246,6 +246,7 @@ describe("E2E diagram C++ generation", () => {
     expect(cpp).toContain("void mount()");
     expect(cpp).toContain("GpioInF32");
     expect(cpp).not.toContain("register_gpio_block");
+    expect(cpp).not.toContain("#pragma clang optimize");
     expect(cpp).toContain("core::input_connections<true, 2, 2>");
   });
 

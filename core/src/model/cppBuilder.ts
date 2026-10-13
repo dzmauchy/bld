@@ -87,12 +87,6 @@ export class CppDiagramBuilder extends DiagramSourceBuilder {
     const index = (id: string) => blocks.findIndex((block) => block.id === id);
     const headers = Object.keys(this.libraryFiles).filter((name) => /\.(h|hpp|hh|hxx)$/.test(name)).sort();
     const lines = [
-      // The pinned clang-wasm loop vectorizer stalls on the GPIO factory.
-      // Load its dependencies first so only GPIO declarations get optnone.
-      ...(headers.includes("base/gpio_in.hpp") ? [
-        '#include <core/hal.hpp>', '#pragma clang optimize off',
-        '#include <base/gpio_in.hpp>', '#pragma clang optimize on',
-      ] : []),
       ...headers.map((name) => `#include <${name}>`),
       '#include "wasm_host.hpp"',
       ...JSON.stringify(diagram.toJSON(), null, 2).split("\n").map((line) => `// ${line}`),
