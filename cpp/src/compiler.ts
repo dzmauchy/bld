@@ -107,7 +107,7 @@ export class WorkerCppWasmCompiler extends CompilationProgressEmitter implements
     const response = await this.client.request({
       type: "compile",
       files: Object.fromEntries(files),
-    }, false, (message) => this.notifyPhase(message.progress, listener));
+    }, (message) => this.notifyPhase(message.progress, listener));
     const wasm = response.files?.["/work/a.wasm"];
     if (!wasm) throw new Error("compiler did not produce a wasm module");
     return wasm;

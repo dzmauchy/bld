@@ -1,85 +1,60 @@
-import { messageId, type WorkerOk, type WorkerResponse, type WorkerProgress } from "./messages.ts";
+import type { WorkerOk, WorkerResponse, WorkerProgress } from "./messages.ts";
 import type { Thread } from "./thread.ts";
-
-function isWorkerResponse(message: unknown): message is WorkerResponse {
-  return (
-    message !== null &&
-    typeof message === "object" &&
-    "id" in message &&
-    "type" in message &&
-    ((message as WorkerResponse).type === "ok" || (message as WorkerResponse).type === "error")
-  );
-}
-
-function collectTransferables(value: unknown, into: Transferable[]): void {
-  if (value instanceof Uint8Array && value.buffer instanceof ArrayBuffer) {
-    into.push(value.buffer);
-    return;
-  }
-  if (Array.isArray(value)) {
-    for (const item of value) collectTransferables(item, into);
-    return;
-  }
-  if (value !== null && typeof value === "object") {
-    for (const item of Object.values(value as Record<string, unknown>)) collectTransferables(item, into);
-  }
-}
 
 export class RpcClient {
   private nextId = 1;
   private failure: Error | undefined;
   private readonly pending = new Map<number, {
-    resolve: (value: WorkerResponse) => void;
+    resolve: (value: WorkerOk) => void;
     reject: (error: Error) => void;
     progress?: (message: WorkerProgress) => void;
   }>();
 
-  constructor(private readonly thread: Thread) {
-    this.thread.onMessage((message) => {
-      if (message !== null && typeof message === "object" && "type" in message && message.type === "progress") {
-        const progress = message as WorkerProgress;
-        this.pending.get(progress.id)?.progress?.(progress);
-        return;
-      }
-      if (!isWorkerResponse(message)) return;
-      const pending = this.pending.get(message.id);
-      if (!pending) return;
-      this.pending.delete(message.id);
-      pending.resolve(message);
-    });
-    this.thread.onError((error) => {
-      this.fail(error);
-    });
+  constructor(
+    private readonly thread: Thread,
+    private readonly onHostMessage?: (message: unknown) => void,
+  ) {
+    thread.onMessage((message) => this.receive(message));
+    thread.onError((error) => this.fail(error));
   }
 
-  async request(payload: Record<string, unknown>, transfer = false, progress?: (message: WorkerProgress) => void): Promise<WorkerOk> {
+  async request(payload: Record<string, unknown>, progress?: (message: WorkerProgress) => void): Promise<WorkerOk> {
     if (this.failure) throw this.failure;
     const id = this.nextId++;
-    const { promise, resolve, reject } = Promise.withResolvers<WorkerResponse>();
+    const { promise, resolve, reject } = Promise.withResolvers<WorkerOk>();
     this.pending.set(id, { resolve, reject, ...(progress ? { progress } : {}) });
-    const message = { ...payload, id };
     try {
-      if (transfer) {
-        const buffers: Transferable[] = [];
-        collectTransferables(message, buffers);
-        this.thread.postMessage(message, buffers);
-      } else {
-        this.thread.postMessage(message);
-      }
+      this.thread.postMessage({ ...payload, id });
     } catch (error) {
       this.pending.delete(id);
       reject(error instanceof Error ? error : new Error(String(error)));
     }
-    const response = await promise;
-    if (response.type === "error") {
-      throw new Error(response.stderr ? `${response.message}\n${response.stderr}` : response.message);
-    }
-    return response;
+    return promise;
   }
 
   terminate(): Promise<unknown> {
     this.fail(new Error("worker is closed"));
     return this.thread.terminate();
+  }
+
+  private receive(message: unknown): void {
+    if (message !== null && typeof message === "object" && "id" in message && "type" in message) {
+      const response = message as WorkerResponse | WorkerProgress;
+      const pending = this.pending.get(response.id);
+      if (pending) {
+        if (response.type === "progress") {
+          pending.progress?.(response);
+          return;
+        }
+        if (response.type === "ok" || response.type === "error") {
+          this.pending.delete(response.id);
+          if (response.type === "ok") pending.resolve(response);
+          else pending.reject(new Error(response.stderr ? `${response.message}\n${response.stderr}` : response.message));
+          return;
+        }
+      }
+    }
+    this.onHostMessage?.(message);
   }
 
   private fail(error: Error): void {
@@ -89,4 +64,4 @@ export class RpcClient {
   }
 }
 
-export { messageId };
+export { messageId } from "./messages.ts";

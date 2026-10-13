@@ -1,96 +1,13 @@
-import type { RunInstantiateRequest, RunInvokeRequest, WorkerOk, WorkerResponse } from "./messages.ts";
+import { RpcClient } from "cpp/rpc.ts";
+import type { Thread } from "cpp/thread.ts";
+
+export { Thread, EventTargetWorkerThread, wrapEventTargetWorker } from "cpp/thread.ts";
+export type { EventTargetWorkerLike } from "cpp/thread.ts";
 
 export type HostMessageHandler = (message: unknown) => void;
 
-export abstract class Thread {
-  abstract postMessage(data: unknown): void;
-  abstract onMessage(handler: (data: unknown) => void): void;
-  abstract onError(handler: (error: Error) => void): void;
-  abstract terminate(): Promise<unknown>;
-}
-
-export type EventTargetWorkerLike = {
-  postMessage(value: unknown): void;
-  addEventListener(type: "message", listener: (event: { data: unknown }) => void): void;
-  addEventListener(type: "error", listener: (event: { message?: string }) => void): void;
-  terminate(): void;
-};
-
-export class EventTargetWorkerThread extends Thread {
-  constructor(private readonly worker: EventTargetWorkerLike) {
-    super();
-  }
-
-  override postMessage(data: unknown): void { this.worker.postMessage(data); }
-  override onMessage(handler: (data: unknown) => void): void {
-    this.worker.addEventListener("message", (event) => handler(event.data));
-  }
-  override onError(handler: (error: Error) => void): void {
-    this.worker.addEventListener("error", (event) => handler(new Error(event.message ?? "worker error")));
-  }
-  override terminate(): Promise<unknown> { return Promise.resolve(this.worker.terminate()); }
-}
-
-export const wrapEventTargetWorker = (worker: EventTargetWorkerLike): Thread => new EventTargetWorkerThread(worker);
-
-function isWorkerResponse(message: unknown): message is WorkerResponse {
-  return (
-    message !== null &&
-    typeof message === "object" &&
-    "id" in message &&
-    "type" in message &&
-    ((message as WorkerResponse).type === "ok" || (message as WorkerResponse).type === "error")
-  );
-}
-
-class WorkerClient {
-  private nextId = 1;
-  private readonly pending = new Map<number, { resolve: (value: WorkerResponse) => void; reject: (error: Error) => void }>();
-
-  constructor(
-    private readonly thread: Thread,
-    onHostMessage?: HostMessageHandler,
-  ) {
-    this.thread.onMessage((message) => {
-      if (!isWorkerResponse(message)) {
-        onHostMessage?.(message);
-        return;
-      }
-      const pending = this.pending.get(message.id);
-      if (!pending) {
-        onHostMessage?.(message);
-        return;
-      }
-      this.pending.delete(message.id);
-      pending.resolve(message);
-    });
-    this.thread.onError((error) => {
-      for (const [, pending] of this.pending) pending.reject(error);
-      this.pending.clear();
-    });
-  }
-
-  async request(
-    payload: Omit<RunInstantiateRequest, "id"> | Omit<RunInvokeRequest, "id">,
-  ): Promise<WorkerOk> {
-    const id = this.nextId++;
-    const { promise, resolve, reject } = Promise.withResolvers<WorkerResponse>();
-    this.pending.set(id, { resolve, reject });
-    this.thread.postMessage({ ...payload, id });
-    const response = await promise;
-    if (response.type === "error") {
-      throw new Error(response.message);
-    }
-    return response;
-  }
-
-  terminate(): Promise<unknown> {
-    return Promise.resolve(this.thread.terminate());
-  }
-}
-
 export class WasmSession {
-  constructor(private readonly client: WorkerClient) {}
+  constructor(private readonly client: RpcClient) {}
 
   tick(): Promise<number> { return this.call("tick"); }
   tickThenObserve(): Promise<number> { return this.call("tickThenObserve"); }
@@ -127,11 +44,11 @@ export abstract class AbstractWasmRuntime {
 }
 
 export class WasmRuntime extends AbstractWasmRuntime {
-  private readonly run: WorkerClient;
+  private readonly run: RpcClient;
 
   constructor(options: WasmRuntimeOptions) {
     super();
-    this.run = new WorkerClient(options.runThread, options.onHostMessage);
+    this.run = new RpcClient(options.runThread, options.onHostMessage);
   }
 
   override async instantiate(wasm: Uint8Array): Promise<WasmSession> {
