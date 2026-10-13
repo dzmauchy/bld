@@ -20,6 +20,7 @@
     "preview": "vite preview",
     "test": "tsc -b && tsc -b tsconfig.test.json && vitest run --config vitest.config.ts && vitest run --config vitest.e2e.config.ts",
     "test:unit": "tsc -b && tsc -b tsconfig.test.json && vitest run --config vitest.config.ts tests/unit",
+    "test:integration": "tsc -b && tsc -b tsconfig.test.json && vitest run --config vitest.config.ts tests/integration",
     "test:manual": "MANUAL=1 vitest run --config vitest.e2e.config.ts e2e/diagramProfile.manual.spec.ts",
     "test:profile": "MANUAL=1 vitest run --config vitest.e2e.config.ts e2e/diagramProfile.manual.spec.ts",
     "clean": "tsc -b --clean",

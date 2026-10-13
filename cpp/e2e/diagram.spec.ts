@@ -3,7 +3,6 @@ import { readFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { expect, test, type CppSession } from "./fixtures/cpp.ts";
-import "../../core/tests/nodeFileFetch.ts";
 import {
   CppDiagramBuilder,
   Diagram,
@@ -13,6 +12,7 @@ import {
   registerAppAssets,
 } from "core";
 import "cpp/hostClangAstDumper.ts";
+import { ClangComment, type ClangAstJson } from "cpp/clangAst.ts";
 
 const here = dirname(fileURLToPath(import.meta.url));
 const coreAssets = join(here, "../../core/assets");
@@ -53,6 +53,31 @@ test("ConstF32 writes to a scope channel", async ({ cpp }) => {
   await compileDiagram(cpp, diagram);
   expect(await cpp.invoke("lastPin", [0, 0])).toBe(3.5);
   expect(await cpp.invoke("hasPin", [0, 0])).toBe(1);
+});
+
+test("compiler AST retains block and connection metadata after comment-only edits", async ({ cpp }) => {
+  const diagram = new Diagram("comments", "Original diagram", palette);
+  diagram.addBlock("ScopeF32", { x: 0, y: 0 }, "scope-π");
+  diagram.addBlock("ConstF32", { x: 1, y: 0 }, "source", { value: 3.5 });
+  diagram.connect(new PortEndpoint("scope-π", "output", "channels"),
+    new PortEndpoint("source", "input", "downstream"), "wire-identity");
+  const readMetadata = async (): Promise<unknown> => {
+    const dump = await cpp.astDumper.dumpAsync(builder.build(diagram), "diagram.cpp");
+    expect(dump.ok, dump.diagnostics).toBe(true);
+    let metadata: unknown;
+    const visit = (node: ClangAstJson): void => {
+      if (node.kind === "FunctionDecl" && node.name === "mount") metadata = ClangComment.of(node)?.asJson()?.value;
+      node.inner?.forEach(visit);
+    };
+    visit(dump.ast as ClangAstJson);
+    return metadata;
+  };
+  expect(await readMetadata()).toEqual(diagram.toJSON());
+  diagram.title = "Updated diagram";
+  await cpp.compileOnly(builder.build(diagram));
+  expect(await readMetadata()).toEqual(diagram.toJSON());
+  await cpp.instantiateLast();
+  expect(await cpp.invoke("lastPin", [0, 0])).toBe(3.5);
 });
 
 test("custom struct streams and output-owned storage survive mounting", async ({ cpp }) => {

@@ -1,5 +1,6 @@
-import { TarArchive } from "./tarArchive.mjs";
-import type { VirtualFileSystem } from "./filesystem.ts";
+import { TarArchive } from "./tarArchive.ts";
+import type { EmscriptenFsApi } from "./emscripten.ts";
+import { parentDir } from "./paths.ts";
 
 const LIBRARY_NAME = /\.(a|o)$/;
 
@@ -16,7 +17,7 @@ export function shouldInstallSysrootEntry(name: string): boolean {
 }
 
 export class SysrootInstaller {
-  constructor(private readonly fs: VirtualFileSystem) {}
+  constructor(private readonly fs: Pick<EmscriptenFsApi, "mkdirTree" | "writeFile">) {}
 
   async install(
     archive: ArrayBuffer | Uint8Array | ReadableStream<Uint8Array>,
@@ -27,7 +28,8 @@ export class SysrootInstaller {
     for (const entry of unpacked.files()) {
       if (!shouldInstallSysrootEntry(entry.name)) continue;
       const path = tarPathToMemfs(entry.name);
-      this.fs.writeTree(path, entry.data);
+      this.fs.mkdirTree(parentDir(path));
+      this.fs.writeFile(path, entry.data);
       files += 1;
     }
     return files;

@@ -126,10 +126,12 @@ graph TD
 
     subgraph CppPkg["cpp clang/lld"]
         Cpp["cpp"]
-        Clang["ClangFrontend"]
-        Lld["WasmLinker"]
-        Cpp --> Clang
-        Cpp --> Lld
+        Compiler["CppWasmCompiler"]
+        Clang["clang callMain / FS"]
+        Lld["lld callMain / FS"]
+        Cpp --> Compiler
+        Compiler --> Clang
+        Compiler --> Lld
     end
 
     subgraph WorkerEnv["Web Worker Thread"]
@@ -424,6 +426,9 @@ npm run test:unit --workspace=core
 # Browser tests use Puppeteer against Vite production previews
 npm run test:e2e --workspace=ui --include-workspace-root=false
 npm run test:e2e --workspace=cpp --include-workspace-root=false
+
+# Real Clang/LLD compilation, AST, and worker integration under Node.js
+npm run test:integration --workspace=cpp --include-workspace-root=false
 ```
 
 Core manual profiles are excluded from routine runs. Run a `*.manual.test.ts` file
@@ -449,7 +454,7 @@ The repository follows a clean, three-layer test layout:
 ```
 
 - **Unit Tests**: Verify isolated models (`Diagram`, `CppDiagramBuilder`, `CppBlockCatalog`, `TypeSystem`, `SlidingScopeBuffer`).
-- **Integration Tests**: Verify generated `mount()` matches header block refs and native `push::f_32` class names.
+- **Integration Tests**: Run the pinned Clang/LLD Wasm binaries under Node.js and real worker threads, checking executable output, AST metadata, native diagnostics, and recovery. Release assets are downloaded on the first run and cached in `cpp/test-results/toolchain/`.
 - **E2E Tests**: Clang integration tests in `core/tests/integration`, and in-browser clang/lld compile+run tests in `cpp/e2e/diagram.spec.ts` covering scopes and GPIO.
 
 ---

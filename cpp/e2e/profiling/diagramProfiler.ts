@@ -5,7 +5,7 @@ import type { CppSession } from "../fixtures/cpp.ts";
 import { Diagram, PortEndpoint, type CppDiagramBuilder } from "core";
 import type { IProfileSession } from "./session.ts";
 import type { IProfileReporter } from "./reporter.ts";
-import { ProfilingClangAstDumper } from "./astDumper.ts";
+import type { ClangAstDumper } from "cpp/clangAstDumper.ts";
 
 export interface DiagramTestDefinition {
   readonly name: string;
@@ -86,8 +86,6 @@ export class SingleDiagramTestProfiler extends BaseDiagramTestProfiler {
     builder: CppDiagramBuilder,
     palette: any,
   ): Promise<void> {
-    const page = cpp.browserPage;
-
     // 1. Diagram Construction
     const diagram = this.session.measureSync(
       "1. Diagram Construction",
@@ -100,13 +98,20 @@ export class SingleDiagramTestProfiler extends BaseDiagramTestProfiler {
     );
 
     // 2. AST Analysis with breakdown
-    const profilingDumper = new ProfilingClangAstDumper({
-      dumpAst: (files, mainFile) =>
-        page.evaluate(
-          ({ files, mainFile }) => window.cpp.dumpAst(files, mainFile),
-          { files: Object.fromEntries(files), mainFile },
-        ),
-    });
+    const records: { mainFile: string; fileCount: number; mainFileSizeChars: number; astJsonSizeChars: number; durationMs: number }[] = [];
+    const profilingDumper: ClangAstDumper = {
+      ...cpp.astDumper,
+      async dumpAsync(files, mainFile) {
+        const start = performance.now();
+        const result = await cpp.astDumper.dumpAsync(files, mainFile);
+        records.push({
+          mainFile, fileCount: files.size, mainFileSizeChars: files.get(mainFile)?.length ?? 0,
+          astJsonSizeChars: result.ast ? JSON.stringify(result.ast).length : 0,
+          durationMs: performance.now() - start,
+        });
+        return result;
+      },
+    };
 
     const analysis = await this.session.measure(
       "2. AST Analysis",
@@ -115,11 +120,11 @@ export class SingleDiagramTestProfiler extends BaseDiagramTestProfiler {
     );
 
     expect(analysis.ok, JSON.stringify(analysis.diagnostics)).toBe(true);
-    expect(profilingDumper.records).toHaveLength(1);
+    expect(records).toHaveLength(1);
 
     // Sub-metrics from AST dumper
-    if (profilingDumper.records.length === 1) {
-      const fullRecord = profilingDumper.records[0]!;
+    if (records.length === 1) {
+      const fullRecord = records[0]!;
       const totalAnalyze = this.session
         .metricsForPhase("2. AST Analysis")
         .find((m) => m.name.includes("builder.analyze"))?.durationMs ?? 0;

@@ -1,239 +1,95 @@
-import { describe, expect, test } from "vitest";
-import { ClangFrontend } from "cpp/clang.ts";
-import { SharedToolchainFileSystem } from "cpp/sharedFileSystem.ts";
-import { WasmLinker } from "cpp/linker.ts";
-import { CppWasmCompiler, WorkerCppWasmCompiler } from "cpp/compiler.ts";
-import type { WorkerResponse } from "cpp/messages.ts";
+import { Worker } from "node:worker_threads";
+import { build } from "vite";
+import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, test } from "vitest";
+import { WorkerCppWasmCompiler } from "cpp/compiler.ts";
 import type { CompilationPhaseEvent } from "cpp/compilationProgress.ts";
-import { Thread } from "cpp/thread.ts";
-import { WorkerMessageDispatcher, type WorkerMessageHandler } from "cpp/workers/host.ts";
+import { execute, serveToolchain } from "../toolchain.ts";
 
-class InProcessWorker extends Thread {
-  private readonly dispatcher: WorkerMessageDispatcher;
-  private handler: ((data: unknown) => void) | undefined;
-
-  constructor(handler: WorkerMessageHandler) {
-    super();
-    this.dispatcher = new WorkerMessageDispatcher(handler,
-      (response) => this.handler?.(response), (progress) => this.handler?.(progress));
-  }
-
-  override postMessage(data: unknown): void {
-    void this.dispatcher.dispatch(data);
-  }
-
-  override onMessage(handler: (data: unknown) => void): void {
-    this.handler = handler;
-  }
-
-  override onError(): void {}
-
-  override async terminate(): Promise<void> {
-    this.handler = undefined;
-  }
-}
-
-describe("reusable compiler worker", () => {
-  test("shares a single automatic retry when first-run module compilation aborts", async () => {
-    let attempts = 0;
-    const requests: string[] = [];
-    const wasm = new Uint8Array([0, 97, 115, 109]);
-    const worker = new InProcessWorker(async data => {
-      const { id, type } = data as { id: number; type: string };
-      requests.push(type);
-      if (type === "init" && ++attempts === 1) throw new WebAssembly.CompileError("WebAssembly.compile(): compilation aborted");
-      return { id, type: "ok", files: { "/work/a.wasm": wasm } };
-    });
-    const compiler = new WorkerCppWasmCompiler(worker);
-    await Promise.all([compiler.warmup(), compiler.warmup(), compiler.compile(new Map())]);
-    expect(requests).toEqual(["init", "init", "compile"]);
-    await compiler.close();
+let assets: Awaited<ReturnType<typeof serveToolchain>>;
+let workerUrl: URL;
+let compiler: WorkerCppWasmCompiler;
+beforeAll(async () => {
+  assets = await serveToolchain();
+  const output = await build({
+    configFile: false, logLevel: "silent",
+    build: {
+      write: false, minify: false, target: "esnext",
+      lib: { entry: new URL("../fixtures/compiler.node.ts", import.meta.url).pathname, formats: ["es"] },
+      rollupOptions: { external: ["node:worker_threads"] },
+    },
   });
-
-  test("does not loop when module compilation keeps aborting", async () => {
-    let attempts = 0;
-    const worker = new InProcessWorker(async () => {
-      attempts++;
-      throw new WebAssembly.CompileError("WebAssembly.compile(): compilation aborted");
-    });
-    const compiler = new WorkerCppWasmCompiler(worker);
-    await expect(compiler.warmup()).rejects.toThrow("compilation aborted");
-    expect(attempts).toBe(2);
-    await compiler.close();
-  });
-
-  test("routes phase events to each job without resolving it before the final response", async () => {
-    const gate = Promise.withResolvers<void>();
-    const started = Promise.withResolvers<void>();
-    const wasm = new Uint8Array([0, 97, 115, 109]);
-    const worker = new InProcessWorker(async (data, progress): Promise<WorkerResponse> => {
-      const { id, type } = data as { id: number; type: string };
-      if (type === "compile") {
-        progress({ id, type: "progress", progress: { phase: "compilation", status: "active" } });
-        started.resolve();
-        await gate.promise;
-        progress({ id, type: "progress", progress: { phase: "compilation", status: "completed" } });
-        progress({ id, type: "progress", progress: { phase: "linking", status: "active" } });
-        progress({ id, type: "progress", progress: { phase: "linking", status: "completed" } });
-      }
-      return { id, type: "ok", files: { "/work/a.wasm": wasm } };
-    });
-    const compiler = new WorkerCppWasmCompiler(worker);
-    const firstEvents: CompilationPhaseEvent[] = [];
-    const secondEvents: CompilationPhaseEvent[] = [];
-    let resolved = false;
-    const first = compiler.compile(new Map(), event => firstEvents.push(event)).then(bytes => {
-      resolved = true;
-      return bytes;
-    });
-    await started.promise;
-    const second = compiler.compile(new Map(), event => secondEvents.push(event));
-    await Promise.resolve();
-    expect(resolved).toBe(false);
-    expect(firstEvents).toEqual([
-      { phase: "awaiting-modules", status: "active" },
-      { phase: "awaiting-modules", status: "completed" },
-      { phase: "compilation", status: "active" },
-    ]);
-    expect(secondEvents).toEqual([
-      { phase: "awaiting-modules", status: "active" },
-      { phase: "awaiting-modules", status: "completed" },
-    ]);
-    gate.resolve();
-    expect(await first).toEqual(wasm);
-    expect(await second).toEqual(wasm);
-    expect(firstEvents).toEqual([
-      { phase: "awaiting-modules", status: "active" },
-      { phase: "awaiting-modules", status: "completed" },
-      { phase: "compilation", status: "active" },
-      { phase: "compilation", status: "completed" },
-      { phase: "linking", status: "active" },
-      { phase: "linking", status: "completed" },
-    ]);
-    expect(secondEvents).toEqual(firstEvents);
-    await compiler.close();
-  });
-
-  test("AST and compile jobs await the pending startup promise and reuse it afterwards", async () => {
-    const gate = Promise.withResolvers<void>();
-    const started = Promise.withResolvers<void>();
-    const requests: string[] = [];
-    const wasm = new Uint8Array([0, 97, 115, 109]);
-    const worker = new InProcessWorker(async (data): Promise<WorkerResponse> => {
-      const { id, type } = data as { id: number; type: string };
-      requests.push(type);
-      if (type === "init") {
-        started.resolve();
-        await gate.promise;
-      }
-      return { id, type: "ok", result: 0, ast: {}, files: { "/work/a.wasm": wasm } };
-    });
-    const compiler = new WorkerCppWasmCompiler(worker);
-    try {
-      const startup = compiler.warmup();
-      expect(compiler.warmup()).toBe(startup);
-      await started.promise;
-      const analysis = compiler.dumpAst(new Map(), "main.cpp");
-      const compiled = compiler.compile(new Map());
-      await Promise.resolve();
-      expect(requests).toEqual(["init"]);
-      gate.resolve();
-      await Promise.all([startup, analysis]);
-      expect(await compiled).toEqual(wasm);
-      expect(compiler.warmup()).toBe(startup);
-      await compiler.compile(new Map());
-      expect(requests).toEqual(["init", "dump-ast", "compile", "compile"]);
-    } finally {
-      gate.resolve();
-      await compiler.close();
-    }
-  });
-
-  test("queues overlapping AST and compile jobs and continues after a failed job", async () => {
-    const gate = Promise.withResolvers<void>();
-    const started = Promise.withResolvers<void>();
-    const requests: string[] = [];
-    const wasm = new Uint8Array([0, 97, 115, 109]);
-    const worker = new InProcessWorker(async (data): Promise<WorkerResponse> => {
-      const { id, type } = data as { id: number; type: string };
-      requests.push(type);
-      if (type === "dump-ast") {
-        started.resolve();
-        await gate.promise;
-        throw new Error("invalid source");
-      }
-      return { id, type: "ok", files: { "/work/a.wasm": wasm } };
-    });
-    const compiler = new WorkerCppWasmCompiler(worker);
-    const dump = compiler.dumpAst(new Map(), "bad.cpp").catch((error: Error) => error.message);
-    const compiled = compiler.compile(new Map([["next.cpp", "int next;"]]));
-    await started.promise;
-    expect(requests).toEqual(["init", "dump-ast"]);
-    gate.resolve();
-    expect(await dump).toBe("invalid source");
-    expect(await compiled).toEqual(wasm);
-    expect(requests).toEqual(["init", "dump-ast", "compile"]);
-    await compiler.close();
-  });
-
-  test("retries initialization on the same worker after a failed warmup", async () => {
-    let attempts = 0;
-    const worker = new InProcessWorker(async (data) => {
-      const { id } = data as { id: number };
-      if (++attempts === 1) throw new Error("download failed");
-      return { id, type: "ok" };
-    });
-    const compiler = new WorkerCppWasmCompiler(worker);
-    await expect(compiler.warmup()).rejects.toThrow("download failed");
-    await Promise.all([compiler.warmup(), compiler.warmup()]);
-    expect(attempts).toBe(2);
-    await compiler.close();
-  });
-
-  test("closing rejects pending requests and further uses of the worker", async () => {
-    const gate = Promise.withResolvers<void>();
-    const started = Promise.withResolvers<void>();
-    const worker = new InProcessWorker(async (data) => {
-      const { id, type } = data as { id: number; type: string };
-      if (type === "compile") {
-        started.resolve();
-        await gate.promise;
-      }
-      return { id, type: "ok" };
-    });
-    const compiler = new WorkerCppWasmCompiler(worker);
-    const compiling = compiler.compile(new Map()).catch((error: Error) => error.message);
-    await started.promise;
-    await compiler.close();
-    expect(await compiling).toBe("worker is closed");
-    await expect(compiler.warmup()).rejects.toThrow("worker is closed");
-    gate.resolve();
+  const outputs = Array.isArray(output) ? output : [output];
+  const chunk = outputs.flatMap(item => "output" in item ? item.output : [])
+    .find(item => item.type === "chunk" && item.isEntry);
+  if (!chunk || chunk.type !== "chunk") throw new Error("Missing Node worker bundle");
+  workerUrl = new URL(`data:text/javascript;base64,${Buffer.from(chunk.code).toString("base64")}`);
+}, 120_000);
+beforeEach(() => {
+  const worker = new Worker(workerUrl, { workerData: { assetBase: new URL(assets.assetUrl("clang.js")).origin } });
+  compiler = new WorkerCppWasmCompiler({
+    postMessage: (data, transfer) => worker.postMessage(data, transfer as ArrayBuffer[] | undefined),
+    onMessage: handler => { worker.on("message", handler); },
+    onError: handler => { worker.on("error", handler); },
+    terminate: () => worker.terminate(),
   });
 });
+afterEach(async () => { await compiler.close(); });
+afterAll(async () => { await assets?.close(); });
 
+const source = (value: number) => new Map([["main.cpp", `extern "C" int answer() { return ${value}; }`]]);
+const answer = async (wasm: Uint8Array) => ((await execute(wasm)).answer as () => number)();
 
-test("failed initialization waits for both tools before allowing a retry", async () => {
-  const gate = Promise.withResolvers<void>();
-  let boots = 0;
-  let settled = false;
-  const files = new SharedToolchainFileSystem();
-  const clang = new ClangFrontend(async () => {
-    boots += 1;
-    await gate.promise;
-    throw new Error("clang unavailable");
-  }, "clang.wasm", files);
-  const linker = new WasmLinker(async () => {
-    throw new Error("lld unavailable");
-  }, "lld.wasm", files);
-  const compiler = new CppWasmCompiler(clang, linker, "sysroot.tgz");
-  const initializing = compiler.initialize().catch((error: Error) => {
-    settled = true;
-    return error.message;
+describe("real Node compiler worker", () => {
+  test("shares preparation across overlapping AST and compile requests, then reuses the worker", async () => {
+    const preparation = compiler.warmup();
+    expect(compiler.warmup()).toBe(preparation);
+    const ast = compiler.dumpAst(source(42), "main.cpp");
+    const wasm = compiler.compile(source(42));
+    await preparation;
+    expect((await ast).ok).toBe(true);
+    expect(await answer(await wasm)).toBe(42);
+    expect(compiler.warmup()).toBe(preparation);
+    expect(await answer(await compiler.compile(source(43)))).toBe(43);
+    expect(assets.requests.filter(name => name === "sysroot.tgz")).toHaveLength(1);
   });
-  await new Promise<void>((resolve) => setTimeout(resolve, 0));
-  expect(settled).toBe(false);
-  gate.resolve();
-  expect(await initializing).toBe("clang: clang unavailable");
-  await expect(compiler.initialize()).rejects.toThrow("clang unavailable");
-  expect(boots).toBe(2);
+
+  test("serializes conflicting jobs and routes progress and owned output bytes to each caller", async () => {
+    const firstEvents: CompilationPhaseEvent[] = [];
+    const secondEvents: CompilationPhaseEvent[] = [];
+    const first = compiler.compile(source(40), event => firstEvents.push(event));
+    const second = compiler.compile(source(42), event => secondEvents.push(event));
+    const [firstWasm, secondWasm] = await Promise.all([first, second]);
+    expect(await answer(firstWasm)).toBe(40);
+    expect(await answer(secondWasm)).toBe(42);
+    expect(firstEvents).toEqual([
+      { phase: "awaiting-modules", status: "active" }, { phase: "awaiting-modules", status: "completed" },
+      { phase: "compilation", status: "active" }, { phase: "compilation", status: "completed" },
+      { phase: "linking", status: "active" }, { phase: "linking", status: "completed" },
+    ]);
+    expect(secondEvents).toEqual(firstEvents);
+    // A subsequent result transfer leaves the worker's persisted object usable.
+    expect(await answer(await compiler.compile(source(42)))).toBe(42);
+    expect(await answer(firstWasm)).toBe(40);
+  });
+
+  test("keeps a queued successful job usable after a native compiler error", async () => {
+    const failure = expect(compiler.compile(new Map([["main.cpp", "#error invalid source"]]))).rejects.toThrow("invalid source");
+    const next = compiler.compile(source(44));
+    await failure;
+    expect(await answer(await next)).toBe(44);
+  });
+
+  test("retries a failed download on the same worker", async () => {
+    assets.failures.set("clang.js", 1);
+    await expect(compiler.warmup()).rejects.toThrow(/clang.js: 503/);
+    await Promise.all([compiler.warmup(), compiler.warmup()]);
+    expect(await answer(await compiler.compile(source(45)))).toBe(45);
+  });
+
+  test("closing rejects pending and future requests", async () => {
+    const pending = expect(compiler.compile(source(46))).rejects.toThrow("worker is closed");
+    await compiler.close();
+    await pending;
+    await expect(compiler.warmup()).rejects.toThrow("worker is closed");
+  });
 });

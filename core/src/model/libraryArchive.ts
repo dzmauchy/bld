@@ -4,7 +4,7 @@
  * A library archive is the tar.gz addressed by a library manifest location.
  * The cpp workspace decodes gzip and reads tar file views.
  */
-import { TarArchive } from "cpp/tarArchive.mjs";
+import { TarArchive } from "cpp/tarArchive.ts";
 import { loadAssetBytes } from "./appAssets";
 
 const HEADER_NAME = /\.(?:h|hh|hpp|hxx)$/i;
@@ -53,28 +53,13 @@ export class LibraryArchive {
   }
 
   private static async load(location: string): Promise<LibraryArchive> {
-    let failure: unknown;
-    for (const url of archiveUrls(location)) {
-      try {
-        return await LibraryArchive.fromTarGz(await loadAssetBytes(url));
-      } catch (error) {
-        failure = error;
-      }
+    try {
+      return await LibraryArchive.fromTarGz(await loadAssetBytes(location));
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      throw new Error(`Failed to load library archive ${location}: ${message}`, { cause: error });
     }
-    const message = failure instanceof Error ? failure.message : String(failure);
-    throw new Error(`Failed to load library archive ${location}: ${message}`);
   }
-}
-
-function archiveUrls(location: string): string[] {
-  const urls = [location];
-  if (!URL.canParse(location)) return urls;
-  const name = new URL(location).pathname.split("/").pop();
-  if (name && name !== location) {
-    if (typeof window !== "undefined") urls.unshift(name);
-    else urls.push(name);
-  }
-  return urls;
 }
 
 function headerFileName(name: string): string {

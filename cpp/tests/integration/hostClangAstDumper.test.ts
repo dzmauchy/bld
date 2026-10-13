@@ -1,5 +1,5 @@
 import { expect, test } from "vitest";
-import { ClangTranslationUnit } from "cpp/clangAst.ts";
+import { ClangComment, ClangTranslationUnit, type ClangAstJson } from "cpp/clangAst.ts";
 import { HostClangAstDumper } from "cpp/hostClangAstDumper.ts";
 
 test("native clang reads included headers without precompilation and retains source types and comments", () => {
@@ -20,4 +20,26 @@ test("native clang reads included headers without precompilation and retains sou
   const changed = dumper.dump(files, "main.cpp");
   expect(changed.ok, changed.diagnostics).toBe(true);
   expect(ClangTranslationUnit.parse(changed.ast).varType("inferred")?.canonical).toBe("double");
+});
+
+test("native compiler AST retains diagram identities and declaration comments", () => {
+  const metadata = { id: "commented", blocks: { "block-π": { ref: "Custom" } }, connections: { "wire-1": {} } };
+  const source = [
+    `// ${JSON.stringify(metadata)}`,
+    'extern "C" void mount() {',
+    '// {"kind":"block","id":"block-π"}',
+    'static auto block = 1;',
+    '(void)block;',
+    '}',
+  ].join("\n");
+  const dump = new HostClangAstDumper().dump(new Map([["diagram.cpp", source]]), "diagram.cpp");
+  expect(dump.ok, dump.diagnostics).toBe(true);
+  const comments = new Map<string, unknown>();
+  const visit = (node: ClangAstJson): void => {
+    if (node.name) comments.set(node.name, ClangComment.of(node)?.asJson()?.value);
+    node.inner?.forEach(visit);
+  };
+  visit(dump.ast as ClangAstJson);
+  expect(comments.get("mount")).toEqual(metadata);
+  expect(comments.get("block")).toEqual({ kind: "block", id: "block-π" });
 });

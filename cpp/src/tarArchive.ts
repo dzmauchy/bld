@@ -1,15 +1,24 @@
+export type TarInput = ArrayBuffer | Uint8Array | ReadableStream<Uint8Array>;
+export interface TarFile {
+  readonly name: string;
+  /** A view into the decompressed archive. */
+  readonly data: Uint8Array;
+}
+
+type ExtendedHeader = { path?: string; size?: string };
+
 const BLOCK_SIZE = 512;
 const decoder = new TextDecoder();
 
 /** Native gzip decompression followed by a linear tar scan. File data is a view. */
 export class TarArchive {
-  #bytes;
+  private readonly bytes: Uint8Array;
 
-  constructor(bytes) {
-    this.#bytes = bytes instanceof Uint8Array ? bytes : new Uint8Array(bytes);
+  constructor(bytes: ArrayBuffer | Uint8Array) {
+    this.bytes = bytes instanceof Uint8Array ? bytes : new Uint8Array(bytes);
   }
 
-  static async read(input, compressed = true) {
+  static async read(input: TarInput, compressed = true): Promise<TarArchive> {
     if (!compressed && !(input instanceof ReadableStream)) return new TarArchive(input);
     const stream = input instanceof ReadableStream ? input : new ReadableStream({
       start(controller) {
@@ -21,11 +30,11 @@ export class TarArchive {
     return new TarArchive(await new Response(source).arrayBuffer());
   }
 
-  *files() {
-    const bytes = this.#bytes;
+  *files(): Generator<TarFile> {
+    const bytes = this.bytes;
     if (bytes.length < BLOCK_SIZE) throw new Error("Truncated tar header");
-    let global = {};
-    let pending = {};
+    const global: ExtendedHeader = {};
+    let pending: ExtendedHeader = {};
     for (let offset = 0; offset < bytes.length;) {
       if (offset + BLOCK_SIZE > bytes.length) throw new Error("Truncated tar header");
       const header = bytes.subarray(offset, offset + BLOCK_SIZE);
@@ -45,9 +54,7 @@ export class TarArchive {
         throw new Error("Invalid or truncated tar entry");
       }
       if (type === 120 || type === 103) {
-        const fields = paxFields(bytes.subarray(start, end));
-        if (type === 103) global = { ...global, ...fields };
-        else pending = { ...pending, ...fields };
+        readPax(bytes.subarray(start, end), type === 103 ? global : pending);
       } else if (type === 76) {
         pending.path = text(bytes.subarray(start, end));
       } else if (type !== 75) {
@@ -62,26 +69,25 @@ export class TarArchive {
   }
 }
 
-function text(bytes) {
+function text(bytes: Uint8Array): string {
   const zero = bytes.indexOf(0);
   return decoder.decode(zero < 0 ? bytes : bytes.subarray(0, zero));
 }
 
-function octal(bytes) {
+function octal(bytes: Uint8Array): number {
   const value = text(bytes).trim();
   if (!/^[0-7]+$/.test(value)) throw new Error("Invalid tar number");
   return Number.parseInt(value, 8);
 }
 
-function tarSize(bytes) {
+function tarSize(bytes: Uint8Array): number {
   if (!(bytes[0] & 128)) return octal(bytes);
   let value = bytes[0] & 127;
   for (let i = 1; i < bytes.length; i++) value = value * 256 + bytes[i];
   return value;
 }
 
-function paxFields(bytes) {
-  const fields = {};
+function readPax(bytes: Uint8Array, fields: ExtendedHeader): void {
   for (let offset = 0; offset < bytes.length;) {
     const space = bytes.indexOf(32, offset);
     const length = Number(decoder.decode(bytes.subarray(offset, space)));
@@ -95,5 +101,4 @@ function paxFields(bytes) {
     if (key === "path" || key === "size") fields[key] = record.slice(equals + 1);
     offset = end;
   }
-  return fields;
 }

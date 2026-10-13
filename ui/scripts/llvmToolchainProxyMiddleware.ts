@@ -1,6 +1,8 @@
+import { baseLibraryPath, baseLibraryUrl } from "cpp/llvmToolchainProxy.ts";
 import type { IncomingMessage, ServerResponse } from "node:http";
 
 const releasePrefix = "https://github.com/dzmauchy/clang-wasm/releases/download/clang-23.1.2/";
+const baseArchive = baseLibraryPath.slice(1);
 const releaseFiles = new Set(["clang.js", "clang.wasm", "lld.js", "lld.wasm", "sysroot.tgz"]);
 
 type ConnectMiddleware = (req: IncomingMessage, res: ServerResponse, next: (error?: unknown) => void) => void;
@@ -23,7 +25,7 @@ export class LlvmToolchainAssetCache {
   ) {}
 
   get(name: string): Promise<ReleaseAsset> {
-    if (!releaseFiles.has(name)) return Promise.reject(new Error("forbidden toolchain asset"));
+    if (name !== baseArchive && !releaseFiles.has(name)) return Promise.reject(new Error("forbidden toolchain asset"));
     const cached = this.downloads.get(name);
     if (cached && cached.expiresAt > Date.now()) return cached.result;
     const result = this.download(name).then((asset) => {
@@ -40,7 +42,7 @@ export class LlvmToolchainAssetCache {
   private async download(name: string): Promise<ReleaseAsset> {
     for (let attempt = 0; attempt < 3; attempt++) {
       try {
-        const response = await this.fetchAsset(`${releasePrefix}${name}`);
+        const response = await this.fetchAsset(name === baseArchive ? baseLibraryUrl : `${releasePrefix}${name}`);
         const body = Buffer.from(await response.arrayBuffer());
         const transient = response.status === 408 || response.status === 429 || response.status >= 500;
         if (!transient || attempt === 2) return { status: response.status, body };
@@ -60,13 +62,14 @@ export function attachLlvmToolchainProxy(
   middlewares.use((req, res, next) => {
     const host = req.headers.host ?? "localhost";
     const url = new URL(req.url ?? "/", `http://${host}`);
-    if (url.pathname !== "/llvm-toolchain-proxy") {
+    if (url.pathname !== "/llvm-toolchain-proxy" && url.pathname !== baseLibraryPath) {
       next();
       return;
     }
     const target = url.searchParams.get("url") ?? "";
-    const name = target.startsWith(releasePrefix) ? target.slice(releasePrefix.length) : "";
-    if (!releaseFiles.has(name)) {
+    const name = url.pathname === baseLibraryPath ? baseArchive
+      : target.startsWith(releasePrefix) ? target.slice(releasePrefix.length) : "";
+    if (url.pathname !== baseLibraryPath && !releaseFiles.has(name)) {
       res.statusCode = 403;
       res.end("forbidden toolchain url");
       return;

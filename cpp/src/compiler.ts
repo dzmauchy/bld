@@ -1,81 +1,197 @@
-import { ClangFrontend } from "./clang.ts";
-import { WasmLinker } from "./linker.ts";
+import { loadEmscriptenModule, type EmscriptenModuleFactory, type EmscriptenRuntime } from "./emscripten.ts";
+import { SharedToolchainFileSystem } from "./sharedFileSystem.ts";
+import { astPathFor, isCppSource, objectPathFor, workPath } from "./paths.ts";
+import { LlvmProjectRelease } from "./llvmRelease.ts";
 import { RpcClient } from "./rpc.ts";
 import type { Thread } from "./thread.ts";
 import { SysrootInstaller } from "./sysroot.ts";
 import { CompilationProgressEmitter, type CompilationPhaseListener } from "./compilationProgress.ts";
-import { isAbortError } from "./errors.ts";
+import { exitStatus, formatUnknownError, isAbortError } from "./errors.ts";
 
-/** Compiles C++ sources to wasm. Callers pass files; the compiler does not know the diagram model. */
 export interface ICppCompiler {
   compile(files: Map<string, string>, listener?: CompilationPhaseListener): Promise<Uint8Array>;
 }
 
-/**
- * Compiles a Map of C++ sources/headers to a wasm module by running clang
- * then wasm-ld. Instantiated inside the single compiler worker with tools
- * backed by clang, lld, and the sysroot archive from the clang-wasm release.
- */
-export class CppWasmCompiler extends CompilationProgressEmitter implements ICppCompiler {
-  private ready: Promise<void> | undefined;
+type Tool = "clang" | "lld";
+type ToolResult = { code: number; stdout: string; stderr: string };
 
-  constructor(
-    private readonly clang: ClangFrontend,
-    private readonly linker: WasmLinker,
-    private readonly sysrootUrl: string,
-  ) {
+/** Runs the released Clang and LLD directly, keeping files and compiled modules across fresh tool heaps. */
+export class CppWasmCompiler extends CompilationProgressEmitter implements ICppCompiler {
+  private readonly files = new SharedToolchainFileSystem();
+  private readonly modules = new Map<Tool, Promise<EmscriptenModuleFactory>>();
+  private ready: Promise<void> | undefined;
+  private cachedInputs: ReadonlyMap<string, string> | undefined;
+  private readonly cachedSources = new Map<string, ToolResult>();
+
+  constructor(private readonly assetUrl = (name: string) => new LlvmProjectRelease().assetUrl(name)) {
     super();
-    if (clang.sharedFileSystem !== linker.sharedFileSystem) {
-      throw new Error("clang and lld must use the same shared filesystem");
-    }
   }
 
-  async initialize(): Promise<void> {
+  initialize(): Promise<void> {
     this.ready ??= this.boot().catch((error: unknown) => {
       this.ready = undefined;
       throw error;
     });
-    await this.ready;
+    return this.ready;
   }
 
   private async boot(): Promise<void> {
-    try {
-      // Let both boots finish before a failed initialization can be retried.
-      const boots = await Promise.allSettled([this.clang.boot(), this.linker.boot()]);
-      for (const boot of boots) {
-        if (boot.status === "rejected") throw boot.reason;
-      }
-      const archive = await this.fetchSysroot();
-      await new SysrootInstaller(this.clang.sharedFileSystem).install(archive);
-    } finally {
-      // Preparation retains compiled modules and shared files, not two idle Wasm heaps.
-      await Promise.all([this.clang.recycle(), this.linker.recycle()]);
-    }
+    const [clang, lld, sysroot] = await Promise.allSettled([
+      this.module("clang"), this.module("lld"),
+      fetch(this.assetUrl("sysroot.tgz")).then(async response => {
+        if (!response.ok) throw new Error(`failed to fetch sysroot: ${response.status} ${response.statusText}`);
+        return response.arrayBuffer();
+      }),
+    ]);
+    // Finish every load before a failed initialization can be retried.
+    if (clang.status === "rejected") throw clang.reason;
+    if (lld.status === "rejected") throw lld.reason;
+    if (sysroot.status === "rejected") throw sysroot.reason;
+    const runtime = await clang.value({ noInitialRun: true });
+    this.mount(runtime);
+    await new SysrootInstaller(runtime.FS).install(sysroot.value);
+    // Only shared files and compiled modules survive preparation, never idle Wasm heaps.
   }
 
   async compile(files: Map<string, string>, listener?: CompilationPhaseListener): Promise<Uint8Array> {
+    const sources = [...files.keys()].filter(isCppSource);
+    if (sources.length === 0) throw new Error("no C or C++ source files to compile");
+    this.validateOutputs(sources);
+    await this.initialize();
+    this.prepareInputs(files);
     this.notifyPhase({ phase: "compilation", status: "active" }, listener);
-    const objects = await this.clang.compile(files);
-    this.notifyPhase({ phase: "compilation", status: "completed" }, listener);
-    this.notifyPhase({ phase: "linking", status: "active" }, listener);
-    const wasm = await this.linker.link(objects);
-    this.notifyPhase({ phase: "linking", status: "completed" }, listener);
-    return wasm;
-  }
-
-  async dumpAst(
-    files: Map<string, string>,
-    mainFile: string,
-  ): Promise<{ ok: boolean; ast: unknown; stdout: string; stderr: string }> {
-    return this.clang.dumpAst(files, mainFile);
-  }
-
-  private async fetchSysroot(): Promise<ArrayBuffer> {
-    const response = await fetch(this.sysrootUrl);
-    if (!response.ok) {
-      throw new Error(`failed to fetch sysroot: ${response.status} ${response.statusText}`);
+    try {
+      const pending = sources.filter(source => !this.cachedSources.has(source));
+      if (pending.length) {
+        const result = await this.invoke("clang", ["-o", "/work/build", ...pending.map(workPath)]);
+        this.requireSuccess("clang", result);
+        for (const source of pending) this.cachedSources.set(source, result);
+      }
+      this.notifyPhase({ phase: "compilation", status: "completed" }, listener);
+      this.notifyPhase({ phase: "linking", status: "active" }, listener);
+      const result = await this.invoke("lld", [
+        "--no-entry", "--export-dynamic", "--export=wasm_initialize", "--export-table", "--export-memory",
+        "--stack-first", "-z", "stack-size=1048576", "-L", "/sysroot/lib",
+        ...sources.map(objectPathFor), "-lbrowser", "-o", "/work/a.wasm",
+      ]);
+      this.requireSuccess("lld", result);
+      const wasm = this.files.readFile("/work/a.wasm");
+      this.notifyPhase({ phase: "linking", status: "completed" }, listener);
+      return wasm;
+    } catch (error) {
+      this.invalidate();
+      throw error;
     }
-    return response.arrayBuffer();
+  }
+
+  async dumpAst(files: Map<string, string>, mainFile: string): Promise<{ ok: boolean; ast: unknown; stdout: string; stderr: string }> {
+    if (!files.has(mainFile) || !isCppSource(mainFile)) throw new Error(`missing C or C++ source: ${mainFile}`);
+    this.validateOutputs([...files.keys()].filter(isCppSource));
+    await this.initialize();
+    this.prepareInputs(files);
+    try {
+      const result = this.cachedSources.get(mainFile) ?? await this.invoke("clang", ["-o", "/work/build", workPath(mainFile)]);
+      let ast: unknown;
+      const path = astPathFor(mainFile);
+      if (this.files.exists(path)) {
+        try {
+          ast = JSON.parse(new TextDecoder().decode(this.files.readFile(path)));
+        } catch (error) {
+          result.stderr = [result.stderr, `Failed to parse ${path} (${this.files.stat(path).size} bytes): ${String(error)}`].filter(Boolean).join("\n");
+        }
+      }
+      const ok = result.code === 0 && ast !== undefined;
+      if (ok && this.files.exists(objectPathFor(mainFile))) this.cachedSources.set(mainFile, result);
+      else this.invalidate();
+      return { ok, ast, stdout: result.stdout, stderr: result.stderr };
+    } catch (error) {
+      this.invalidate();
+      throw error;
+    }
+  }
+
+  private module(tool: Tool): Promise<EmscriptenModuleFactory> {
+    let pending = this.modules.get(tool);
+    if (!pending) {
+      pending = loadEmscriptenModule(this.assetUrl(`${tool}.js`), this.assetUrl(`${tool}.wasm`)).catch((error: unknown) => {
+        this.modules.delete(tool);
+        throw error;
+      });
+      this.modules.set(tool, pending);
+    }
+    return pending;
+  }
+
+  private mount(runtime: EmscriptenRuntime): void {
+    if (!runtime.PROXYFS) throw new Error("clang/lld must export PROXYFS");
+    for (const path of SharedToolchainFileSystem.mountPaths) {
+      runtime.FS.mkdirTree(path);
+      runtime.FS.mount(runtime.PROXYFS, { root: path, fs: this.files }, path);
+    }
+  }
+
+  private async invoke(tool: Tool, args: string[]): Promise<ToolResult> {
+    // A tool runtime is single-use. Retry transient Wasm aborts once with a fresh heap.
+    for (let attempt = 0; ; attempt++) {
+      const stdout: string[] = [];
+      const stderr: string[] = [];
+      try {
+        const factory = await this.module(tool);
+        const runtime = await factory({
+          noInitialRun: true, noExitRuntime: true, thisProgram: tool === "lld" ? "wasm-ld" : tool,
+          print: line => stdout.push(line), printErr: line => stderr.push(line),
+        });
+        this.mount(runtime);
+        runtime.FS.chdir("/");
+        let code: number;
+        try {
+          code = runtime.callMain(args) ?? 0;
+        } catch (error) {
+          const status = exitStatus(error);
+          if (status === undefined) throw error;
+          code = status;
+        } finally {
+          for (const fd of [1, 2]) {
+            const tty = runtime.FS.streams?.[fd]?.tty;
+            try { tty?.ops?.fsync?.(tty); } catch { /* Closed stdio has nothing left to flush. */ }
+          }
+        }
+        return { code, stdout: stdout.join("\n"), stderr: stderr.join("\n") };
+      } catch (error) {
+        if (attempt === 0 && isAbortError(error)) continue;
+        const details = [...stderr, ...stdout].join("\n");
+        throw new Error(`${tool}: ${formatUnknownError(error)}${details ? `\n${details}` : ""}`, { cause: error });
+      }
+    }
+  }
+
+  private requireSuccess(tool: Tool, result: ToolResult): void {
+    if (result.code === 0) return;
+    const details = [result.stderr, result.stdout].filter(Boolean).join("\n");
+    throw new Error(`${tool} exited with ${result.code}${details ? `\n${details}` : ""}`);
+  }
+
+  private prepareInputs(files: ReadonlyMap<string, string>): void {
+    // Paired ASTs retain comments, so even metadata-only edits invalidate them.
+    if (this.cachedInputs?.size === files.size
+      && [...files].every(([name, text]) => this.cachedInputs?.get(name) === text)) return;
+    this.invalidate();
+    this.files.prepareInputs(files);
+    this.cachedInputs = new Map(files);
+  }
+
+  private invalidate(): void {
+    this.cachedInputs = undefined;
+    this.cachedSources.clear();
+  }
+
+  private validateOutputs(sources: string[]): void {
+    const outputs = new Set<string>();
+    for (const source of sources) {
+      const path = objectPathFor(source);
+      if (outputs.has(path)) throw new Error(`input files map to the same output: ${path}`);
+      outputs.add(path);
+    }
   }
 }
 

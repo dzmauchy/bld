@@ -3,5 +3,5 @@ import { defineConfig } from "vitest/config";
 
 export default defineConfig({
   root: fileURLToPath(new URL(".", import.meta.url)),
-  test: { name: "cpp", environment: "node", include: ["tests/{unit,integration}/**/*.test.ts"], testTimeout: 30_000 },
+  test: { name: "cpp", environment: "node", include: ["tests/{unit,integration}/**/*.test.ts"], testTimeout: 30_000, fileParallelism: false },
 });

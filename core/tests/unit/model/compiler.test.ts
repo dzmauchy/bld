@@ -13,7 +13,6 @@ import { Diagram } from "core/model/diagram.ts";
 import { Library } from "core/model/library.ts";
 import { Palette } from "core/model/palette.ts";
 import { PortEndpoint } from "core/model/endpoint.ts";
-import { ClangAstDumper } from "cpp";
 
 let palette: Palette;
 let libraryFiles: Record<string, string> = {};
@@ -74,75 +73,6 @@ describe("DiagramCompiler C++ generation", () => {
     const compiler = new BrowserCompiler(libraryFiles);
     const diagram = createTestDiagram();
     await expect(compiler.compile(diagram)).rejects.toThrow(/C\+\+ compiler backend is required/);
-  });
-
-  test("compile delegates generated C++ files to the backend", async () => {
-    const captured: Map<string, string>[] = [];
-    const wasm = new Uint8Array([0, 97, 115, 109, 1, 0, 0, 0]);
-    const compiler = new DiagramCompiler({
-      files: libraryFiles,
-      cppCompiler: {
-        async compile(files) {
-          captured.push(files);
-          return wasm;
-        },
-      },
-    });
-    const diagram = createTestDiagram();
-    const previous = ClangAstDumper.defaultDumper();
-    class ForbiddenDumper extends ClangAstDumper {
-      override dump(): never { throw new Error("Compilation must not run a preliminary AST pass"); }
-    }
-    ClangAstDumper.register(new ForbiddenDumper());
-    try {
-      await expect(compiler.compile(diagram)).resolves.toBe(wasm);
-    } finally {
-      ClangAstDumper.register(previous);
-    }
-    expect(captured).toHaveLength(1);
-    const files = captured[0];
-    expect(files?.get("diagram.cpp")).toContain("void mount()");
-    expect(files?.get("diagram.cpp")).toContain("#include \"wasm_host.hpp\"");
-    expect(files?.get("base/f32_blocks.hpp")).toContain("ScopeF32(const u32 blockId");
-    expect(files?.get("wasm_host.hpp")).toContain("void start()");
-    expect(files?.get("wasm_host.cpp")).toBeUndefined();
-  });
-
-  test("compiler errors retain connection diagnostics and a successful retry clears them", async () => {
-    let fail = true;
-    const compiler = new BrowserCompiler(libraryFiles, {
-      async compile() {
-        if (fail) throw new Error("core/diagram.hpp:185:12: error: incompatible value\nconnection_0:1:1: note: in instantiation of template requested here");
-        return new Uint8Array([0, 97, 115, 109]);
-      },
-    });
-    const diagram = createTestDiagram();
-    const connection = diagram.getConnections()[0]!;
-    const failure = await compiler.compile(diagram).catch(error => error);
-    expect(failure.diagnostics[0]).toMatchObject({ blockId: "const_0", inputId: "downstream", connectionId: connection.id });
-    expect(diagram.getBlock("const_0")?.getInputPorts()[0]?.hasError).toBe(true);
-    fail = false;
-    await compiler.compile(diagram);
-    expect(diagram.getBlock("const_0")?.getInputPorts()[0]?.hasError).toBe(false);
-  });
-
-  test("run instantiates the wasm produced by the C++ backend", async () => {
-    const wasm = new Uint8Array([0, 97, 115, 109, 9, 9, 9, 9]);
-    const compiler = new BrowserCompiler(libraryFiles, {
-      async compile() {
-        return wasm;
-      },
-    });
-    let captured: Uint8Array | undefined;
-    const session = { close: async () => 0 } as unknown as import("core/model/compiler.ts").WasmSessionLike;
-    const runtime = {
-      async instantiate(bytes: Uint8Array) {
-        captured = bytes;
-        return session;
-      },
-    };
-    await expect(compiler.run(createTestDiagram(), runtime)).resolves.toBe(session);
-    expect(captured).toBe(wasm);
   });
 
   test("supports custom context registration", () => {

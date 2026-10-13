@@ -1,7 +1,7 @@
 import { readFileSync, writeFileSync } from "node:fs";
 import { beforeAll } from "vitest";
 import type { CDPSession } from "puppeteer";
-import { CppDiagramBuilder, Diagram, Library, PortEndpoint, registerAppAssets, registerAppAssetBytes } from "core";
+import { CppDiagramBuilder, Diagram, Library, PortEndpoint } from "core";
 import { artifactPath, baseURL, browserTest, expect } from "../../tests/e2e/browser.ts";
 
 const test = browserTest();
@@ -10,9 +10,7 @@ let palette: Library["palette"];
 
 beforeAll(async () => {
   const manifest = JSON.parse(readFileSync(new URL("../../core/assets/base.json", import.meta.url), "utf8"));
-  registerAppAssets({ "base.json": JSON.stringify({ ...manifest, location: "base-0.1.0.tar.gz" }) });
-  registerAppAssetBytes("base-0.1.0.tar.gz", readFileSync(new URL("../../ui/public/base-0.1.0.tar.gz", import.meta.url)));
-  const library = await Library.load("base.json");
+  const library = await Library.load(manifest);
   builder = new CppDiagramBuilder(library.compilationModel.getFiles());
   palette = library.palette;
 });

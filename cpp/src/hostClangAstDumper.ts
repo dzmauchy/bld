@@ -11,7 +11,7 @@ import { dirname, join } from "node:path";
 import { ClangAstReader } from "./clangAstReader.ts";
 import { ClangAstDumper, ClangDumpResult } from "./clangAstDumper.ts";
 
-export class HostClangAstDumper extends ClangAstDumper {
+export class HostClangAstDumper {
   private static instance: HostClangAstDumper | undefined;
   static get shared(): HostClangAstDumper {
     return (this.instance ??= new HostClangAstDumper());
@@ -21,7 +21,6 @@ export class HostClangAstDumper extends ClangAstDumper {
     private readonly clangxx = "clang++",
     private readonly extraArgs: readonly string[] = HostClangAstDumper.detectStdlibArgs(),
   ) {
-    super();
   }
 
   static detectStdlibArgs(): string[] {
@@ -36,7 +35,7 @@ export class HostClangAstDumper extends ClangAstDumper {
     return [];
   }
 
-  override dump(files: Map<string, string>, mainFile: string): ClangDumpResult {
+  dump(files: Map<string, string>, mainFile: string): ClangDumpResult {
     const dir = mkdtempSync(join(tmpdir(), "bld-clang-ast-"));
     try {
       const write = (name: string, text: string): void => {
@@ -72,6 +71,10 @@ export class HostClangAstDumper extends ClangAstDumper {
     } finally {
       rmSync(dir, { recursive: true, force: true });
     }
+  }
+
+  dumpAsync(files: Map<string, string>, mainFile: string): Promise<ClangDumpResult> {
+    return Promise.resolve(this.dump(files, mainFile));
   }
 
   /** Extension point for inspecting a dump while its temporary file is open. */

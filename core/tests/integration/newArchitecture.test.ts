@@ -1,4 +1,4 @@
-import { beforeAll, describe, expect, test } from "vitest";
+import { beforeAll, describe, expect, test, vi } from "vitest";
 import { Library } from "core/model/library.ts";
 import { Diagram } from "core/model/diagram.ts";
 import { CppDiagramBuilder } from "core/model/cppBuilder.ts";
@@ -104,13 +104,12 @@ inline auto Same(const u32 blockId, const f32 value = f32{0.5}) {
     const files = singlePassBuilder.build(d);
     const dumps: Map<string, string>[] = [];
     const host = ClangAstDumper.defaultDumper();
-    class RecordingDumper extends ClangAstDumper {
-      override dump(inputs: Map<string, string>, mainFile: string) {
-        dumps.push(inputs);
-        return host.dump(inputs, mainFile);
-      }
-    }
-    const analysis = await singlePassBuilder.analyze(d, new RecordingDumper());
+    const original = host.dump.bind(host);
+    const recording = vi.spyOn(host, "dump").mockImplementation((inputs, mainFile) => {
+      dumps.push(inputs);
+      return original(inputs, mainFile);
+    });
+    const analysis = await singlePassBuilder.analyze(d, host).finally(() => recording.mockRestore());
     expect(analysis.ok, JSON.stringify(analysis.diagnostics)).toBe(true);
     expect(dumps).toHaveLength(1);
     expect(dumps[0]?.get("diagram.cpp")).toBe(files.get("diagram.cpp"));

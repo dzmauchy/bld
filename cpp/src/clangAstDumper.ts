@@ -23,31 +23,27 @@ export class ClangDumpResult {
   }
 }
 
-export abstract class ClangAstDumper {
-  private static registered: ClangAstDumper | undefined;
-  static libraryFiles: Record<string, string> = {};
+export interface ClangAstDumper {
+  dump(files: Map<string, string>, mainFile: string): ClangDumpResult;
+  dumpAsync(files: Map<string, string>, mainFile: string): Promise<ClangDumpResult>;
+}
 
-  static register(dumper: ClangAstDumper, libraryFiles: Record<string, string> = {}): void {
+/** Selects the concrete host or browser dumper used by diagram analysis. */
+export const ClangAstDumper = new class {
+  private registered: ClangAstDumper | undefined;
+  libraryFiles: Record<string, string> = {};
+
+  register(dumper: ClangAstDumper, libraryFiles: Record<string, string> = {}): void {
     this.registered = dumper;
     if (Object.keys(libraryFiles).length > 0) this.bindLibraryFiles(libraryFiles);
   }
 
-  static bindLibraryFiles(libraryFiles: Record<string, string>): void {
+  bindLibraryFiles(libraryFiles: Record<string, string>): void {
     this.libraryFiles = libraryFiles;
   }
 
-  static defaultDumper(): ClangAstDumper {
-    if (!this.registered) {
-      throw new Error(
-        "No ClangAstDumper registered. In Node, import cpp/hostClangAstDumper.ts to run clang++ -fsyntax-only -Xclang -ast-dump=json",
-      );
-    }
+  defaultDumper(): ClangAstDumper {
+    if (!this.registered) throw new Error("No ClangAstDumper registered. In Node, import cpp/hostClangAstDumper.ts");
     return this.registered;
   }
-
-  abstract dump(files: Map<string, string>, mainFile: string): ClangDumpResult;
-
-  dumpAsync(files: Map<string, string>, mainFile: string): Promise<ClangDumpResult> {
-    return Promise.resolve(this.dump(files, mainFile));
-  }
-}
+}();

@@ -3,7 +3,6 @@ import { readFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { expect, test } from "./fixtures/cpp.ts";
-import "../../core/tests/nodeFileFetch.ts";
 import {
   CppDiagramBuilder,
   Library,

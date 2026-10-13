@@ -1,84 +1,81 @@
-import { expect, test } from "vitest";
-import { CppDiagramBuilder, Diagram, DiagramCompiler, Palette, PortEndpoint } from "core";
-import type { CompilationPhaseEvent } from "cpp/compilationProgress.ts";
-import { ClangFrontend } from "cpp/clang.ts";
+import { readFile } from "node:fs/promises";
+import { afterAll, beforeAll, expect, test } from "vitest";
+import { CppDiagramBuilder, Diagram, DiagramCompiler, Library, PortEndpoint } from "core";
 import { CppWasmCompiler } from "cpp/compiler.ts";
-import { WasmLinker } from "cpp/linker.ts";
-import { SharedToolchainFileSystem } from "cpp/sharedFileSystem.ts";
-import { DisposableToolFactory, writeClangOutputs } from "../toolchainFixture.ts";
+import type { CompilationPhaseEvent } from "cpp/compilationProgress.ts";
+import { execute, serveToolchain } from "../toolchain.ts";
 
-test("diagram compilation emits AST/object in one clang invocation and links that object", async () => {
-  const files = new SharedToolchainFileSystem();
-  const clangFactory = new DisposableToolFactory(files, (_options, fs, args) => {
-    const source = new TextDecoder().decode(fs.readFile("/work/diagram.cpp"));
-    expect(source).toContain("core::config_arg<0>(::custom::Source,");
-    expect(source).toContain("core::input_connections<false, 1, 1>");
-    expect(source).not.toContain("bld_factory");
-    writeClangOutputs(fs, args);
-    return 0;
-  });
-  const wasm = new Uint8Array([0, 97, 115, 109]);
-  const lldFactory = new DisposableToolFactory(files, (_options, fs, args) => {
-    expect(args).toContain("/work/build/diagram.o");
-    expect(fs.exists("/work/build/diagram.json")).toBe(true);
-    fs.writeTree(args.at(-1)!, wasm);
-    return 0;
-  });
-  const backend = new CppWasmCompiler(
-    new ClangFrontend(clangFactory.create, "clang.wasm", files),
-    new WasmLinker(lldFactory.create, "lld.wasm", files), "sysroot.tgz",
-  );
-  const palette = Palette.fromCatalog({
-    Source: { cpp: "custom::Source", outputs: { data: { type: "auto" } },
-      conf: { value: { type: "auto", default: 0 } } },
-    Sink: { cpp: "custom::Sink", inputs: { data: { type: "auto" } } },
-  }, {});
-  const diagram = new Diagram("single", "Single execution", palette);
-  const source = diagram.addBlock("Source", { x: 0, y: 0 }, "source", { value: 3.5 });
-  diagram.addBlock("Sink", { x: 0, y: 0 }, "sink");
-  diagram.connect(new PortEndpoint("source", "output", "data"), new PortEndpoint("sink", "input", "data"));
-  const compiler = new DiagramCompiler({ cppCompiler: backend });
+let assets: Awaited<ReturnType<typeof serveToolchain>>;
+let library: Library;
+let backend: CppWasmCompiler;
+beforeAll(async () => {
+  assets = await serveToolchain();
+  backend = new CppWasmCompiler(assets.assetUrl);
+  const manifest = JSON.parse(await readFile(new URL("../../../core/assets/base.json", import.meta.url), "utf8"));
+  library = await Library.load(manifest);
+}, 120_000);
+afterAll(async () => { await assets?.close(); });
+
+function diagram() {
+  const diagram = new Diagram("single", "Single execution", library.palette);
+  diagram.addBlock("ScopeF32", { x: 0, y: 0 }, "scope");
+  const source = diagram.addBlock("ConstF32", { x: 100, y: 0 }, "source", { value: 3.5 });
+  diagram.connect(new PortEndpoint("scope", "output", "channels"), new PortEndpoint("source", "input", "downstream"), "wire");
+  return { diagram, source };
+}
+
+async function instantiate(wasm: Uint8Array) {
+  const exports = await execute(wasm);
+  (exports.start as () => void)();
+  return exports;
+}
+
+const compilationEvents = [
+  { phase: "compilation", status: "active" }, { phase: "compilation", status: "completed" },
+  { phase: "linking", status: "active" }, { phase: "linking", status: "completed" },
+];
+
+test("generated diagram C++ compiles, links, runs, and updates a real scope value", async () => {
+  const { diagram: program, source } = diagram();
+  const compiler = new DiagramCompiler({ files: library.compilationModel.getFiles(), cppCompiler: backend });
   const events: CompilationPhaseEvent[] = [];
   const unsubscribe = compiler.addPhaseListener(event => events.push(event));
-  expect(await compiler.compile(diagram)).toEqual(wasm);
-  expect(events).toEqual([
-    { phase: "compilation", status: "active" },
-    { phase: "compilation", status: "completed" },
-    { phase: "linking", status: "active" },
-    { phase: "linking", status: "completed" },
-  ]);
+  const first = await instantiate(await compiler.compile(program));
+  expect((first.lastPin as (block: number, pin: number) => number)(0, 0)).toBe(3.5);
+  expect(events).toEqual(compilationEvents);
   unsubscribe();
-  expect(clangFactory.runs).toHaveLength(1);
-  expect(lldFactory.runs).toHaveLength(1);
   source.setConf("value", 7.25);
-  expect(await compiler.compile(diagram)).toEqual(wasm);
-  expect(clangFactory.runs).toHaveLength(2);
-  expect(lldFactory.runs).toHaveLength(2);
+  const changed = await instantiate(await compiler.compile(program));
+  expect((changed.lastPin as (block: number, pin: number) => number)(0, 0)).toBe(7.25);
   expect(events).toHaveLength(4);
 
-  const builder = new CppDiagramBuilder();
+  const builder = new CppDiagramBuilder(library.compilationModel.getFiles());
   const builderEvents: CompilationPhaseEvent[] = [];
   const listener = (event: CompilationPhaseEvent) => builderEvents.push(event);
   builder.addPhaseListener(listener);
-  const ready = Promise.withResolvers<void>();
-  const instantiated = Promise.withResolvers<void>();
-  const session = { ready: true };
-  const running = builder.run(diagram, backend, {
-    async instantiate(bytes) {
-      expect(bytes).toEqual(wasm);
-      instantiated.resolve();
-      await ready.promise;
-      return session;
-    },
-  });
-  await instantiated.promise;
+  const running = await builder.run(program, backend, { instantiate });
+  expect((running.lastPin as (block: number, pin: number) => number)(0, 0)).toBe(7.25);
   expect(builderEvents).toEqual([
-    ...events, { phase: "running", status: "active" },
+    ...compilationEvents, { phase: "running", status: "active" }, { phase: "running", status: "completed" },
   ]);
-  ready.resolve();
-  expect(await running).toBe(session);
-  expect(builderEvents.at(-1)).toEqual({ phase: "running", status: "completed" });
   builder.removePhaseListener(listener);
-  await builder.compile(diagram, backend);
+  await builder.compile(program, backend);
   expect(builderEvents).toHaveLength(6);
+});
+
+test("real compiler errors identify the connection and a successful edit clears them", async () => {
+  const program = new Diagram("incompatible", "Incompatible", library.palette);
+  program.addBlock("ScopeF64", { x: 0, y: 0 }, "scope");
+  program.addBlock("ConstF32", { x: 100, y: 0 }, "source");
+  program.connect(new PortEndpoint("scope", "output", "channels"), new PortEndpoint("source", "input", "downstream"), "wire");
+  const compiler = new DiagramCompiler({ files: library.compilationModel.getFiles(), cppCompiler: backend });
+  const failure = await compiler.compile(program).catch(error => error);
+  expect(failure.diagnostics).toContainEqual(expect.objectContaining({ connectionId: "wire", blockId: "source", inputId: "downstream" }));
+  expect(program.getBlock("source")?.getInputPorts()[0]?.hasError).toBe(true);
+  program.disconnect("wire");
+  program.removeBlock("scope");
+  program.addBlock("ScopeF32", { x: 0, y: 0 }, "scope");
+  program.connect(new PortEndpoint("scope", "output", "channels"), new PortEndpoint("source", "input", "downstream"), "wire");
+  expect(await compiler.compile(program)).toBeInstanceOf(Uint8Array);
+  expect(program.getBlock("source")?.getInputPorts()[0]?.hasError).toBe(false);
 });

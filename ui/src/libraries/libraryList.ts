@@ -1,4 +1,5 @@
 import { Library, type BlockDefinition, type PackageManifest } from "core";
+import { baseLibraryPath } from "cpp/llvmToolchainProxy.ts";
 import baseManifest from "core/assets/base.json?raw";
 
 /** Libraries loaded into the IDE. The default list is the base library. */
@@ -26,6 +27,10 @@ export class LibraryList {
 }
 
 function manifestFor(id: string): PackageManifest {
-  if (id === "base") return JSON.parse(baseManifest) as PackageManifest;
+  if (id === "base") {
+    const manifest = JSON.parse(baseManifest) as PackageManifest;
+    if (typeof document !== "undefined") manifest.location = new URL(baseLibraryPath, document.baseURI).href;
+    return manifest;
+  }
   throw new Error(`Library "${id}" is not available`);
 }

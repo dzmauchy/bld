@@ -1,193 +1,133 @@
-import { describe, expect, test, vi } from "vitest";
-import { ClangFrontend } from "cpp/clang.ts";
-import { SharedToolchainFileSystem } from "cpp/sharedFileSystem.ts";
-import { DisposableToolFactory, writeClangOutputs } from "../toolchainFixture.ts";
-import { WasmLinker } from "cpp/linker.ts";
-import { ObjectFile } from "cpp/object-file.ts";
+import { afterAll, beforeAll, describe, expect, test } from "vitest";
 import { CppWasmCompiler } from "cpp/compiler.ts";
-import { gzipSync } from "node:zlib";
+import { ClangComment, ClangTranslationUnit, type ClangAstJson } from "cpp/clangAst.ts";
+import type { CompilationPhaseEvent } from "cpp/compilationProgress.ts";
+import { execute, serveToolchain } from "../toolchain.ts";
 
-describe("clang frontend and wasm linker", () => {
-  test("preparation releases idle tool heaps and keeps shared files for compilation", async () => {
-    const fs = new SharedToolchainFileSystem();
-    const wasm = new Uint8Array([0, 97, 115, 109]);
-    const clang = new DisposableToolFactory(fs, (_options, files, args) => { writeClangOutputs(files, args); return 0; });
-    const lld = new DisposableToolFactory(fs, (_options, files, args) => { files.writeTree(args.at(-1)!, wasm); return 0; });
-    const compiler = new CppWasmCompiler(new ClangFrontend(clang.create, "clang.wasm", fs),
-      new WasmLinker(lld.create, "lld.wasm", fs), "sysroot.tgz");
-    const fetch = vi.spyOn(globalThis, "fetch").mockResolvedValue(new Response(new Uint8Array(gzipSync(new Uint8Array(1024)))));
-    try {
-      await compiler.initialize();
-      expect(clang.boots).toBe(1);
-      expect(lld.boots).toBe(1);
-      expect(await compiler.compile(new Map([["main.cpp", "int value;"]]))).toEqual(wasm);
-      expect(clang.boots).toBe(2);
-      expect(lld.boots).toBe(2);
-    } finally {
-      fetch.mockRestore();
-    }
-  });
+let assets: Awaited<ReturnType<typeof serveToolchain>>;
+let compiler: CppWasmCompiler;
+beforeAll(async () => {
+  assets = await serveToolchain();
+  compiler = new CppWasmCompiler(assets.assetUrl);
+}, 120_000);
+afterAll(async () => { await assets?.close(); });
 
-  test("keeps native diagnostics when an abort persists after the single retry", async () => {
-    const fs = new SharedToolchainFileSystem();
-    const factory = new DisposableToolFactory(fs, (options) => {
-      options?.printErr?.("LLVM ERROR: native compilation failed");
-      throw new WebAssembly.RuntimeError("Aborted()");
-    });
-    const linker = new WasmLinker(factory.create, "lld.wasm", fs);
-    fs.writeTree("/work/main.o", new Uint8Array([42]));
-    await expect(linker.link([new ObjectFile("/work/main.o", fs)])).rejects.toThrow("LLVM ERROR: native compilation failed");
-    expect(factory.runs).toHaveLength(2);
-  });
+const source = (text: string) => new Map([["main.cpp", text]]);
+const answer = async (files: Map<string, string>) => (await execute(await compiler.compile(files))).answer as () => number;
 
-  test("reboots the linker before retrying a first-run abort", async () => {
-    const fs = new SharedToolchainFileSystem();
-    const wasm = new Uint8Array([0, 97, 115, 109]);
-    let attempts = 0;
-    const factory = new DisposableToolFactory(fs, (_options, files, args) => {
-      if (++attempts === 1) throw new WebAssembly.RuntimeError("Aborted(first-run linker failure)");
-      files.writeTree(args.at(-1)!, wasm);
-      return 0;
-    });
-    const linker = new WasmLinker(factory.create, "lld.wasm", fs);
-    fs.writeTree("/work/main.o", new Uint8Array([42]));
-    await expect(linker.link([new ObjectFile("/work/main.o", fs)])).resolves.toEqual(wasm);
-    expect(factory.boots).toBe(2);
-    expect(attempts).toBe(2);
-  });
-
-  test("clang writes headers and sources then emits one object per translation unit", async () => {
-    const fs = new SharedToolchainFileSystem();
-    let compiled = "";
-    const clang = new ClangFrontend(new DisposableToolFactory(fs, (_options, fs, args) => {
-      compiled = args.at(-1) ?? "";
-      writeClangOutputs(fs, args, new Uint8Array([9, 8, 7]));
-      return 0;
-    }).create, "clang.wasm", fs);
-    await clang.boot();
-    const objects = await clang.compile(new Map([
-      ["scale.h", "int scale(int);"],
-      ["scale.cpp", "#include \"scale.h\"\nint scale(int value) { return value * 3; }"],
-    ]));
-    expect(compiled).toBe("/work/scale.cpp");
-    expect(new TextDecoder().decode(fs.readFile("/work/scale.h"))).toContain("int scale");
-    expect(objects).toHaveLength(1);
-    expect(objects[0]?.path).toBe("/work/build/scale.o");
-    expect(objects[0]?.bytes).toEqual(new Uint8Array([9, 8, 7]));
-  });
-
-  test("disposes clang after a compile and boots lazily for the next job", async () => {
-    const fs = new SharedToolchainFileSystem();
-    const factory = new DisposableToolFactory(fs, (_options, fs, args) => {
-      writeClangOutputs(fs, args, new Uint8Array([1]));
-      return 0;
-    });
-    const clang = new ClangFrontend(factory.create, "clang.wasm", fs);
-    await clang.boot();
-    const sources = new Map([["add.cpp", 'extern "C" int add() { return 1; }']]);
-    await clang.compile(sources);
-    expect(factory.boots).toBe(1);
-    sources.set("add.cpp", 'extern "C" int add() { return 2; }');
-    await clang.compile(sources);
-    expect(factory.boots).toBe(2);
-  });
-
-  test("linker reads object paths from shared storage before producing wasm", async () => {
-    const fs = new SharedToolchainFileSystem();
-    const seen: string[] = [];
-    const linker = new WasmLinker(new DisposableToolFactory(fs, (_options, fs, args) => {
-      seen.push(...args);
-      fs.writeTree(args.at(-1) ?? "", new Uint8Array([0, 97, 115, 109]));
-      return 0;
-    }).create, "lld.wasm", fs);
-    await linker.boot();
-    fs.writeTree("/work/scale.o", new Uint8Array([9, 8, 7]));
-    const wasm = await linker.link([new ObjectFile("/work/scale.o", fs)]);
-    expect(fs.exists("/work/scale.o")).toBe(true);
-    expect(seen).toContain("/work/scale.o");
-    expect(wasm).toEqual(new Uint8Array([0, 97, 115, 109]));
-  });
-});
-
-describe("combined JSON and object compilation", () => {
-  test("compiles multiple sources in one invocation and reads their JSON dumps", async () => {
-    const fs = new SharedToolchainFileSystem();
-    const factory = new DisposableToolFactory(fs, (_options, fs, args) => {
-      writeClangOutputs(fs, args);
-      return 0;
-    });
-    const clang = new ClangFrontend(factory.create, "clang.wasm", fs);
+describe("released Clang/LLD under Node.js", () => {
+  test("initializes once and compiles multiple translation units with real sysroot headers", async () => {
+    const preparation = compiler.initialize();
+    expect(compiler.initialize()).toBe(preparation);
+    await preparation;
+    const events: CompilationPhaseEvent[] = [];
     const files = new Map([
-      ["value.hpp", "#pragma once\nconstexpr int value = 1;"],
-      ["main.cpp", '#include "value.hpp"\nint answer() { return value; }'],
-      ["nested/other.cpp", '#include "value.hpp"\nint other() { return value + 1; }'],
+      ["value.hpp", "#pragma once\nint add(int, int);"],
+      ["nested/add.cpp", '#include "value.hpp"\nint add(int a, int b) { return a + b; }'],
+      ["main.cpp", '#include <stddef.h>\n#include "value.hpp"\nstatic_assert(sizeof(size_t) == 4);\nextern "C" int answer() { return add(40, 2); }'],
     ]);
-    const objects = await clang.compile(files);
-    expect(factory.runs).toEqual([["-o", "/work/build", "/work/main.cpp", "/work/nested/other.cpp"]]);
-    expect(objects.map((object) => object.ast)).toEqual([{ kind: "TranslationUnitDecl" }, { kind: "TranslationUnitDecl" }]);
-    expect((await clang.dumpAst(files, "main.cpp")).ok).toBe(true);
-    expect(factory.runs).toHaveLength(1);
+    const wasm = await compiler.compile(files, event => events.push(event));
+    expect(((await execute(wasm)).answer as () => number)()).toBe(42);
+    expect(events).toEqual([
+      { phase: "compilation", status: "active" }, { phase: "compilation", status: "completed" },
+      { phase: "linking", status: "active" }, { phase: "linking", status: "completed" },
+    ]);
+    expect(assets.requests.slice().sort()).toEqual(["clang.js", "clang.wasm", "lld.js", "lld.wasm", "sysroot.tgz"]);
   });
 
-  test("links the object already produced by a successful AST analysis", async () => {
-    const fs = new SharedToolchainFileSystem();
-    const factory = new DisposableToolFactory(fs, (_options, fs, args) => { writeClangOutputs(fs, args); return 0; });
-    const clang = new ClangFrontend(factory.create, "clang.wasm", fs);
-    const files = new Map([["main.cpp", "int answer = 42;"]]);
-    expect((await clang.dumpAst(files, "main.cpp")).ast).toMatchObject({ kind: "TranslationUnitDecl" });
-    expect((await clang.compile(files))[0]?.bytes).toEqual(new Uint8Array([42]));
-    expect(factory.runs).toHaveLength(1);
-    files.set("main.cpp", "int answer = 43;");
-    await clang.compile(files);
-    expect(factory.runs).toHaveLength(2);
+  test("links the object from an AST dump, then recompiles changed source and headers", async () => {
+    const files = new Map([
+      ["value.hpp", "#pragma once\ninline int value() { return 42; }"],
+      ["main.cpp", '#include "value.hpp"\nextern "C" int answer() { auto inferred = value(); return inferred; }'],
+    ]);
+    const first = await compiler.dumpAst(files, "main.cpp");
+    expect(first.ok, first.stderr).toBe(true);
+    expect(ClangTranslationUnit.parse(first.ast).varType("inferred")?.canonical).toBe("int");
+    expect(await compiler.dumpAst(files, "main.cpp")).toEqual(first);
+    expect((await answer(files))()).toBe(42);
+    files.set("value.hpp", "#pragma once\ninline double value() { return 43.5; }");
+    const changed = await compiler.dumpAst(files, "main.cpp");
+    expect(changed.ok, changed.stderr).toBe(true);
+    expect(ClangTranslationUnit.parse(changed.ast).varType("inferred")?.canonical).toBe("double");
+    expect((await answer(files))()).toBe(43);
+    files.set("main.cpp", 'extern "C" int answer() { return 44; }');
+    files.delete("value.hpp");
+    expect((await answer(files))()).toBe(44);
+    files.set("main.cpp", '#include "value.hpp"\nextern "C" int answer() { return value(); }');
+    await expect(compiler.compile(files)).rejects.toThrow(/value.hpp.*file not found/);
   });
 
-  test("reads reduced JSON unchanged, including remapped source locations and cached diagnostics", async () => {
-    const fs = new SharedToolchainFileSystem();
-    const ast = {
-      id: "unit", kind: "TranslationUnitDecl",
-      inner: [{ kind: "FunctionDecl", name: "answer", loc: { file: "remapped.hpp", line: 1 }, inner: [] }],
+  test("comment-only edits update diagram and block metadata in the actual AST", async () => {
+    const metadata = { id: "diagram-π", title: "Before", blocks: { "block-π": {} }, connections: { wire: {} } };
+    const files = source(`// ${JSON.stringify(metadata)}\nextern "C" void mount() {\n// {"kind":"block","id":"block-π"}\nstatic auto block = 1; (void)block; }`);
+    const comments = (ast: unknown) => {
+      const result = new Map<string, unknown>();
+      const visit = (node: ClangAstJson) => {
+        if (node.name) result.set(node.name, ClangComment.of(node)?.asJson()?.value);
+        node.inner?.forEach(visit);
+      };
+      visit(ast as ClangAstJson);
+      return result;
     };
-    const factory = new DisposableToolFactory(fs, (options, fs, args) => {
-      options?.printErr?.("warning: source warning");
-      writeClangOutputs(fs, args, new Uint8Array([42]), ast);
-      return 0;
-    });
-    const clang = new ClangFrontend(factory.create, "clang.wasm", fs);
-    const files = new Map([["main.cpp", '#line 1 "remapped.hpp"\nint answer() { return 42; }']]);
-    const first = await clang.dumpAst(files, "main.cpp");
-    const cached = await clang.dumpAst(files, "main.cpp");
-    expect(first).toMatchObject({ ok: true, ast, stderr: "warning: source warning" });
-    expect(cached).toEqual(first);
-    await clang.compile(files);
-    expect(factory.runs).toHaveLength(1);
+    const first = await compiler.dumpAst(files, "main.cpp");
+    expect(first.ok, first.stderr).toBe(true);
+    expect(comments(first.ast).get("mount")).toEqual(metadata);
+    expect(comments(first.ast).get("block")).toEqual({ kind: "block", id: "block-π" });
+    metadata.title = "After";
+    files.set("main.cpp", files.get("main.cpp")!.replace('"Before"', '"After"'));
+    await compiler.compile(files);
+    const changed = await compiler.dumpAst(files, "main.cpp");
+    expect(changed.ok, changed.stderr).toBe(true);
+    expect(comments(changed.ast).get("mount")).toEqual(metadata);
   });
 
-  test("a failed dump reports diagnostics and never reuses a previous JSON file", async () => {
-    const fs = new SharedToolchainFileSystem();
-    const factory = new DisposableToolFactory(fs, (options, fs, args) => {
-      if (new TextDecoder().decode(fs.readFile("/work/main.cpp")) === "invalid") {
-        options?.printErr?.("error: invalid source");
-        return 1;
-      }
-      writeClangOutputs(fs, args);
-      return 0;
-    });
-    const clang = new ClangFrontend(factory.create, "clang.wasm", fs);
-    const files = new Map([["main.cpp", "int answer = 42;"]]);
-    expect((await clang.dumpAst(files, "main.cpp")).ok).toBe(true);
-    files.set("main.cpp", "invalid");
-    expect(await clang.dumpAst(files, "main.cpp")).toMatchObject({ ok: false, ast: undefined, stderr: "error: invalid source" });
-    files.set("main.cpp", "int answer = 43;");
-    expect((await clang.compile(files))[0]?.ast).toEqual({ kind: "TranslationUnitDecl" });
-    expect(factory.runs).toHaveLength(3);
+  test("preserves real warnings, source locations, and cached diagnostics", async () => {
+    const files = source('#warning source warning\n#line 1 "remapped.hpp"\n#warning remapped warning\nextern "C" int answer() { return 42; }');
+    const first = await compiler.dumpAst(files, "main.cpp");
+    expect(first.ok, first.stderr).toBe(true);
+    expect(first.stderr).toContain("source warning");
+    expect(first.stderr).toContain("remapped.hpp");
+    expect(JSON.stringify(first.ast)).toContain("/work/main.cpp");
+    expect(await compiler.dumpAst(files, "main.cpp")).toEqual(first);
+    expect((await answer(files))()).toBe(42);
   });
 
-  test("rejects duplicate output stems before invoking clang", async () => {
-    const fs = new SharedToolchainFileSystem();
-    const factory = new DisposableToolFactory(fs, () => 0);
-    const clang = new ClangFrontend(factory.create, "clang.wasm", fs);
-    await expect(clang.compile(new Map([["a/main.cpp", "int a;"], ["b/main.cpp", "int b;"]]))).rejects.toThrow("same output");
-    expect(factory.runs).toHaveLength(0);
+  test("reports syntax errors without stale ASTs and recovers on the same compiler", async () => {
+    const files = source('extern "C" int answer() { return 42; }');
+    expect((await compiler.dumpAst(files, "main.cpp")).ok).toBe(true);
+    files.set("main.cpp", '#error deliberately invalid source');
+    const failed = await compiler.dumpAst(files, "main.cpp");
+    expect(failed.ok).toBe(false);
+    expect(failed.stderr).toContain("deliberately invalid source");
+    expect(JSON.stringify(failed.ast) ?? "").not.toContain('"name":"answer"');
+    files.set("main.cpp", 'extern "C" int answer() { return 43; }');
+    expect((await answer(files))()).toBe(43);
+  });
+
+  test.each(["compilation", "linking"] as const)("keeps failed %s active and preserves native diagnostics", async phase => {
+    const files = source(phase === "compilation"
+      ? 'extern "C" int answer() { return missing_value; }'
+      : 'extern int missing_function(); extern "C" int answer() { return missing_function(); }');
+    const events: CompilationPhaseEvent[] = [];
+    await expect(compiler.compile(files, event => events.push(event))).rejects.toThrow(
+      phase === "compilation" ? /undeclared identifier.*missing_value/ : /undefined symbol.*missing_function/);
+    expect(events.at(-1)).toEqual({ phase, status: "active" });
+    expect(events).not.toContainEqual({ phase, status: "completed" });
+    expect((await answer(source('extern "C" int answer() { return 42; }')))()).toBe(42);
+  });
+
+  test("rejects empty sources and colliding output stems", async () => {
+    await expect(compiler.compile(new Map([["header.hpp", "int value;"]]))).rejects.toThrow("no C or C++ source");
+    await expect(compiler.compile(new Map([["a/main.cpp", "int a;"], ["b/main.cpp", "int b;"]]))).rejects.toThrow("same output");
+    await expect(compiler.dumpAst(source("int value;"), "missing.cpp")).rejects.toThrow("missing C or C++ source");
+  });
+
+  test("retries a failed HTTP download using the same compiler without fabricated runtimes", async () => {
+    assets.failures.set("clang.js", 1);
+    const fresh = new CppWasmCompiler(assets.assetUrl);
+    await expect(fresh.initialize()).rejects.toThrow(/clang.js: 503/);
+    await Promise.all([fresh.initialize(), fresh.initialize()]);
+    const wasm = await fresh.compile(source('extern "C" int answer() { return 45; }'));
+    expect(((await execute(wasm)).answer as () => number)()).toBe(45);
   });
 });

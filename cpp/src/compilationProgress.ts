@@ -9,7 +9,7 @@ export interface CompilationPhaseEvent {
 export type CompilationPhaseListener = (event: CompilationPhaseEvent) => void;
 
 /** Shared listener contract for source builders and compiler implementations. */
-export abstract class CompilationProgressEmitter {
+export class CompilationProgressEmitter {
   private readonly phaseListeners = new Set<CompilationPhaseListener>();
 
   addPhaseListener(listener: CompilationPhaseListener): () => void {

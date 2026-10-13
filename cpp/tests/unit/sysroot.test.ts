@@ -1,7 +1,5 @@
-import { packTar } from "../../../tests/tarFixture.ts";
 import { describe, expect, test } from "vitest";
-import { MemoryFileSystem } from "cpp/filesystem.ts";
-import { shouldInstallSysrootEntry, SysrootInstaller, tarPathToMemfs } from "cpp/sysroot.ts";
+import { shouldInstallSysrootEntry, tarPathToMemfs } from "cpp/sysroot.ts";
 
 describe("shared sysroot install", () => {
   test("selects runtime headers, Clang resources and static libraries", () => {
@@ -12,18 +10,5 @@ describe("shared sysroot install", () => {
       expect(shouldInstallSysrootEntry(name)).toBe(false);
     }
     expect(tarPathToMemfs("./sysroot/include/wasm.hpp")).toBe("/sysroot/include/wasm.hpp");
-  });
-
-  test("writes headers and libraries together into the persistent filesystem", async () => {
-    const tar = await packTar([
-      { header: { name: "sysroot/include/foo.h", size: 5 }, body: "hello" },
-      { header: { name: "sysroot/lib/libwasm.a", size: 3 }, body: "lib" },
-      { header: { name: "sysroot/share/licenses/TLSF-LICENSE.txt", size: 7 }, body: "license" },
-    ]);
-    const fs = new MemoryFileSystem();
-    expect(await new SysrootInstaller(fs).install(tar, false)).toBe(2);
-    expect(new TextDecoder().decode(fs.readFile("/sysroot/include/foo.h"))).toBe("hello");
-    expect(new TextDecoder().decode(fs.readFile("/sysroot/lib/libwasm.a"))).toBe("lib");
-    expect(fs.exists("/sysroot/share/licenses/TLSF-LICENSE.txt")).toBe(false);
   });
 });

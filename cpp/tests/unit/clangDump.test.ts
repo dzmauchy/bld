@@ -4,7 +4,6 @@ import { HostClangAstDumper } from "cpp/hostClangAstDumper.ts";
 
 describe("clang dump host", () => {
   test("host dumper is the registered clang AST dumper", () => {
-    expect(HostClangAstDumper.prototype).toBeInstanceOf(ClangAstDumper);
     expect(ClangAstDumper.defaultDumper()).toBe(HostClangAstDumper.shared);
   });
 });

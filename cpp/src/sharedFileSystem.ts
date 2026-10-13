@@ -1,4 +1,3 @@
-import { VirtualFileSystem } from "./filesystem.ts";
 import { parentDir, workPath } from "./paths.ts";
 
 function fsError(code: string): never {
@@ -157,14 +156,18 @@ class SharedStream {
  * It retains no clang/lld runtime or Wasm heap. Fresh tool instances mount the
  * same directories, so sysroot, JSON dumps and object files survive tool disposal.
  */
-export class SharedToolchainFileSystem extends VirtualFileSystem {
+export class SharedToolchainFileSystem {
   static readonly mountPaths = ["/sysroot", "/work"] as const;
   private nextInode = 1;
   private readonly root = new SharedDirectory(this.nextInode++);
 
   constructor() {
-    super();
     for (const path of SharedToolchainFileSystem.mountPaths) this.mkdirTree(path);
+  }
+
+  writeTree(path: string, data: string | Uint8Array): void {
+    this.mkdirTree(parentDir(path));
+    this.writeFile(path, data);
   }
 
   /** Drops removed inputs and old outputs while preserving unchanged headers. */
@@ -174,7 +177,7 @@ export class SharedToolchainFileSystem extends VirtualFileSystem {
     for (const [name, text] of files) this.writeTree(workPath(name), text);
   }
 
-  override mkdirTree(path: string): void {
+  mkdirTree(path: string): void {
     let current = "";
     for (const part of this.normalize(path).split("/").filter(Boolean)) {
       current += `/${part}`;
@@ -191,7 +194,7 @@ export class SharedToolchainFileSystem extends VirtualFileSystem {
     parent.set(name, node);
   }
 
-  override writeFile(path: string, data: string | Uint8Array): void {
+  writeFile(path: string, data: string | Uint8Array): void {
     const [parent, name] = this.parent(path);
     let node = parent.get(name);
     if (!node) {
@@ -202,13 +205,13 @@ export class SharedToolchainFileSystem extends VirtualFileSystem {
     node.replace(data);
   }
 
-  override readFile(path: string): Uint8Array {
+  readFile(path: string): Uint8Array {
     const node = this.lookup(path);
     if (!(node instanceof SharedFile)) fsError("EISDIR");
     return node.copy();
   }
 
-  override exists(path: string): boolean {
+  exists(path: string): boolean {
     try { this.lookup(path); return true; }
     catch (error) {
       if ((error as { code?: string }).code === "ENOENT") return false;
@@ -216,8 +219,7 @@ export class SharedToolchainFileSystem extends VirtualFileSystem {
     }
   }
 
-  override isDirectory(path: string): boolean { return this.lookup(path) instanceof SharedDirectory; }
-  override list(path: string): string[] { return this.readdir(path); }
+  isDirectory(path: string): boolean { return this.lookup(path) instanceof SharedDirectory; }
 
   readdir(path: string): string[] {
     const node = this.lookup(path);
@@ -225,7 +227,7 @@ export class SharedToolchainFileSystem extends VirtualFileSystem {
     return [".", "..", ...node.names()];
   }
 
-  override unlink(path: string): void {
+  unlink(path: string): void {
     const [parent, name] = this.parent(path);
     const node = parent.get(name);
     if (!node) fsError("ENOENT");
@@ -233,7 +235,7 @@ export class SharedToolchainFileSystem extends VirtualFileSystem {
     parent.delete(name);
   }
 
-  override rmdir(path: string): void {
+  rmdir(path: string): void {
     const [parent, name] = this.parent(path);
     const node = parent.get(name);
     if (!node) fsError("ENOENT");
@@ -242,7 +244,7 @@ export class SharedToolchainFileSystem extends VirtualFileSystem {
     parent.delete(name);
   }
 
-  override chdir(path: string): void {
+  chdir(path: string): void {
     if (!this.isDirectory(path)) fsError("ENOTDIR");
   }
 

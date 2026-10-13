@@ -1,25 +1,22 @@
 import { readFile } from "node:fs/promises";
 import { gunzipSync } from "node:zlib";
 import { describe, expect, test } from "vitest";
-import { MemoryFileSystem } from "cpp/filesystem.ts";
-import { SysrootInstaller } from "cpp/sysroot.ts";
-import { TarArchive } from "cpp/tarArchive.mjs";
-import { packTar } from "../../../tests/tarFixture.ts";
+import { TarArchive } from "cpp/tarArchive.ts";
 
 const longName = `sysroot/include/${"nested/".repeat(20)}long.hpp`;
 const contents = 'namespace test { const char* label = "µ"; }\n';
 
 describe("native tar archive decoder", () => {
   for (const format of ["ustar", "gnu", "pax"]) {
-    test(`installs an independently generated ${format} archive`, async () => {
+    test(`decodes an independently generated ${format} archive`, async () => {
       const gzip = await readFile(new URL(`../fixtures/tar/${format}.tgz`, import.meta.url));
-      const fs = new MemoryFileSystem();
-      expect(await new SysrootInstaller(fs).install(gzip)).toBe(format === "pax" ? 4 : 3);
-      expect(fs.readFile("/sysroot/include/empty.h")).toHaveLength(0);
-      expect(new TextDecoder().decode(fs.readFile(`/${longName}`))).toBe(contents);
-      expect(fs.readFile("/sysroot/lib/libtest.a")).toEqual(new Uint8Array([0, 128, 255, 66]));
-      expect(fs.exists("/sysroot/include/link.h")).toBe(false);
-      if (format === "pax") expect(new TextDecoder().decode(fs.readFile("/sysroot/include/測定.hpp"))).toBe(contents);
+      const files = new Map([...(await TarArchive.read(gzip)).files()].map(file => [file.name, file.data]));
+      expect(files.size).toBe(format === "pax" ? 4 : 3);
+      expect(files.get("sysroot/include/empty.h")).toHaveLength(0);
+      expect(new TextDecoder().decode(files.get(longName))).toBe(contents);
+      expect(files.get("sysroot/lib/libtest.a")).toEqual(new Uint8Array([0, 128, 255, 66]));
+      expect(files.has("sysroot/include/link.h")).toBe(false);
+      if (format === "pax") expect(new TextDecoder().decode(files.get("sysroot/include/測定.hpp"))).toBe(contents);
     });
   }
 
@@ -32,9 +29,9 @@ describe("native tar archive decoder", () => {
         controller.enqueue(gzip.subarray(offset, offset += Math.min(7, gzip.length - offset)));
       },
     });
-    const fs = new MemoryFileSystem();
-    expect(await new SysrootInstaller(fs).install(stream)).toBe(4);
-    expect(new TextDecoder().decode(fs.readFile(`/${longName}`))).toBe(contents);
+    const files = [...(await TarArchive.read(stream)).files()];
+    expect(files).toHaveLength(4);
+    expect(new TextDecoder().decode(files.find(file => file.name === longName)?.data)).toBe(contents);
   });
 
   test("returns file views into the supplied tar without copying", async () => {
@@ -57,12 +54,4 @@ describe("native tar archive decoder", () => {
     await expect(TarArchive.read(gzip.subarray(0, gzip.length - 8))).rejects.toThrow();
   });
 
-  test("ignores non-sysroot files and unsafe paths", async () => {
-    const tar = packTar([
-      { header: { name: "sysroot/../outside.a", size: 1 }, body: "x" },
-      { header: { name: "other/include/test.h", size: 1 }, body: "x" },
-      { header: { name: "sysroot/share/license.txt", size: 1 }, body: "x" },
-    ]);
-    expect(await new SysrootInstaller(new MemoryFileSystem()).install(tar, false)).toBe(0);
-  });
 });

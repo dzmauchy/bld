@@ -1,7 +1,7 @@
 import { expect } from "vitest";
 import type { Page, WebWorker } from "puppeteer";
 import { browserTest, baseURL, element } from "../../../tests/e2e/browser.ts";
-import { BrowserClangAstDumper } from "cpp/browserClangAstDumper.ts";
+import { ClangDumpResult, type ClangAstDumper } from "cpp/clangAstDumper.ts";
 import type { CppPageApi } from "cpp/browser/api.ts";
 
 declare global {
@@ -13,16 +13,20 @@ declare global {
 /** A page owns the clang/lld worker across tests; each compile loads fresh program state. */
 export class CppSession {
   private readonly workers: WebWorker[] = [];
-  readonly astDumper: BrowserClangAstDumper;
+  readonly astDumper: ClangAstDumper;
 
   constructor(private readonly page: Page) {
     page.on("workercreated", (worker) => this.workers.push(worker));
-    this.astDumper = new BrowserClangAstDumper({
-      dumpAst: (files, mainFile) => page.evaluate(
-        ({ files, mainFile }) => window.cpp.dumpAst(files, mainFile),
-        { files: Object.fromEntries(files), mainFile },
-      ),
-    });
+    this.astDumper = {
+      dump() { throw new Error("Browser AST dumps are asynchronous"); },
+      async dumpAsync(files, mainFile) {
+        const result = await page.evaluate(
+          ({ files, mainFile }) => window.cpp.dumpAst(files, mainFile),
+          { files: Object.fromEntries(files), mainFile },
+        );
+        return new ClangDumpResult(result.ok, result.ast, result.stdout, result.stderr);
+      },
+    };
   }
 
   private _pageReadyDurationMs = 0;

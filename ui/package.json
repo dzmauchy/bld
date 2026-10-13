@@ -9,10 +9,6 @@
   },
   "scripts": {
     "dev": "vite",
-    "assets": "node scripts/fetch-base-release.mjs",
-    "prebuild": "npm run assets",
-    "predev": "npm run assets",
-    "pretest": "npm run assets",
     "typecheck": "tsc -b tsconfig.json tsconfig.test.json",
     "build": "npm run typecheck && vite build",
     "preview": "vite preview",

@@ -36,8 +36,7 @@ test("shows the bld icon splash until 100 ms after the parsed workspace is shown
   const archiveHeld = new Promise<void>((resolve) => {
     releaseArchive = resolve;
   });
-  // The splash closes 100 ms after the base library parses. The local archive
-  // answers immediately, so hold it until the open splash has been observed.
+  // Hold the archive response until the open splash has been observed.
   await page.setRequestInterception(true);
   page.on("request", async (request) => {
     if (request.url().endsWith("/base-0.1.0.tar.gz")) await archiveHeld;
@@ -244,6 +243,7 @@ test("copies all JSON schemas into ui/dist/schemas", () => {
 });
 
 test("client bundle uses release metadata and the pinned compiler", () => {
+  expect(collect(distDir, ".tar.gz")).toEqual([]);
   const scripts = collect(distDir, ".js")
     .map((path) => readFileSync(path, "utf8"))
     .join("\n");
