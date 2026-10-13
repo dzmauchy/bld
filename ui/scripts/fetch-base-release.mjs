@@ -2,24 +2,24 @@ import { mkdir, readFile, rename, writeFile } from "node:fs/promises";
 import { dirname, join } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { gunzipSync } from "node:zlib";
-import { unpackTar } from "modern-tar";
+import { TarArchive } from "../../cpp/src/tarArchive.mjs";
 
 const releaseUrl = "https://github.com/dzmauchy/bld-base/releases/download/v0.1.0/base-0.1.0.tar.gz";
 const destination = join(dirname(fileURLToPath(import.meta.url)), "../public/base-0.1.0.tar.gz");
 
 export async function isCurrentBaseRelease(bytes) {
   try {
-    const entries = await unpackTar(gunzipSync(bytes));
-    const meta = entries.find((entry) => entry.header.name.replace(/^\.\//, "") === "meta.json");
+    const entries = [...new TarArchive(gunzipSync(bytes)).files()];
+    const meta = entries.find((entry) => entry.name.replace(/^\.\//, "") === "meta.json");
     const parsed = JSON.parse(new TextDecoder().decode(meta?.data));
     return Array.isArray(parsed.blocks) && Array.isArray(parsed.namespaces)
       && parsed.blocks.every((block) => Array.isArray(block.parameters))
       && parsed.blocks.every((block) => block.parameters.every((parameter) => Object.hasOwn(parameter, "default")))
       && parsed.blocks.some((block) => block.inputs?.some((port) => port.length?.parameter && port.length?.max === 8))
-      && entries.some((entry) => entry.header.name.replace(/^\.\//, "") === "base/f32_blocks.hpp"
+      && entries.some((entry) => entry.name.replace(/^\.\//, "") === "base/f32_blocks.hpp"
         && /core::function<[^;]*\bScopeF32\(/.test(new TextDecoder().decode(entry.data)))
-      && entries.some((entry) => entry.header.name.replace(/^\.\//, "") === "core/lib.hpp")
-      && entries.some((entry) => entry.header.name.replace(/^\.\//, "") === "core/diagram.hpp");
+      && entries.some((entry) => entry.name.replace(/^\.\//, "") === "core/lib.hpp")
+      && entries.some((entry) => entry.name.replace(/^\.\//, "") === "core/diagram.hpp");
   } catch { return false; }
 }
 async function fetchBaseRelease() {

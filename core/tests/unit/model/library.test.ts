@@ -1,7 +1,7 @@
 import { describe, expect, vi, test } from "vitest";
 import { resolveUrl } from "core/model/appAssets.ts";
 import { readNodeAsset } from "../../readNodeAsset.ts";
-import { packTar } from "modern-tar";
+import { packTar } from "../../../../tests/tarFixture.ts";
 import {
   CompilationModel,
   Library,
@@ -84,7 +84,7 @@ describe("Library and Asset Loader", () => {
     expect(Library.getBaseSync()).toBe(lib);
   });
 
-  test("fetches a remote library archive and unpacks it with modern-tar", async () => {
+  test("fetches a remote library archive and unpacks it with the native archive decoder", async () => {
     const header = [
       '/*{"kind":"type","id":"custom_t","name":"Custom Type","description":"A custom test type"}*/',
       "using custom_t = int;",

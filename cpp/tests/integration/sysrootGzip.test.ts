@@ -1,10 +1,10 @@
-import { packTar } from "modern-tar";
+import { packTar } from "../../../tests/tarFixture.ts";
 import { describe, expect, test } from "vitest";
 import { MemoryFileSystem } from "cpp/filesystem.ts";
 import { SysrootInstaller } from "cpp/sysroot.ts";
 
 describe("gzipped sysroot install", () => {
-  test("decodes a tar.gz archive with modern-tar before writing the FS", async () => {
+  test("decodes a tar.gz archive with the native archive decoder before writing the FS", async () => {
     const tar = await packTar([
       { header: { name: "sysroot/include/wasm.hpp", size: 4 }, body: "wasm" },
       { header: { name: "sysroot/lib/clang/23/include/stddef.h", size: 4 }, body: "size" },

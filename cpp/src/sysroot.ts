@@ -1,4 +1,4 @@
-import { unpackTar } from "modern-tar";
+import { TarArchive } from "./tarArchive.mjs";
 import type { VirtualFileSystem } from "./filesystem.ts";
 
 const LIBRARY_NAME = /\.(a|o)$/;
@@ -22,33 +22,14 @@ export class SysrootInstaller {
     archive: ArrayBuffer | Uint8Array | ReadableStream<Uint8Array>,
     compressed = true,
   ): Promise<number> {
-    const input = asByteStream(archive);
-    const gzip = new DecompressionStream("gzip") as unknown as ReadableWritablePair<Uint8Array, Uint8Array>;
-    const source = compressed ? input.pipeThrough(gzip) : input;
-    const unpacked = await unpackTar(source, {
-      filter: (header) => header.type !== "directory" && shouldInstallSysrootEntry(header.name),
-    });
+    const unpacked = await TarArchive.read(archive, compressed);
     let files = 0;
-    for (const entry of unpacked) {
-      if (!entry.data) continue;
-      const path = tarPathToMemfs(entry.header.name);
+    for (const entry of unpacked.files()) {
+      if (!shouldInstallSysrootEntry(entry.name)) continue;
+      const path = tarPathToMemfs(entry.name);
       this.fs.writeTree(path, entry.data);
       files += 1;
     }
     return files;
   }
-}
-
-function asByteStream(
-  archive: ArrayBuffer | Uint8Array | ReadableStream<Uint8Array>,
-): ReadableStream<Uint8Array> {
-  if (archive instanceof ReadableStream) return archive;
-  return new Blob([copyBytes(archive)]).stream();
-}
-
-function copyBytes(archive: ArrayBuffer | Uint8Array): Uint8Array<ArrayBuffer> {
-  const source = archive instanceof Uint8Array ? archive : new Uint8Array(archive);
-  const copy = new Uint8Array(source.byteLength);
-  copy.set(source);
-  return copy;
 }

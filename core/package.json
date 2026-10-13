@@ -14,8 +14,7 @@
     "./*": "./src/*"
   },
   "dependencies": {
-    "cpp": "*",
-    "modern-tar": "^0.8.5"
+    "cpp": "*"
   },
   "scripts": {
     "build": "tsc -b && tsc -b tsconfig.test.json",

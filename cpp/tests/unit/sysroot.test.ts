@@ -1,4 +1,4 @@
-import { packTar } from "modern-tar";
+import { packTar } from "../../../tests/tarFixture.ts";
 import { describe, expect, test } from "vitest";
 import { MemoryFileSystem } from "cpp/filesystem.ts";
 import { shouldInstallSysrootEntry, SysrootInstaller, tarPathToMemfs } from "cpp/sysroot.ts";

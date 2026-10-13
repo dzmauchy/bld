@@ -27,6 +27,8 @@ export { EmscriptenTool } from "./emscripten.ts";
 export { ObjectFile } from "./object-file.ts";
 export { RpcClient } from "./rpc.ts";
 export { SysrootInstaller, shouldInstallSysrootEntry, tarPathToMemfs } from "./sysroot.ts";
+export { TarArchive } from "./tarArchive.mjs";
+export type { TarFile, TarInput } from "./tarArchive.mjs";
 export { Thread, EventTargetWorkerThread, wrapEventTargetWorker } from "./thread.ts";
 export { ToolchainServiceWorker } from "./toolchainServiceWorker.ts";
 export { DefaultWasmBindings } from "./bindings.ts";

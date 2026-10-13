@@ -2,9 +2,9 @@
  * @title Library Archive
  *
  * A library archive is the tar.gz addressed by a library manifest location.
- * modern-tar unpacks the tar after gzip decompression.
+ * The cpp workspace decodes gzip and reads tar file views.
  */
-import { unpackTar } from "modern-tar";
+import { TarArchive } from "cpp/tarArchive.mjs";
 import { loadAssetBytes } from "./appAssets";
 
 const HEADER_NAME = /\.(?:h|hh|hpp|hxx)$/i;
@@ -26,14 +26,15 @@ export class LibraryArchive {
   }
 
   static async fromTarGz(bytes: Uint8Array | ArrayBuffer): Promise<LibraryArchive> {
-    const encoded = copyBytes(bytes);
-    const entries = await readArchiveEntries(encoded);
+    const encoded = bytes instanceof Uint8Array ? bytes : new Uint8Array(bytes);
+    // Static servers can inflate .gz bodies through Content-Encoding first.
+    const compressed = encoded[0] === 0x1f && encoded[1] === 0x8b;
+    const archive = await TarArchive.read(encoded, compressed);
     const files = new Map<string, string>();
     let metadata: unknown;
     const decoder = new TextDecoder();
-    for (const entry of entries) {
-      if (!entry.data) continue;
-      const name = headerFileName(entry.header.name);
+    for (const entry of archive.files()) {
+      const name = headerFileName(entry.name);
       if (name === "meta.json") metadata = JSON.parse(decoder.decode(entry.data));
       if (!name || !HEADER_NAME.test(name)) continue;
       files.set(name, decoder.decode(entry.data));
@@ -65,20 +66,6 @@ export class LibraryArchive {
   }
 }
 
-async function readArchiveEntries(encoded: Uint8Array<ArrayBuffer>): Promise<Awaited<ReturnType<typeof unpackTar>>> {
-  const blob = new Blob([encoded]);
-  try {
-    return await unpackTar(blob.stream().pipeThrough(new DecompressionStream("gzip")));
-  } catch (gzipError) {
-    // Static servers treat a .gz name as Content-Encoding and inflate the body first.
-    try {
-      return await unpackTar(blob.stream());
-    } catch {
-      throw gzipError;
-    }
-  }
-}
-
 function archiveUrls(location: string): string[] {
   const urls = [location];
   if (!URL.canParse(location)) return urls;
@@ -95,11 +82,4 @@ function headerFileName(name: string): string {
   if (cleaned.endsWith("/")) return "";
   if (cleaned.split("/").some((part) => part === "..") || cleaned.startsWith("/")) throw new Error("Invalid archive path");
   return cleaned;
-}
-
-function copyBytes(bytes: Uint8Array | ArrayBuffer): Uint8Array<ArrayBuffer> {
-  const source = bytes instanceof Uint8Array ? bytes : new Uint8Array(bytes);
-  const copy = new Uint8Array(source.byteLength);
-  copy.set(source);
-  return copy;
 }

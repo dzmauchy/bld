@@ -1,4 +1,4 @@
-import { packTar } from "modern-tar";
+import { packTar } from "../../../tests/tarFixture.ts";
 import { describe, expect, test } from "vitest";
 import { ClangFrontend } from "cpp/clang.ts";
 import { CppWasmCompiler } from "cpp/compiler.ts";

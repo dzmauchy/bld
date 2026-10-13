@@ -26,7 +26,6 @@
     "@awesome.me/webawesome": "^3.14.0",
     "@maxgraph/core": "^0.25.0",
     "core": "*",
-    "modern-tar": "^0.8.5",
     "cpp": "*",
     "lit": "^3.3.3",
     "@lit-labs/signals": "^0.3.0"

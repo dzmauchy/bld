@@ -1,6 +1,6 @@
 import { readFile } from "node:fs/promises";
 import { gzipSync } from "node:zlib";
-import { packTar } from "modern-tar";
+import { packTar } from "../../../tests/tarFixture.ts";
 import { expect, test } from "vitest";
 import { isCurrentBaseRelease } from "../../scripts/fetch-base-release.mjs";
 
