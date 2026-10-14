@@ -15,6 +15,7 @@ export class DefaultWasmBindings {
       sin: Math.sin,
       cos: Math.cos,
       fmod: (value: number, divisor: number) => value % divisor,
+      host_random: Math.random,
       js_print_char: (character: number) => this.printChar(character),
       js_now: () => performance.now(),
       js_time: () => Date.now(),

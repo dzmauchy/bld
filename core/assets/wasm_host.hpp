@@ -6,6 +6,9 @@
 
 extern "C" void mount();
 
+extern "C" __attribute__((import_module("env"), import_name("host_random")))
+f64 host_random();
+
 
 #ifndef BLD_WASM_HOST_IMPL
 #define BLD_WASM_HOST_IMPL
@@ -85,8 +88,8 @@ class WasmHost {
 
   void sendF64(u32 blockId, u8 inputId, f64 value) { setF64(blockId, inputId, value); ++pinWriteCount_; }
 
-  f32 randomF32() const { return random_; }
-  f64 randomF64() const { return static_cast<f64>(random_); }
+  f32 randomF32() const { return static_cast<f32>(randomF64()); }
+  f64 randomF64() const { return randomOverridden_ ? static_cast<f64>(random_) : host_random(); }
   u64 now() const { return now_; }
 
   void start() {
@@ -124,7 +127,7 @@ class WasmHost {
   }
 
   void setNow(u64 milliseconds) { now_ = milliseconds; }
-  void setRandom(f32 value) { random_ = value; }
+  void setRandom(f32 value) { random_ = value; randomOverridden_ = true; }
 
   void emitGpioIn(u32 blockId, u32 pinIndex, bool value) {
     for (u32 i = 0; i < gpioBlockCount_; ++i) {
@@ -350,6 +353,7 @@ class WasmHost {
   u32 pinWriteCount_{0};
   u64 now_{0};
   f32 random_{0};
+  bool randomOverridden_{false};
   bool built_{false};
   bool started_{false};
 };
