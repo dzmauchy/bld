@@ -8,7 +8,7 @@ export class CompilationStep {
 
 /** Immutable progress snapshot; a successful operation checks its own step. */
 export class CompilationSteps {
-  private constructor(private readonly steps: readonly CompilationStep[]) {}
+  private constructor(readonly items: readonly CompilationStep[]) {}
 
   static initial(): CompilationSteps {
     return new CompilationSteps([
@@ -19,17 +19,13 @@ export class CompilationSteps {
     ]);
   }
 
-  items(): readonly CompilationStep[] {
-    return this.steps;
-  }
-
   withEvent(event: CompilationPhaseEvent): CompilationSteps {
-    return new CompilationSteps(this.steps.map((step) => step.phase === event.phase
+    return new CompilationSteps(this.items.map((step) => step.phase === event.phase
       ? new CompilationStep(step.phase, step.label, event.status) : step));
   }
 
   failed(): CompilationSteps {
-    return new CompilationSteps(this.steps.map((step) => step.status === "active"
+    return new CompilationSteps(this.items.map((step) => step.status === "active"
       ? new CompilationStep(step.phase, step.label, "failed") : step));
   }
 }

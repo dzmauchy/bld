@@ -1,6 +1,7 @@
 {
   "extends": ["./tsconfig.json", "../tsconfig.test.base.json"],
   "compilerOptions": {
+    "types": ["node", "vite/client"],
     "rootDir": "..",
     "rewriteRelativeImportExtensions": false
   },

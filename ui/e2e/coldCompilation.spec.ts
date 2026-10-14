@@ -18,13 +18,13 @@ test("recovers from a module compilation abort while the first Run awaits prepar
     };
     (window as unknown as { coldCompileProbe: ColdCompileProbe }).coldCompileProbe = probe;
     function installAbort(): void {
-      const compile = WebAssembly.compile;
+      const compile = WebAssembly.compileStreaming;
       let first = true;
-      WebAssembly.compile = async (...args) => {
+      WebAssembly.compileStreaming = async (...args) => {
         if (first) {
           first = false;
           self.postMessage({ type: "test-module-abort" });
-          throw new WebAssembly.CompileError("WebAssembly.compile(): compilation aborted");
+          throw new WebAssembly.CompileError("WebAssembly.compileStreaming(): compilation aborted");
         }
         return compile(...args);
       };

@@ -3,18 +3,18 @@ import { afterAll, beforeAll, expect, test } from "vitest";
 import { CppDiagramBuilder, Diagram, DiagramCompiler, Library, PortEndpoint } from "core";
 import { CppWasmCompiler } from "cpp/compiler.ts";
 import type { CompilationPhaseEvent } from "cpp/compilationProgress.ts";
-import { execute, serveToolchain } from "../toolchain.ts";
+import { TestToolchain } from "../toolchain.ts";
 
-let assets: Awaited<ReturnType<typeof serveToolchain>>;
+const assets = new TestToolchain();
 let library: Library;
 let backend: CppWasmCompiler;
 beforeAll(async () => {
-  assets = await serveToolchain();
-  backend = new CppWasmCompiler(assets.assetUrl);
+  await assets.open();
+  backend = assets.createCompiler();
   const manifest = JSON.parse(await readFile(new URL("../../../core/assets/base.json", import.meta.url), "utf8"));
   library = await Library.load(manifest);
 }, 120_000);
-afterAll(async () => { await assets?.close(); });
+afterAll(async () => { await assets.close(); });
 
 function diagram() {
   const diagram = new Diagram("single", "Single execution", library.palette);
@@ -25,7 +25,7 @@ function diagram() {
 }
 
 async function instantiate(wasm: Uint8Array) {
-  const exports = await execute(wasm);
+  const exports = await TestToolchain.execute(wasm);
   (exports.start as () => void)();
   return exports;
 }
@@ -71,11 +71,11 @@ test("real compiler errors identify the connection and a successful edit clears 
   const compiler = new DiagramCompiler({ files: library.compilationModel.getFiles(), cppCompiler: backend });
   const failure = await compiler.compile(program).catch(error => error);
   expect(failure.diagnostics).toContainEqual(expect.objectContaining({ connectionId: "wire", blockId: "source", inputId: "downstream" }));
-  expect(program.getBlock("source")?.getInputPorts()[0]?.hasError).toBe(true);
+  expect(program.getBlock("source")?.inputPorts[0]?.hasError).toBe(true);
   program.disconnect("wire");
   program.removeBlock("scope");
   program.addBlock("ScopeF32", { x: 0, y: 0 }, "scope");
   program.connect(new PortEndpoint("scope", "output", "channels"), new PortEndpoint("source", "input", "downstream"), "wire");
   expect(await compiler.compile(program)).toBeInstanceOf(Uint8Array);
-  expect(program.getBlock("source")?.getInputPorts()[0]?.hasError).toBe(false);
+  expect(program.getBlock("source")?.inputPorts[0]?.hasError).toBe(false);
 });

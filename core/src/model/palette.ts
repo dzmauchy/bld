@@ -41,14 +41,12 @@ export class Palette implements IPalette {
   }
 
   getBlocksByCategory(category: string): BlockDefinition[] {
-    return this.getBlocks().filter((b) => b.category.toLowerCase() === category.toLowerCase());
+    const normalized = category.toLowerCase();
+    return this.getBlocks().filter((b) => b.category.toLowerCase() === normalized);
   }
 
   getBlocksByNamespace(nsPrefix: string[]): BlockDefinition[] {
-    return this.getBlocks().filter((b) => {
-      if (b.namespace.length < nsPrefix.length) return false;
-      return nsPrefix.every((part, i) => b.namespace[i] === part);
-    });
+    return this.getBlocks().filter((b) => nsPrefix.every((part, i) => b.namespace[i] === part));
   }
 
   search(query: string): BlockDefinition[] {

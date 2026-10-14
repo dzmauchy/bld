@@ -117,7 +117,7 @@ describe("Type Checking & Connections", () => {
     expect(diagram.getConnections()).toHaveLength(1);
   });
 
-  test("allows gpio pin to scope sink because clang++ sees the same stream type", () => {
+  test("allows gpio pin to scope sink with compatible stream ports", () => {
     const diagram = new Diagram("diag_1", "Test Diagram", palette);
     const scope = diagram.addBlock("ScopeF32", { x: 10, y: 10 });
     const gpio = diagram.addBlock("GpioInF32", { x: 100, y: 10 });
@@ -248,8 +248,8 @@ describe("Wasm Code Generation", () => {
     const diagram = new Diagram("diag_1", "Test Diagram", palette);
     const scope = diagram.addBlock("ScopeF32", { x: 10, y: 20 }, "scope_0", { precision: 25 });
 
-    expect(scope.getOutputPorts().map((port) => port.id)).toContain("channels");
-    expect(scope.getInputPorts().map((p) => p.id)).toEqual([]);
+    expect(scope.outputPorts.map((port) => port.id)).toContain("channels");
+    expect(scope.inputPorts.map((p) => p.id)).toEqual([]);
     expect(scope.getAllConf()).toMatchObject({ period: 60, precision: 25 });
     expect(scope.definition.getDefaultConfig()).toMatchObject({ period: 60, precision: 10 });
 
@@ -284,36 +284,36 @@ describe("Wasm Code Generation", () => {
 });
 
 describe("Diagram port type inference", () => {
-  test("infers every input and output from clang++ QualTypes", () => {
+  test("infers every input and output from Wasm Clang QualTypes", async () => {
     const diagram = new Diagram("types", "types", palette);
     const scope = diagram.addBlock("ScopeF32", { x: 0, y: 0 }, "scope");
     const cosine = diagram.addBlock("CosF32", { x: 1, y: 0 }, "cos");
     const constant = diagram.addBlock("ConstF32", { x: 2, y: 0 }, "constant");
     const gpio = diagram.addBlock("GpioInF32", { x: 3, y: 0 }, "gpio", { pins: [0, 2, 4] });
 
-    const sink = diagram.inferPortType(scope.id, "channels", "output");
+    const sink = await diagram.inferPortType(scope.id, "channels", "output");
     expect(sink.isVector).toBe(true);
     expect(sink.qualType).toContain("Vectorized");
     expect(sink.desugaredQualType).toContain("core::function<void (float)>");
 
-    const cosOut = diagram.inferPortType(cosine.id, "consumer", "output");
+    const cosOut = await diagram.inferPortType(cosine.id, "consumer", "output");
     expect(cosOut.isVector).toBe(false);
     expect(cosOut.qualType).toMatch(/core::function<void \((?:f32|float)\)> \*/);
 
-    const cosIn = diagram.inferPortType(cosine.id, "downstream", "input");
+    const cosIn = await diagram.inferPortType(cosine.id, "downstream", "input");
     expect(cosIn.isVector).toBe(true);
 
-    const constIn = diagram.inferPortType(constant.id, "downstream");
+    const constIn = await diagram.inferPortType(constant.id, "downstream");
     expect(constIn.isVector).toBe(true);
     expect(constIn.qualType).toContain("Vectorized");
 
-    const pin = diagram.inferPortType(gpio.id, "pins", "input");
+    const pin = await diagram.inferPortType(gpio.id, "pins", "input");
     expect(pin.isVector).toBe(true);
     expect(pin.vectorLength).toBe(3);
     expect(pin.qualType).toContain("core::array");
   });
 
-  test("uses clang++ to accept compatible connections and reject type errors", () => {
+  test("uses Wasm Clang to infer compatible connected ports", async () => {
     const diagram = new Diagram("wired", "wired", palette);
     const scope = diagram.addBlock("ScopeF32", { x: 0, y: 0 }, "s");
     const constant = diagram.addBlock("ConstF32", { x: 1, y: 0 }, "c");
@@ -328,7 +328,7 @@ describe("Diagram port type inference", () => {
       new PortEndpoint(constant.id, "input", "downstream", 0),
     );
 
-    const types = diagram.inferPortTypes();
+    const types = await diagram.inferPortTypes();
     const from = types.require(constant.id, "input", "downstream");
     const to = types.require(scope.id, "output", "channels");
     expect(from.qualType).toContain("Vectorized");

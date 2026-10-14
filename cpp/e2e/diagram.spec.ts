@@ -11,7 +11,6 @@ import {
   PortEndpoint,
   registerAppAssets,
 } from "core";
-import "cpp/hostClangAstDumper.ts";
 import { ClangComment, type ClangAstJson } from "cpp/clangAst.ts";
 
 const here = dirname(fileURLToPath(import.meta.url));

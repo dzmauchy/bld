@@ -154,8 +154,8 @@ export class DiagramBlockFrame {
 
   static of(block: DiagramBlock, connections: readonly Connection[] = []): DiagramBlockFrame {
     return DiagramBlockFrame.create(
-      block.getInputPorts().map((port) => ({ id: port.id, vector: port.vector })),
-      block.getOutputPorts().map((port) => ({ id: port.id, vector: port.vector })),
+      block.inputPorts.map((port) => ({ id: port.id, vector: port.vector })),
+      block.outputPorts.map((port) => ({ id: port.id, vector: port.vector })),
       ChannelLayout.forBlock(block.id, connections),
       BlockContentWidth.forDefinition(block.definition),
     );

@@ -39,8 +39,17 @@ function installRunProfiler(): void {
       if (response) {
         buffers.set(buffer, response.name);
         record({ phase: "asset", name: response.name, started: response.started, durationMs: now() - response.started, bytes: buffer.byteLength });
+      }
+      return buffer;
+    };
+    const textOriginal = Response.prototype.text;
+    Response.prototype.text = async function () {
+      const source = await textOriginal.call(this);
+      const response = responses.get(this);
+      if (response) {
+        record({ phase: "asset", name: response.name, started: response.started, durationMs: now() - response.started,
+          bytes: new TextEncoder().encode(source).byteLength });
         if (/^(clang|lld)\.js$/.test(response.name)) {
-          const source = new TextDecoder().decode(buffer);
           const exported = source.match(/export\s+default\s+([\w$]+)\s*;/);
           if (exported) {
             const instrumented = source.replace(exported[0], `
@@ -58,11 +67,23 @@ function installRunProfiler(): void {
                 return runtime;
               };
               export default __bldProfileFactory;`);
-            return new TextEncoder().encode(instrumented).buffer;
+            return instrumented;
           }
         }
       }
-      return buffer;
+      return source;
+    };
+    const compileStreamingOriginal = WebAssembly.compileStreaming;
+    WebAssembly.compileStreaming = async (source, ...options) => {
+      const started = now();
+      const response = await source;
+      const module = await compileStreamingOriginal(response, ...options);
+      const asset = responses.get(response);
+      const name = asset?.name ?? "unknown.wasm";
+      modules.set(module, name);
+      if (asset) record({ phase: "asset", name, started: asset.started, durationMs: now() - asset.started });
+      record({ phase: "wasm-module", name, started, durationMs: now() - started });
+      return module;
     };
     const compileOriginal = WebAssembly.compile;
     WebAssembly.compile = async (bytes, ...options) => {

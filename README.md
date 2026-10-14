@@ -99,7 +99,7 @@ graph TD
     subgraph CoreDomain["Core Domain & Modeling"]
         Core["core"]
         Diag["Diagram / DiagramBlock / Connection"]
-        TS["TypeSystem & clang++ dumps"]
+        TS["TypeSystem & Wasm Clang AST dumps"]
         CompilerFacade["DiagramCompiler"]
         Builder["CppDiagramBuilder"]
 
@@ -175,7 +175,7 @@ flowchart TD
     
     subgraph ClangLld["cpp clang/lld"]
         C --> D["ICppCompiler.compile(files)"]
-        D --> E["clang++ -std=c++23 wasm32-unknown-unknown"]
+        D --> E["Clang C++23 wasm32-unknown-unknown"]
         E --> F["wasm-ld --export-dynamic"]
     end
     
@@ -431,11 +431,15 @@ npm run test:e2e --workspace=cpp --include-workspace-root=false
 npm run test:integration --workspace=cpp --include-workspace-root=false
 ```
 
+AST analysis and port inference use the released Wasm compiler. Await
+`diagram.inferPortType()`, `diagram.inferPortTypes()`, or `diagram.analyze()`;
+tests do not require a native C++ compiler or host GCC headers.
+
 Core manual profiles are excluded from routine runs. Run a `*.manual.test.ts` file
 directly from CLion's test gutter or select it on the command line:
 
 ```bash
-npx vitest run --config core/vitest.config.ts tests/integration/diagramAstSize.manual.test.ts
+npx vitest run --config core/vitest.config.ts tests/integration/libraryLoadPerformance.manual.test.ts
 ```
 
 Set `MANUAL=1` to run all core manual profiles.

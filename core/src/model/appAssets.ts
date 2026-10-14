@@ -17,10 +17,7 @@ export abstract class AbstractAssetStore {
 }
 
 export class AppAssetStore extends AbstractAssetStore {
-  private static readonly defaultInstance = new AppAssetStore();
-  static get shared(): AppAssetStore {
-    return this.defaultInstance;
-  }
+  static readonly shared = new AppAssetStore();
 
   private readonly assets = new Map<string, string>();
   private readonly binaries = new Map<string, Uint8Array>();

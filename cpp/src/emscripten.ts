@@ -40,14 +40,14 @@ export type EmscriptenModuleFactory = (options?: EmscriptenModuleOptions) => Pro
 
 /** Loads the released JS factory and compiles its Wasm once; every call creates a fresh heap. */
 export async function loadEmscriptenModule(scriptUrl: string, wasmUrl: string): Promise<EmscriptenModuleFactory> {
-  const read = async (url: string): Promise<ArrayBuffer> => {
+  const read = async (url: string): Promise<Response> => {
     const response = await fetch(url);
     if (!response.ok) throw new Error(`failed to fetch ${url}: ${response.status} ${response.statusText}`);
-    return response.arrayBuffer();
+    return response;
   };
   const [source, compiled] = await Promise.allSettled([
-    read(scriptUrl).then(bytes => new TextDecoder().decode(bytes)),
-    read(wasmUrl).then(bytes => WebAssembly.compile(bytes)),
+    read(scriptUrl).then(response => response.text()),
+    WebAssembly.compileStreaming(read(wasmUrl)),
   ]);
   if (source.status === "rejected") throw source.reason;
   if (compiled.status === "rejected") throw compiled.reason;

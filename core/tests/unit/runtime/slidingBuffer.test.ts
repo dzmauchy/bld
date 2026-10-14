@@ -33,15 +33,20 @@ describe("SlidingScopeBuffer", () => {
   });
 
   test("derives capacity from scope period and precision", () => {
-    const buffer = SlidingScopeBuffer.fromPeriod(1, 100);
-    expect(buffer.capacity).toBe(10);
+    const f32: SlidingScopeBuffer = SlidingScopeBuffer.fromPeriod(1, 100);
+    const f64: SlidingScopeBufferF64 = SlidingScopeBufferF64.fromPeriod(1, 100);
+    expect(f32.capacity).toBe(10);
+    expect(f64.capacity).toBe(10);
+    expect(f32.data).toBeInstanceOf(Float32Array);
+    expect(f64.data).toBeInstanceOf(Float64Array);
   });
 
   test("f64 buffer uses Float64Array", () => {
-    const buffer = new SlidingScopeBufferF64(2);
-    buffer.push(1.5);
+    const buffer = SlidingScopeBufferF64.fromPeriod(0.2, 100);
+    const value = 1 + Number.EPSILON;
+    buffer.push(value);
     expect(buffer.data).toBeInstanceOf(Float64Array);
-    expect(buffer.last()).toBe(1.5);
+    expect(buffer.last()).toBe(value);
   });
 
   test("empty buffer reports NaN and ignores pushes into zero capacity", () => {

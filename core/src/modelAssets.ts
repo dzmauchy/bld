@@ -10,7 +10,6 @@ export const modelAssetFiles = [
   "diagramBlock.ts",
   "endpoint.ts",
   "metadataCatalog.ts",
-  "browserHost.ts",
   "index.ts",
   "inferredPortType.ts",
   "library.ts",

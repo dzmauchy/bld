@@ -103,13 +103,13 @@ inline auto Same(const u32 blockId, const f32 value = f32{0.5}) {
     connect(d, "scope", "constant");
     const files = singlePassBuilder.build(d);
     const dumps: Map<string, string>[] = [];
-    const host = ClangAstDumper.defaultDumper();
-    const original = host.dump.bind(host);
-    const recording = vi.spyOn(host, "dump").mockImplementation((inputs, mainFile) => {
+    const dumper = ClangAstDumper.defaultDumper();
+    const original = dumper.dumpAsync.bind(dumper);
+    const recording = vi.spyOn(dumper, "dumpAsync").mockImplementation((inputs, mainFile) => {
       dumps.push(inputs);
       return original(inputs, mainFile);
     });
-    const analysis = await singlePassBuilder.analyze(d, host).finally(() => recording.mockRestore());
+    const analysis = await singlePassBuilder.analyze(d, dumper).finally(() => recording.mockRestore());
     expect(analysis.ok, JSON.stringify(analysis.diagnostics)).toBe(true);
     expect(dumps).toHaveLength(1);
     expect(dumps[0]?.get("diagram.cpp")).toBe(files.get("diagram.cpp"));
@@ -191,8 +191,10 @@ inline auto Same(const u32 blockId, const f32 value = f32{0.5}) {
     connect(d, "scope/a", "constant");
     const result = await builder.analyze(d);
     expect(result.ok).toBe(false);
-    expect(result.diagnostics.find((d) => d.severity === "error"), JSON.stringify(result.diagnostics)).toMatchObject({ connectionId: "wire", blockId: "constant", inputId: "downstream", outputId: "channels" });
-    expect(result.toJSON().ports.length).toBeGreaterThan(0);
+    expect(result.diagnostics.find((d) => d.severity === "error"), JSON.stringify(result.diagnostics)).toMatchObject({
+      connectionId: "wire", blockId: "constant", inputId: "downstream", outputId: "channels",
+      from: d.getConnection("wire")!.from.toJSON(), to: d.getConnection("wire")!.to.toJSON(),
+    });
   });
   test("configuration changes are reanalyzed and invalid pin indices are identified", async () => {
     const d = diagram();

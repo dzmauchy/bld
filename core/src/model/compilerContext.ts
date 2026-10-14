@@ -19,21 +19,18 @@ export const browserContext = new BrowserCompilerContext();
 export const mcuContext = new McuCompilerContext();
 
 export class CompilerContextRegistry {
-  private static readonly _shared = new CompilerContextRegistry();
-  static get shared(): CompilerContextRegistry {
-    return this._shared;
-  }
+  static readonly shared = new CompilerContextRegistry();
 
-  private readonly contexts = new Map<string, CompilerContext | { name: string }>([
+  private readonly contexts = new Map<string, CompilerContext>([
     ["browser", browserContext],
     ["mcu", mcuContext],
   ]);
 
-  register(context: CompilerContext | { name: string }): void {
+  register(context: CompilerContext): void {
     this.contexts.set(context.name, context);
   }
 
-  get(name: string): (CompilerContext | { name: string }) | undefined {
+  get(name: string): CompilerContext | undefined {
     return this.contexts.get(name);
   }
 
@@ -42,8 +39,8 @@ export class CompilerContextRegistry {
   }
 }
 
-export const registerCompilerContext = (context: CompilerContext | { name: string }): void =>
+export const registerCompilerContext = (context: CompilerContext): void =>
   CompilerContextRegistry.shared.register(context);
 
-export const getCompilerContext = (name: string): (CompilerContext | { name: string }) | undefined =>
+export const getCompilerContext = (name: string): CompilerContext | undefined =>
   CompilerContextRegistry.shared.get(name);

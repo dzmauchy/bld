@@ -111,14 +111,13 @@ export class CppWasmCompiler extends CompilationProgressEmitter implements ICppC
   }
 
   private module(tool: Tool): Promise<EmscriptenModuleFactory> {
-    let pending = this.modules.get(tool);
-    if (!pending) {
-      pending = loadEmscriptenModule(this.assetUrl(`${tool}.js`), this.assetUrl(`${tool}.wasm`)).catch((error: unknown) => {
-        this.modules.delete(tool);
-        throw error;
-      });
-      this.modules.set(tool, pending);
-    }
+    const cached = this.modules.get(tool);
+    if (cached) return cached;
+    const pending = loadEmscriptenModule(this.assetUrl(`${tool}.js`), this.assetUrl(`${tool}.wasm`)).catch((error: unknown) => {
+      this.modules.delete(tool);
+      throw error;
+    });
+    this.modules.set(tool, pending);
     return pending;
   }
 

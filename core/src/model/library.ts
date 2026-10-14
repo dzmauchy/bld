@@ -69,28 +69,14 @@ export class Library {
   }
 
   static fromManifest(manifest: PackageManifest, sources: LibrarySources = {}): Library {
-    const types = sources.types ?? {};
-    const namespaces = sources.namespaces ?? {};
-    const blocks = sources.blocks ?? {};
-
+    const { types = {}, namespaces = {}, blocks = {}, compilationModel = new CompilationModel() } = sources;
     const palette = Palette.fromCatalog(blocks, types, namespaces);
-    const compilationModel = sources.compilationModel ?? new CompilationModel();
-
-    const lib = new Library(
-      manifest,
-      palette.typeSystem,
-      palette,
-      compilationModel,
-      types,
-      namespaces,
-      blocks,
-    );
+    const lib = new Library(manifest, palette.typeSystem, palette, compilationModel, types, namespaces, blocks);
 
     if (manifest.id === "base") {
       Library.base = lib;
       CppBlockCatalog.bindPalette(lib.palette);
-      const files = compilationModel.getFiles();
-      ClangAstDumper.bindLibraryFiles(files);
+      ClangAstDumper.bindLibraryFiles(compilationModel.getFiles());
     }
     return lib;
   }
@@ -101,24 +87,20 @@ export class Library {
       ? JSON.parse(await loadAsset(manifestOrUrl)) as PackageManifest
       : manifestOrUrl;
     const archive = await LibraryArchive.fetch(resolveUrl(manifest.location, baseUrl));
-    const files = archive.files();
-    const compilationModel = new CompilationModel(files);
     const catalog = new MetadataCatalog(archive.metadata);
     return Library.fromManifest(manifest, {
       types: {},
       namespaces: catalog.namespaces,
       blocks: catalog.blocks,
-      compilationModel,
+      compilationModel: new CompilationModel(archive.files()),
     });
   }
 
   static async loadBase(): Promise<Library> {
-    if (Library.base) return Library.base;
-    return Library.load("base.json");
+    return Library.base ?? Library.load("base.json");
   }
 
   static getBaseSync(): Library | undefined {
     return Library.base;
   }
 }
-

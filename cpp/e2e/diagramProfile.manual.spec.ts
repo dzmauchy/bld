@@ -8,7 +8,6 @@ import {
   Library,
   registerAppAssets,
 } from "core";
-import "cpp/hostClangAstDumper.ts";
 import { ExecutionProfileSession } from "./profiling/session.ts";
 import { MarkdownTableProfileReporter } from "./profiling/reporter.ts";
 import { SingleDiagramTestProfiler } from "./profiling/diagramProfiler.ts";

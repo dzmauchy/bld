@@ -7,7 +7,7 @@ import {
   isMainFileNode,
   type ClangAstJson,
 } from "cpp";
-import { browserHost } from "./browserHost";
+import browserHost from "../../assets/wasm_host.hpp?raw";
 import { CppDiagramBuilder, type DiagramAnalysis } from "./cppBuilder";
 import { TypeSystem } from "../types";
 import { BlockDefinition } from "./blockDefinition";
@@ -73,8 +73,8 @@ export interface IDiagram {
   title: string;
   readonly palette: Palette;
   readonly typeSystem: TypeSystem;
-  inferPortType(blockId: string, portId: string, direction?: "input" | "output"): InferredPortType;
-  inferPortTypes(): DiagramPortTypes;
+  inferPortType(blockId: string, portId: string, direction?: "input" | "output"): Promise<InferredPortType>;
+  inferPortTypes(): Promise<DiagramPortTypes>;
   analyze(dumper?: ClangAstDumper): Promise<DiagramAnalysis>;
   canConnectAsync(from: PortEndpoint, to: PortEndpoint): Promise<{ ok: boolean; reason?: string; diagnostics?: DiagramAnalysis["diagnostics"] }>;
   addBlock(
@@ -200,7 +200,7 @@ export class Diagram implements IDiagram {
     return { ok: true };
   }
 
-  inferPortType(blockId: string, portId: string, direction?: "input" | "output"): InferredPortType {
+  async inferPortType(blockId: string, portId: string, direction?: "input" | "output"): Promise<InferredPortType> {
     const block = this.getBlock(blockId);
     if (!block) throw new Error(`Block with id "${blockId}" not found`);
     const port = block.definition.getPort(portId, direction);
@@ -208,11 +208,11 @@ export class Diagram implements IDiagram {
       const where = direction ? `${direction} "${portId}"` : `"${portId}"`;
       throw new Error(`Port ${where} not found on block "${blockId}"`);
     }
-    return this.inferPortTypes().require(blockId, port.direction, portId);
+    return (await this.inferPortTypes()).require(blockId, port.direction, portId);
   }
 
-  inferPortTypes(): DiagramPortTypes {
-    const result = new CppDiagramBuilder().analyzeSync(this);
+  async inferPortTypes(): Promise<DiagramPortTypes> {
+    const result = await this.analyze();
     if (!result.ok) throw new Error(result.diagnostics.map((d) => d.message).join("\n"));
     return result.types;
   }
@@ -287,7 +287,7 @@ export class Diagram implements IDiagram {
     files.set("diagram.cpp", source);
     const dump = await dumper.dumpAsync(files, "diagram.cpp");
     if (dump.ast === undefined) {
-      throw new Error(`clang++ AST dump of the diagram failed\n${dump.diagnostics}`);
+      throw new Error(`Clang AST dump of the diagram failed\n${dump.diagnostics}`);
     }
     const mount = findMainFileFunction(dump.ast as ClangAstJson, "mount");
     if (!mount) throw new Error("Diagram source must define mount() and must not start the diagram");

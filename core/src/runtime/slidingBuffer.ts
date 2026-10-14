@@ -6,8 +6,20 @@ export abstract class SlidingBuffer<TArray extends Float32Array | Float64Array> 
   protected write = 0;
   protected filled = 0;
 
-  constructor(readonly data: TArray) {
+  protected constructor(readonly data: TArray) {
     this.data.fill(Number.NaN);
+  }
+
+  static fromPeriod<TBuffer extends SlidingBuffer<Float32Array | Float64Array>>(
+    this: new (capacity: number) => TBuffer,
+    periodSeconds: number,
+    precisionMs: number,
+  ): TBuffer {
+    return new this(SlidingBuffer.capacityFor(periodSeconds, precisionMs));
+  }
+
+  static capacityFor(periodSeconds: number, precisionMs: number): number {
+    return Math.max(1, Math.floor((periodSeconds * 1000) / Math.max(1, precisionMs)));
   }
 
   get capacity(): number {
@@ -51,14 +63,6 @@ export abstract class SlidingBuffer<TArray extends Float32Array | Float64Array> 
 export class SlidingScopeBuffer extends SlidingBuffer<Float32Array> {
   constructor(capacity: number) {
     super(new Float32Array(Math.max(0, capacity)));
-  }
-
-  static fromPeriod(periodSeconds: number, precisionMs: number): SlidingScopeBuffer {
-    return new SlidingScopeBuffer(this.capacityFor(periodSeconds, precisionMs));
-  }
-
-  static capacityFor(periodSeconds: number, precisionMs: number): number {
-    return Math.max(1, Math.floor((periodSeconds * 1000) / Math.max(1, precisionMs)));
   }
 }
 

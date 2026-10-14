@@ -6,7 +6,7 @@ import type { Connection } from "./connection";
 import type { PortEndpoint } from "./endpoint";
 import type { PortDefinition } from "./blockDefinition";
 import { InferredPortType } from "./inferredPortType";
-import { browserHost } from "./browserHost";
+import browserHost from "../../assets/wasm_host.hpp?raw";
 
 export type { ICppCompiler };
 export abstract class DiagramSourceBuilder extends CompilationProgressEmitter {
@@ -30,7 +30,7 @@ export class DiagramAnalysis {
 
   assignTo(diagram: Diagram): void {
     for (const block of diagram.getBlocks()) {
-      for (const port of [...block.getInputPorts(), ...block.getOutputPorts()]) {
+      for (const port of [...block.inputPorts, ...block.outputPorts]) {
         const diagnostics = this.diagnostics.filter((diagnostic) => {
           if (diagnostic.from || diagnostic.to) {
             return [diagnostic.from, diagnostic.to].some((endpoint) =>
@@ -109,7 +109,7 @@ export class CppDiagramBuilder extends DiagramSourceBuilder {
       });
       lines.push(`#line 1 "block_${i}"`, `static auto b${i} = ${factory}(${args.join(", ")});`,
         `auto i${i} = core::block_inputs(b${i});`);
-      for (const port of block.getInputPorts()) {
+      for (const port of block.inputPorts) {
         const incoming = connections.filter((c) => c.to.blockId === block.id && c.to.portId === port.id);
         const input = `input_${i}_${port.id}`;
         const width = Math.max(0, ...incoming.map((c) => c.to.vectorIndex + 1));
@@ -123,7 +123,7 @@ export class CppDiagramBuilder extends DiagramSourceBuilder {
         lines.push(`#line 1 "${input}"`, `i${i}.${port.id} = ${input}.view();`, `auto port_${i}_input_${port.id} = i${i}.${port.id};`);
       }
       lines.push(`#line 1 "block_${i}"`, `static auto o${i} = core::bind_block(b${i}, core::detail::move(i${i}));`);
-      for (const port of block.getOutputPorts()) {
+      for (const port of block.outputPorts) {
         const outgoing = connections.filter((c) => c.from.blockId === block.id && c.from.portId === port.id);
         const width = Math.max(port.vector ? 0 : 1, ...outgoing.map((c) => c.from.vectorIndex + 1));
         lines.push(`#line 1 "output_${i}_${port.id}"`, `auto port_${i}_output_${port.id} = o${i}.${port.id};`,
@@ -138,13 +138,6 @@ export class CppDiagramBuilder extends DiagramSourceBuilder {
     const snapshot = Diagram.fromJSON(structuredClone(diagram.toJSON()), diagram.palette);
     const analysis = this.validate(snapshot)
       ?? this.result(snapshot, await dumper.dumpAsync(this.build(snapshot), "diagram.cpp"));
-    analysis.assignTo(diagram);
-    return analysis;
-  }
-
-  analyzeSync(diagram: Diagram, dumper = ClangAstDumper.defaultDumper()): DiagramAnalysis {
-    const analysis = this.validate(diagram)
-      ?? this.result(diagram, dumper.dump(this.build(diagram), "diagram.cpp"));
     analysis.assignTo(diagram);
     return analysis;
   }
@@ -225,7 +218,7 @@ export class CppDiagramBuilder extends DiagramSourceBuilder {
     const types = new DiagramPortTypes();
     const unit = dump.ast ? ClangTranslationUnit.parse(dump.ast) : undefined;
     diagram.getBlocks().forEach((block, i) => {
-      for (const port of [...block.getInputPorts(), ...block.getOutputPorts()]) {
+      for (const port of [...block.inputPorts, ...block.outputPorts]) {
         const type = unit?.varType(`port_${i}_${port.direction}_${port.id}`);
         if (!type || type.qualType === "auto") continue;
         const endpoints = diagram.getConnections().flatMap((c) => [c.from, c.to]).filter((e) => e.blockId === block.id && e.portType === port.direction && e.portId === port.id);

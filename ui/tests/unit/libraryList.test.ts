@@ -1,7 +1,6 @@
 import { expect, test } from "vitest";
 import { Library, type PackageManifest } from "core";
 import baseManifest from "core/assets/base.json?raw";
-import "cpp/hostClangAstDumper.ts";
 import { LibraryList } from "ui/libraries/libraryList.ts";
 
 test("default libraries are the base library", () => {

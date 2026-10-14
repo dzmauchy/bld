@@ -1,22 +1,24 @@
-import { afterAll, beforeAll, describe, expect, test } from "vitest";
+import { afterAll, afterEach, beforeAll, describe, expect, test, vi } from "vitest";
 import { CppWasmCompiler } from "cpp/compiler.ts";
-import { ClangComment, ClangTranslationUnit, type ClangAstJson } from "cpp/clangAst.ts";
+import { ClangTranslationUnit } from "cpp/clangAst.ts";
 import type { CompilationPhaseEvent } from "cpp/compilationProgress.ts";
-import { execute, serveToolchain } from "../toolchain.ts";
+import { TestToolchain } from "../toolchain.ts";
 
-let assets: Awaited<ReturnType<typeof serveToolchain>>;
+const assets = new TestToolchain();
 let compiler: CppWasmCompiler;
 beforeAll(async () => {
-  assets = await serveToolchain();
-  compiler = new CppWasmCompiler(assets.assetUrl);
+  await assets.open();
+  compiler = assets.createCompiler();
 }, 120_000);
-afterAll(async () => { await assets?.close(); });
+afterAll(async () => { await assets.close(); });
+afterEach(() => vi.restoreAllMocks());
 
 const source = (text: string) => new Map([["main.cpp", text]]);
-const answer = async (files: Map<string, string>) => (await execute(await compiler.compile(files))).answer as () => number;
+const answer = async (files: Map<string, string>) => (await TestToolchain.execute(await compiler.compile(files))).answer as () => number;
 
 describe("released Clang/LLD under Node.js", () => {
   test("initializes once and compiles multiple translation units with real sysroot headers", async () => {
+    const streaming = vi.spyOn(WebAssembly, "compileStreaming");
     const preparation = compiler.initialize();
     expect(compiler.initialize()).toBe(preparation);
     await preparation;
@@ -27,21 +29,27 @@ describe("released Clang/LLD under Node.js", () => {
       ["main.cpp", '#include <stddef.h>\n#include "value.hpp"\nstatic_assert(sizeof(size_t) == 4);\nextern "C" int answer() { return add(40, 2); }'],
     ]);
     const wasm = await compiler.compile(files, event => events.push(event));
-    expect(((await execute(wasm)).answer as () => number)()).toBe(42);
+    expect(((await TestToolchain.execute(wasm)).answer as () => number)()).toBe(42);
     expect(events).toEqual([
       { phase: "compilation", status: "active" }, { phase: "compilation", status: "completed" },
       { phase: "linking", status: "active" }, { phase: "linking", status: "completed" },
     ]);
     expect(assets.requests.slice().sort()).toEqual(["clang.js", "clang.wasm", "lld.js", "lld.wasm", "sysroot.tgz"]);
+    expect(streaming).toHaveBeenCalledTimes(2);
   });
 
   test("links the object from an AST dump, then recompiles changed source and headers", async () => {
     const files = new Map([
-      ["value.hpp", "#pragma once\ninline int value() { return 42; }"],
-      ["main.cpp", '#include "value.hpp"\nextern "C" int answer() { auto inferred = value(); return inferred; }'],
+      ["value.hpp", "#pragma once\nstruct HeaderOnly {};\ninline int value(int fallback = 42) { return fallback; }"],
+      ["main.cpp", '#include "value.hpp"\n// Source comment with π and JSON punctuation: {"value": "[42]"}.\nextern "C" int answer() { auto inferred = value(); return inferred; }'],
     ]);
     const first = await compiler.dumpAst(files, "main.cpp");
     expect(first.ok, first.stderr).toBe(true);
+    expect(first.stdout).toBe("");
+    const ast = JSON.stringify(first.ast);
+    expect(ast).toContain('"name":"answer"');
+    expect(ast).toContain("Source comment with π");
+    expect(ast).not.toContain('"name":"HeaderOnly"');
     expect(ClangTranslationUnit.parse(first.ast).varType("inferred")?.canonical).toBe("int");
     expect(await compiler.dumpAst(files, "main.cpp")).toEqual(first);
     expect((await answer(files))()).toBe(42);
@@ -58,27 +66,19 @@ describe("released Clang/LLD under Node.js", () => {
   });
 
   test("comment-only edits update diagram and block metadata in the actual AST", async () => {
-    const metadata = { id: "diagram-π", title: "Before", blocks: { "block-π": {} }, connections: { wire: {} } };
+    const metadata = { id: "diagram-π", title: "Before", blocks: { "block-π": { ref: "Custom" } }, connections: { wire: {} } };
     const files = source(`// ${JSON.stringify(metadata)}\nextern "C" void mount() {\n// {"kind":"block","id":"block-π"}\nstatic auto block = 1; (void)block; }`);
-    const comments = (ast: unknown) => {
-      const result = new Map<string, unknown>();
-      const visit = (node: ClangAstJson) => {
-        if (node.name) result.set(node.name, ClangComment.of(node)?.asJson()?.value);
-        node.inner?.forEach(visit);
-      };
-      visit(ast as ClangAstJson);
-      return result;
-    };
     const first = await compiler.dumpAst(files, "main.cpp");
     expect(first.ok, first.stderr).toBe(true);
-    expect(comments(first.ast).get("mount")).toEqual(metadata);
-    expect(comments(first.ast).get("block")).toEqual({ kind: "block", id: "block-π" });
+    const unit = ClangTranslationUnit.parse(first.ast);
+    expect(unit.jsonComment("mount")?.value).toEqual(metadata);
+    expect(unit.jsonComment("block")?.value).toEqual({ kind: "block", id: "block-π" });
     metadata.title = "After";
     files.set("main.cpp", files.get("main.cpp")!.replace('"Before"', '"After"'));
     await compiler.compile(files);
     const changed = await compiler.dumpAst(files, "main.cpp");
     expect(changed.ok, changed.stderr).toBe(true);
-    expect(comments(changed.ast).get("mount")).toEqual(metadata);
+    expect(ClangTranslationUnit.parse(changed.ast).jsonComment("mount")?.value).toEqual(metadata);
   });
 
   test("preserves real warnings, source locations, and cached diagnostics", async () => {
@@ -122,12 +122,12 @@ describe("released Clang/LLD under Node.js", () => {
     await expect(compiler.dumpAst(source("int value;"), "missing.cpp")).rejects.toThrow("missing C or C++ source");
   });
 
-  test("retries a failed HTTP download using the same compiler without fabricated runtimes", async () => {
-    assets.failures.set("clang.js", 1);
-    const fresh = new CppWasmCompiler(assets.assetUrl);
-    await expect(fresh.initialize()).rejects.toThrow(/clang.js: 503/);
+  test.each(["clang.js", "clang.wasm"])("retries a failed %s download using the same compiler without fabricated runtimes", async name => {
+    assets.failNext(name);
+    const fresh = assets.createCompiler();
+    await expect(fresh.initialize()).rejects.toThrow(`${name}: 503`);
     await Promise.all([fresh.initialize(), fresh.initialize()]);
     const wasm = await fresh.compile(source('extern "C" int answer() { return 45; }'));
-    expect(((await execute(wasm)).answer as () => number)()).toBe(45);
+    expect(((await TestToolchain.execute(wasm)).answer as () => number)()).toBe(45);
   });
 });

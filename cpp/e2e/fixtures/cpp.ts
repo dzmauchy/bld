@@ -1,7 +1,7 @@
 import { expect } from "vitest";
 import type { Page, WebWorker } from "puppeteer";
 import { browserTest, baseURL, element } from "../../../tests/e2e/browser.ts";
-import { ClangDumpResult, type ClangAstDumper } from "cpp/clangAstDumper.ts";
+import { ClangDumpResult, ClangAstDumper } from "cpp/clangAstDumper.ts";
 import type { CppPageApi } from "cpp/browser/api.ts";
 
 declare global {
@@ -18,7 +18,6 @@ export class CppSession {
   constructor(private readonly page: Page) {
     page.on("workercreated", (worker) => this.workers.push(worker));
     this.astDumper = {
-      dump() { throw new Error("Browser AST dumps are asynchronous"); },
       async dumpAsync(files, mainFile) {
         const result = await page.evaluate(
           ({ files, mainFile }) => window.cpp.dumpAst(files, mainFile),
@@ -94,6 +93,7 @@ const sessionTest = browserTest().extend("cppSession", { scope: "file" }, async 
 });
 
 export const test = sessionTest.extend("cpp", async ({ cppSession }, { onCleanup }) => {
+  ClangAstDumper.register(cppSession.astDumper);
   onCleanup(() => cppSession.expectWorkersReused());
   return cppSession;
 });

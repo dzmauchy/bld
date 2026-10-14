@@ -1,5 +1,4 @@
-// Browser runtime adapter for the base library HAL.
-export const browserHost = String.raw`#pragma once
+#pragma once
 
 #include <core/hal.hpp>
 #include <core/math.hpp>
@@ -423,4 +422,3 @@ void clearPins() { WasmHost::instance().clearPins(); }
 }
 
 #endif
-`;

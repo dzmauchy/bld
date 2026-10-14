@@ -60,6 +60,7 @@ export interface CompilerOptions {
 
 export class CompilationModel extends CompilationProgressEmitter {
   protected profile: WasmProfileName;
+  protected readonly cppCompiler: ICppCompiler | undefined;
   private readonly files = new Map<string, string>();
 
   constructor(
@@ -68,33 +69,22 @@ export class CompilationModel extends CompilationProgressEmitter {
   ) {
     super();
     const parsed = CompilationModel.parseConstructorArgs(profileOrOptions);
-    this.profile = parsed.profile;
+    this.profile = parsed.profile ?? "browser";
+    this.cppCompiler = parsed.cppCompiler;
     if (parsed.files) this.addFiles(parsed.files);
     if (initialFiles) this.addFiles(initialFiles);
   }
 
   private static parseConstructorArgs(
     profileOrOptions?: WasmProfileName | CompilerOptions | Record<string, string>,
-  ): { profile: WasmProfileName; files?: Record<string, string>; cppCompiler?: ICppCompiler } {
+  ): CompilerOptions {
     if (profileOrOptions === "browser" || profileOrOptions === "mcu") {
       return { profile: profileOrOptions };
     }
-    if (
-      profileOrOptions &&
-      typeof profileOrOptions === "object" &&
-      ("profile" in profileOrOptions || "files" in profileOrOptions || "cppCompiler" in profileOrOptions)
-    ) {
-      const opts = profileOrOptions as CompilerOptions;
-      return {
-        profile: opts.profile ?? "browser",
-        ...(opts.files ? { files: opts.files } : {}),
-        ...(opts.cppCompiler ? { cppCompiler: opts.cppCompiler } : {}),
-      };
-    }
-    if (profileOrOptions && typeof profileOrOptions === "object") {
-      return { profile: "browser", files: profileOrOptions as Record<string, string> };
-    }
-    return { profile: "browser" };
+    if (!profileOrOptions || typeof profileOrOptions !== "object") return {};
+    return "profile" in profileOrOptions || "files" in profileOrOptions || "cppCompiler" in profileOrOptions
+      ? profileOrOptions as CompilerOptions
+      : { files: profileOrOptions as Record<string, string> };
   }
 
   getProfile(): { name: WasmProfileName } {
@@ -114,9 +104,7 @@ export class CompilationModel extends CompilationProgressEmitter {
   }
 
   addFile(name: string, content: string): void {
-    const clean = normalizeAssetPath(name);
-    this.files.set(clean, content);
-
+    this.files.set(normalizeAssetPath(name), content);
   }
 
   addFiles(files: Record<string, string>): void {
@@ -124,8 +112,7 @@ export class CompilationModel extends CompilationProgressEmitter {
   }
 
   getFile(name: string): string | undefined {
-    const clean = normalizeAssetPath(name);
-    return this.files.get(clean);
+    return this.files.get(normalizeAssetPath(name));
   }
 
   getFiles(): Record<string, string> {
@@ -134,19 +121,6 @@ export class CompilationModel extends CompilationProgressEmitter {
 }
 
 export class DiagramCompiler extends CompilationModel {
-  protected readonly cppCompiler: ICppCompiler | undefined;
-
-  constructor(
-    profileOrOptions?: WasmProfileName | CompilerOptions | Record<string, string>,
-    initialFiles?: Record<string, string>,
-  ) {
-    super(profileOrOptions, initialFiles);
-    const parsed = profileOrOptions && typeof profileOrOptions === "object" && "cppCompiler" in profileOrOptions
-      ? (profileOrOptions as CompilerOptions).cppCompiler
-      : undefined;
-    this.cppCompiler = parsed;
-  }
-
   emitFiles(diagram: Diagram): Map<string, string> {
     return new CppDiagramBuilder({ ...ClangAstDumper.libraryFiles, ...this.getFiles() }).build(diagram);
   }
@@ -171,7 +145,7 @@ export class DiagramCompiler extends CompilationModel {
     try {
       const wasm = await builder.compile(diagram, this.cppCompiler, (event) => this.notifyPhase(event, options?.onPhase));
       for (const block of diagram.getBlocks()) {
-        for (const port of [...block.getInputPorts(), ...block.getOutputPorts()]) port.assignAnalysis(port.inferredType, []);
+        for (const port of [...block.inputPorts, ...block.outputPorts]) port.assignAnalysis(port.inferredType, []);
       }
       return wasm;
     } catch (error) {

@@ -13,7 +13,7 @@ export class DiagramConnectionValidator {
     }
     const missing: string[] = [];
     for (const block of blocks) {
-      for (const port of [...block.getInputPorts(), ...block.getOutputPorts()]) {
+      for (const port of [...block.inputPorts, ...block.outputPorts]) {
         if (connected.has(this.key(block.id, port.direction, port.id))) continue;
         // A port explicitly configured with zero channels needs no wiring.
         const length = port.lengthBindConfId ? block.getConf(port.lengthBindConfId) : undefined;

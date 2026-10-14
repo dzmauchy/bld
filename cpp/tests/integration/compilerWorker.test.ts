@@ -3,13 +3,13 @@ import { build } from "vite";
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, test } from "vitest";
 import { WorkerCppWasmCompiler } from "cpp/compiler.ts";
 import type { CompilationPhaseEvent } from "cpp/compilationProgress.ts";
-import { execute, serveToolchain } from "../toolchain.ts";
+import { TestToolchain } from "../toolchain.ts";
 
-let assets: Awaited<ReturnType<typeof serveToolchain>>;
+const assets = new TestToolchain();
 let workerUrl: URL;
 let compiler: WorkerCppWasmCompiler;
 beforeAll(async () => {
-  assets = await serveToolchain();
+  await assets.open();
   const output = await build({
     configFile: false, logLevel: "silent",
     build: {
@@ -34,10 +34,10 @@ beforeEach(() => {
   });
 });
 afterEach(async () => { await compiler.close(); });
-afterAll(async () => { await assets?.close(); });
+afterAll(async () => { await assets.close(); });
 
 const source = (value: number) => new Map([["main.cpp", `extern "C" int answer() { return ${value}; }`]]);
-const answer = async (wasm: Uint8Array) => ((await execute(wasm)).answer as () => number)();
+const answer = async (wasm: Uint8Array) => ((await TestToolchain.execute(wasm)).answer as () => number)();
 
 describe("real Node compiler worker", () => {
   test("shares preparation across overlapping AST and compile requests, then reuses the worker", async () => {
@@ -80,7 +80,7 @@ describe("real Node compiler worker", () => {
   });
 
   test("retries a failed download on the same worker", async () => {
-    assets.failures.set("clang.js", 1);
+    assets.failNext("clang.js");
     await expect(compiler.warmup()).rejects.toThrow(/clang.js: 503/);
     await Promise.all([compiler.warmup(), compiler.warmup()]);
     expect(await answer(await compiler.compile(source(45)))).toBe(45);

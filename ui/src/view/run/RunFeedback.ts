@@ -25,7 +25,7 @@ export class RunFeedback extends SignalElement {
       ${compiling ? html`<div class="compile-progress" role="status">
         <p>Starting diagram…</p>
         <ol class="compile-steps" aria-label="Diagram startup steps">
-          ${runner.progress().items().map((step) => html`<li class=${`compile-step is-${step.status}`}
+          ${runner.progress().items.map((step) => html`<li class=${`compile-step is-${step.status}`}
             data-compile-step=${step.phase} data-step-status=${step.status}
             aria-current=${step.status === "active" ? "step" : nothing}>
             <span class="compile-step-mark" aria-hidden="true">${step.status === "completed"

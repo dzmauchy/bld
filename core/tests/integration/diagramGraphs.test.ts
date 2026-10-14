@@ -111,26 +111,26 @@ describe("E2E diagram C++ generation", () => {
     builder = new CppDiagramBuilder(library.compilationModel.getFiles());
   });
 
-  function cppOf(json: DiagramJson): string {
+  async function cppOf(json: DiagramJson): Promise<string> {
     const diagram = Diagram.fromJSON(json, library.palette);
-    const result = builder.analyzeSync(diagram);
+    const result = await builder.analyze(diagram);
     expect(result.ok, JSON.stringify(result.diagnostics)).toBe(true);
-    for (const block of diagram.getBlocks()) for (const port of [...block.getInputPorts(), ...block.getOutputPorts()]) {
+    for (const block of diagram.getBlocks()) for (const port of [...block.inputPorts, ...block.outputPorts]) {
       expect(result.types.get(block.id, port.direction, port.id)).toBeDefined();
     }
     return builder.emitDiagram(diagram);
   }
 
-  test("ConstF32 to ScopeF32", () => {
-    const cpp = cppOf(
+  test("ConstF32 to ScopeF32", async () => {
+    const cpp = await cppOf(
       new DiagramJsonBuilder().addScope("s").addConstant("c", 42.5).connect("c", "v", 0, "s", "sink", 0).build(),
     );
     expect(cpp).toContain("ConstF32");
     expect(cpp).toContain("core::config_arg<0>(::push::f_32::sources::ConstF32, 42.5)");
   });
 
-  test("cos_gen and sin_gen to a multi-channel scope", () => {
-    const cpp = cppOf(
+  test("cos_gen and sin_gen to a multi-channel scope", async () => {
+    const cpp = await cppOf(
       new DiagramJsonBuilder()
         .addScope("s")
         .addCosGen("cg")
@@ -144,8 +144,8 @@ describe("E2E diagram C++ generation", () => {
     expect(cpp).toContain("SinGenF32");
   });
 
-  test("rand and pulse generators", () => {
-    const cpp = cppOf(
+  test("rand and pulse generators", async () => {
+    const cpp = await cppOf(
       new DiagramJsonBuilder()
         .addScope("s")
         .addRandGen("r", { amplitude: 2 })
@@ -160,8 +160,8 @@ describe("E2E diagram C++ generation", () => {
     expect(cpp).toContain("core::config_arg<0>(::push::f_32::sources::PulseGenF32, 0.25)");
   });
 
-  test("unary chain const -> cos -> sin -> scope", () => {
-    const cpp = cppOf(
+  test("unary chain const -> cos -> sin -> scope", async () => {
+    const cpp = await cppOf(
       new DiagramJsonBuilder()
         .addScope("s")
         .addCos("c")
@@ -175,8 +175,8 @@ describe("E2E diagram C++ generation", () => {
     expect(cpp).toContain("void mount()");
   });
 
-  test("product of two constants", () => {
-    const cpp = cppOf(
+  test("product of two constants", async () => {
+    const cpp = await cppOf(
       new DiagramJsonBuilder()
         .addScope("s")
         .addProduct("p")
@@ -191,8 +191,8 @@ describe("E2E diagram C++ generation", () => {
     expect(cpp).toContain("ProductF32");
   });
 
-  test("sum of a constant and a sine generator uses only library behavior", () => {
-    const cpp = cppOf(
+  test("sum of a constant and a sine generator uses only library behavior", async () => {
+    const cpp = await cppOf(
       new DiagramJsonBuilder()
         .addScope("s")
         .addSum("sum")
@@ -209,15 +209,15 @@ describe("E2E diagram C++ generation", () => {
     expect(cpp).toContain("core::output_channels<true, 2>");
   });
 
-  test("unconnected scalar consumers receive no generated stimulus", () => {
-    const cpp = cppOf(new DiagramJsonBuilder().addSin("sin").addCos("cos").build());
+  test("unconnected scalar consumers receive no generated stimulus", async () => {
+    const cpp = await cppOf(new DiagramJsonBuilder().addSin("sin").addCos("cos").build());
     expect(cpp).not.toContain("set_interval(");
     expect(cpp).not.toContain("get_time()");
     expect(cpp).not.toContain("on_start(");
   });
 
-  test("sum of three constants", () => {
-    const cpp = cppOf(
+  test("sum of three constants", async () => {
+    const cpp = await cppOf(
       new DiagramJsonBuilder()
         .addScope("s")
         .addSum("sum")
@@ -234,8 +234,8 @@ describe("E2E diagram C++ generation", () => {
     expect(cpp).toContain("SumF32");
   });
 
-  test("gpio multi-pin into scope channels", () => {
-    const cpp = cppOf(
+  test("gpio multi-pin into scope channels", async () => {
+    const cpp = await cppOf(
       new DiagramJsonBuilder()
         .addScope("s")
         .addGpio("gpio", [0, 1])
@@ -250,8 +250,8 @@ describe("E2E diagram C++ generation", () => {
     expect(cpp).toContain("core::input_connections<true, 2, 2>");
   });
 
-  test("gpio through cos into scope", () => {
-    const cpp = cppOf(
+  test("gpio through cos into scope", async () => {
+    const cpp = await cppOf(
       new DiagramJsonBuilder()
         .addScope("s")
         .addCos("c")
@@ -263,8 +263,8 @@ describe("E2E diagram C++ generation", () => {
     expect(cpp).toContain("void mount()");
   });
 
-  test("disjoint subgraphs stay independent", () => {
-    const cpp = cppOf(
+  test("disjoint subgraphs stay independent", async () => {
+    const cpp = await cppOf(
       new DiagramJsonBuilder()
         .addScope("scope_a")
         .addScope("scope_b")
@@ -284,8 +284,8 @@ describe("E2E diagram C++ generation", () => {
     expect(cpp).toContain("ScopeF32");
   });
 
-  test("binary tree of products", () => {
-    const cpp = cppOf(
+  test("binary tree of products", async () => {
+    const cpp = await cppOf(
       new DiagramJsonBuilder()
         .addScope("s")
         .addProduct("p_root")
@@ -307,8 +307,8 @@ describe("E2E diagram C++ generation", () => {
     expect(cpp).toContain("void mount()");
   });
 
-  test("gpio into product with a constant", () => {
-    const cpp = cppOf(
+  test("gpio into product with a constant", async () => {
+    const cpp = await cppOf(
       new DiagramJsonBuilder()
         .addScope("s")
         .addProduct("p")
@@ -322,8 +322,8 @@ describe("E2E diagram C++ generation", () => {
     expect(cpp).toContain("void mount()");
   });
 
-  test("two gpio blocks and two scopes stay independent", () => {
-    const cpp = cppOf(
+  test("two gpio blocks and two scopes stay independent", async () => {
+    const cpp = await cppOf(
       new DiagramJsonBuilder()
         .addScope("s0")
         .addScope("s1")

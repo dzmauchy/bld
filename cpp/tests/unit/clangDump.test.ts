@@ -1,12 +1,5 @@
 import { describe, expect, test } from "vitest";
-import { ClangAstDumper, CppTypeNames, JsonComment, cppIdent } from "cpp";
-import { HostClangAstDumper } from "cpp/hostClangAstDumper.ts";
-
-describe("clang dump host", () => {
-  test("host dumper is the registered clang AST dumper", () => {
-    expect(ClangAstDumper.defaultDumper()).toBe(HostClangAstDumper.shared);
-  });
-});
+import { CppTypeNames, JsonComment, cppIdent } from "cpp";
 
 describe("C++ literals", () => {
   test("formats clang qual types without a diagram", () => {

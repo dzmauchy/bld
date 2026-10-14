@@ -1,5 +1,5 @@
 /**
- * Host and browser implementations of C++23 JSON AST dumps.
+ * Asynchronous C++23 JSON AST dumps from the Wasm toolchain.
  * Named auto declarations provide types; diagnostics report invalid connections.
  * Comments are retained for diagram C++ import/export.
  */
@@ -23,27 +23,26 @@ export class ClangDumpResult {
   }
 }
 
-export interface ClangAstDumper {
-  dump(files: Map<string, string>, mainFile: string): ClangDumpResult;
-  dumpAsync(files: Map<string, string>, mainFile: string): Promise<ClangDumpResult>;
-}
+/** Contract and registration for the Wasm dumper used by diagram analysis. */
+export abstract class ClangAstDumper {
+  private static registered: ClangAstDumper | undefined;
+  private static files: Readonly<Record<string, string>> = Object.freeze({});
 
-/** Selects the concrete host or browser dumper used by diagram analysis. */
-export const ClangAstDumper = new class {
-  private registered: ClangAstDumper | undefined;
-  libraryFiles: Record<string, string> = {};
+  static get libraryFiles(): Readonly<Record<string, string>> { return this.files; }
 
-  register(dumper: ClangAstDumper, libraryFiles: Record<string, string> = {}): void {
+  static register(dumper: ClangAstDumper, libraryFiles: Record<string, string> = {}): void {
     this.registered = dumper;
     if (Object.keys(libraryFiles).length > 0) this.bindLibraryFiles(libraryFiles);
   }
 
-  bindLibraryFiles(libraryFiles: Record<string, string>): void {
-    this.libraryFiles = libraryFiles;
+  static bindLibraryFiles(libraryFiles: Record<string, string>): void {
+    this.files = Object.freeze({ ...libraryFiles });
   }
 
-  defaultDumper(): ClangAstDumper {
-    if (!this.registered) throw new Error("No ClangAstDumper registered. In Node, import cpp/hostClangAstDumper.ts");
+  static defaultDumper(): ClangAstDumper {
+    if (!this.registered) throw new Error("No ClangAstDumper registered. Register a Wasm compiler-backed dumper before analyzing diagrams.");
     return this.registered;
   }
-}();
+
+  abstract dumpAsync(files: Map<string, string>, mainFile: string): Promise<ClangDumpResult>;
+}

@@ -151,7 +151,7 @@ test("checks successful compilation phases and awaits runtime startup before che
     instantiate: async () => { instantiating.resolve(); return instantiated.promise; },
     close: async () => undefined,
   }), undefined, () => new ManualClock());
-  const states = () => runner.progress().items().map(step => step.status);
+  const states = () => runner.progress().items.map(step => step.status);
   const starting = runner.run();
   await compiling.promise;
   expect(states()).toEqual(["active", "pending", "pending", "pending"]);
@@ -191,7 +191,7 @@ test("leaves a failed phase unchecked and ignores progress from a canceled compi
   await compiling.promise;
   compiled.reject(new Error("clang failed"));
   await starting;
-  expect(runner.progress().items().map(step => step.status)).toEqual(["completed", "failed", "pending", "pending"]);
+  expect(runner.progress().items.map(step => step.status)).toEqual(["completed", "failed", "pending", "pending"]);
   expect(runner.error()).toBe("clang failed");
   const failed = runner.progress();
   report({ phase: "compilation", status: "completed" });

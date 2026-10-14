@@ -1,4 +1,3 @@
-import browserHost from "core/model/browserHost.ts?raw";
 import appAssets from "core/model/appAssets.ts?raw";
 import blockDefinition from "core/model/blockDefinition.ts?raw";
 import compiler from "core/model/compiler.ts?raw";
@@ -19,7 +18,6 @@ import { modelAssetFiles } from "core";
 
 export const modelAssets = {
   "appAssets.ts": appAssets,
-  "browserHost.ts": browserHost,
   "blockDefinition.ts": blockDefinition,
   "compiler.ts": compiler,
   "compilerContext.ts": compilerContext,

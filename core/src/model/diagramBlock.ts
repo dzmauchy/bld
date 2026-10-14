@@ -52,28 +52,20 @@ export class DiagramBlockPort extends PortDefinition {
 
 export class DiagramBlock extends DiagramElement {
   private readonly confValues: Map<string, unknown>;
-  private readonly inputPorts: DiagramBlockPort[];
-  private readonly outputPorts: DiagramBlockPort[];
+  readonly inputPorts: readonly DiagramBlockPort[];
+  readonly outputPorts: readonly DiagramBlockPort[];
 
   constructor(
     id: string,
     readonly definition: BlockDefinition,
-    private _x: number,
-    private _y: number,
+    public x: number,
+    public y: number,
     initialConf: Record<string, unknown> = {},
   ) {
     super(id);
     this.confValues = new Map(Object.entries(initialConf));
-    this.inputPorts = [...definition.inputs.values()].map((port) => new DiagramBlockPort(port));
-    this.outputPorts = [...definition.outputs.values()].map((port) => new DiagramBlockPort(port));
-  }
-
-  get x(): number {
-    return this._x;
-  }
-
-  get y(): number {
-    return this._y;
+    this.inputPorts = Array.from(definition.inputs.values(), (port) => new DiagramBlockPort(port));
+    this.outputPorts = Array.from(definition.outputs.values(), (port) => new DiagramBlockPort(port));
   }
 
   get ref(): string {
@@ -81,8 +73,8 @@ export class DiagramBlock extends DiagramElement {
   }
 
   setPosition(x: number, y: number): void {
-    this._x = x;
-    this._y = y;
+    this.x = x;
+    this.y = y;
   }
 
   setConf(key: string, value: unknown): void {
@@ -94,7 +86,7 @@ export class DiagramBlock extends DiagramElement {
   }
 
   getAllConf(): Record<string, unknown> {
-    return Object.assign(this.definition.getDefaultConfig(), Object.fromEntries(this.confValues));
+    return { ...this.definition.getDefaultConfig(), ...Object.fromEntries(this.confValues) };
   }
 
   getExplicitConfig(): Record<string, unknown> {
@@ -107,21 +99,10 @@ export class DiagramBlock extends DiagramElement {
 
   getNonDefaultConfig(): Record<string, unknown> {
     const nonDefault: Record<string, unknown> = {};
-    for (const [key] of this.definition.config) {
-      if (!this.isDefault(key)) nonDefault[key] = this.getConf(key);
-    }
     for (const [key, value] of this.confValues) {
-      if (!this.definition.config.has(key)) nonDefault[key] = value;
+      if (!this.definition.config.has(key) || !this.isDefault(key)) nonDefault[key] = value;
     }
     return nonDefault;
-  }
-
-  getInputPorts(): DiagramBlockPort[] {
-    return [...this.inputPorts];
-  }
-
-  getOutputPorts(): DiagramBlockPort[] {
-    return [...this.outputPorts];
   }
 
   override toJSON(): RawBlockJson {

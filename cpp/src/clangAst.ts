@@ -1,7 +1,7 @@
 /**
  * @title Clang AST Types
  *
- * Consumes `clang++ -Xclang -ast-dump=json -fparse-all-comments` output to
+ * Consumes JSON AST output with retained comments from the Wasm compiler to
  * recover C++ types, detect incompatibilities, and read JSON comments.
  * No custom unification or port-type algebra, and no separate C++ parser.
  */
@@ -69,12 +69,13 @@ export class ClangComment {
 
   texts(): string[] {
     const found: string[] = [];
-    const walk = (node: ClangAstJson): void => {
-      if (node.kind === "TextComment" && typeof node.text === "string") found.push(node.text);
-      for (const child of node.inner ?? []) walk(child);
-    };
-    walk(this.node);
+    this.collectTexts(this.node, found);
     return found;
+  }
+
+  private collectTexts(node: ClangAstJson, found: string[]): void {
+    if (node.kind === "TextComment" && typeof node.text === "string") found.push(node.text);
+    for (const child of node.inner ?? []) this.collectTexts(child, found);
   }
 
   joinedText(): string {
@@ -144,19 +145,29 @@ export class ClangQualType {
 
 /** Named auto declarations are enough to recover diagram port types. */
 export class ClangTranslationUnit {
-  private constructor(private readonly variables: ReadonlyMap<string, ClangQualType>) {}
+  private readonly variables = new Map<string, ClangQualType>();
+  private readonly declarations = new Map<string, ClangAstJson>();
+
+  private constructor(ast: ClangAstJson) { this.collect(ast); }
 
   static parse(ast: unknown): ClangTranslationUnit {
-    const variables = new Map<string, ClangQualType>();
-    const walk = (node: ClangAstJson): void => {
-      if (node.kind === "VarDecl" && node.name) variables.set(node.name, ClangQualType.fromAst(node.type));
-      node.inner?.forEach(walk);
-    };
-    walk(ast as ClangAstJson);
-    return new ClangTranslationUnit(variables);
+    return new ClangTranslationUnit(ast as ClangAstJson);
   }
 
   varType(name: string): ClangQualType | undefined {
     return this.variables.get(name);
+  }
+
+  jsonComment(name: string): JsonComment | undefined {
+    const node = this.declarations.get(name);
+    return node ? ClangComment.of(node)?.asJson() : undefined;
+  }
+
+  private collect(node: ClangAstJson): void {
+    if (node.name) {
+      this.declarations.set(node.name, node);
+      if (node.kind === "VarDecl") this.variables.set(node.name, ClangQualType.fromAst(node.type));
+    }
+    for (const child of node.inner ?? []) this.collect(child);
   }
 }
