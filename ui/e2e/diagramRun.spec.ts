@@ -110,7 +110,7 @@ test("rejects a product with missing source connections and runs the corrected g
 
   for (const ref of ["SinF32", "CosF32"]) {
     await canvas.within(`[data-block-ref=${ref}]`).click();
-    await element(page, "[data-delete-selected]").click();
+    await page.keyboard.press("Delete");
     await expect.poll(() => canvas.within(`[data-block-ref=${ref}]`).count()).toBe(0);
   }
   await insert("SinGenF32", 690, 260);

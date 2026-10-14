@@ -66,6 +66,16 @@ export class DiagramRunController {
     return this.session.stop();
   }
 
+  gpioValue(blockId: string, pinIndex: number): boolean {
+    this.phase();
+    this.revision();
+    return this.session.gpioValue(blockId, pinIndex);
+  }
+
+  setGpio(blockId: string, pinIndex: number, value: boolean): Promise<void> {
+    return this.session.setGpio(blockId, pinIndex, value);
+  }
+
   dismissError(): void {
     this.session.dismissError();
   }

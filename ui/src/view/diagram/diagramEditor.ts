@@ -125,6 +125,25 @@ export class DiagramEditor implements DiagramGestureHost {
     }
   }
 
+  /** Targets the item under a context gesture, preserving a containing selection. */
+  selectContextTarget(target: EventTarget | null): boolean {
+    if (!(target instanceof Element)) return false;
+    const connectionId = target.closest("[data-wire-id]")?.getAttribute("data-wire-id");
+    const blockId = PortHit.blockIdFromTarget(target);
+    if (!connectionId && !blockId) return false;
+    this.clearGesture();
+    this.setMoving(undefined);
+    this.disarmPalette();
+    this.setSelectedOutput(undefined);
+    const selection = this.selection();
+    if (connectionId && this.diagram.getConnection(connectionId)) {
+      if (!selection.hasConnection(connectionId)) this.setSelection(selection.selectConnection(connectionId));
+    } else if (blockId && this.diagram.getBlock(blockId)) {
+      if (!selection.hasBlock(blockId)) this.setSelection(selection.selectBlock(blockId));
+    } else return false;
+    return true;
+  }
+
   armDefinition(definition: BlockDefinition): void {
     this.clearSelection();
     this.setArmedId(this.arm.toggle(definition)?.id);
@@ -269,6 +288,8 @@ export class DiagramEditor implements DiagramGestureHost {
 
   noteConfiguration(): void {
     this.setConfigRevision(this.configRevision() + 1);
+    for (const block of this.diagram.getBlocks()) this.router.upsertBlock(block);
+    this.publishPlaced();
   }
 
   private connect(from: PortHit, to: PortHit): boolean {

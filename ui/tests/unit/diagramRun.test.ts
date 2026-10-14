@@ -237,6 +237,7 @@ test("closes the session and runtime when startup fails after instantiation", as
 
 class FakeSession implements RunningSession {
   closed = false;
+  async emitGpioIn(): Promise<number> { return 0; }
   async setNow(): Promise<number> { return 0; }
   async tick(): Promise<number> { return 0; }
   async close(): Promise<number> {

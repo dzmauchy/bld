@@ -9,6 +9,7 @@ import "./DiagramBlockView.js";
 import "./BlockConfigDialog.js";
 import "../scope/ScopePlot.js";
 import { DiagramGrid } from "./geometry.js";
+import { DiagramContextMenu } from "./DiagramContextMenu.js";
 
 export class DiagramCanvas extends SignalElement {
   static override properties = {
@@ -54,7 +55,12 @@ export class DiagramCanvas extends SignalElement {
     return html`<section class="region region-diagram" data-region="diagram">
       <div class=${`diagram-canvas${editor.armedId() ? " is-armed" : ""}`} data-diagram-canvas tabindex="0"
         style=${styleMap({ "--diagram-grid-spacing": `${DiagramGrid.spacing}px` })}
-        aria-label="Diagram canvas" data-armed=${editor.armedId() ?? ""} @pointerdown=${(event: PointerEvent) => editor.canvasPointerDown(event)}>
+        aria-label="Diagram canvas" data-armed=${editor.armedId() ?? ""}
+        @contextmenu=${(event: MouseEvent) => this.querySelector<DiagramContextMenu>("bld-diagram-context-menu")?.contextMenu(event)}
+        @pointerdown=${(event: PointerEvent) => {
+          this.querySelector<DiagramContextMenu>("bld-diagram-context-menu")?.pointerDown(event);
+          editor.canvasPointerDown(event);
+        }}>
         <div class="diagram-extent" style=${styleMap({ width: `${width}px`, height: `${height}px` })}></div>
         <svg class="diagram-wires" data-diagram-wires>
           <defs><marker id="diagram-wire-arrow" markerWidth="8" markerHeight="8" refX="7" refY="3" orient="auto">
@@ -69,13 +75,12 @@ export class DiagramCanvas extends SignalElement {
             </g>`)}
         </svg>
         ${repeat(editor.placed(), (block) => block.id, (block) => html`
-          <bld-diagram-block .editor=${editor} .block=${block}></bld-diagram-block>`)}
+          <bld-diagram-block .editor=${editor} .block=${block} .runner=${runner}></bld-diagram-block>`)}
       </div>
+      <bld-diagram-context-menu .editor=${editor}></bld-diagram-context-menu>
       ${configured ? html`<bld-block-config-dialog .block=${configured} .revision=${editor.configRevision()}
-        .onCommit=${() => {
-          editor.noteConfiguration();
-          if (runner.phase() === "running") void runner.stop();
-        }} .onClose=${() => editor.closeConfiguration()}></bld-block-config-dialog>` : nothing}
+        .disabled=${runner.phase() !== "idle"} .onCommit=${() => editor.noteConfiguration()}
+        .onClose=${() => editor.closeConfiguration()}></bld-block-config-dialog>` : nothing}
       ${inspectedId ? html`<bld-scope-plot .editor=${editor} .blockId=${inspectedId} .board=${board} .runner=${runner}
         .scopeEffects=${this.scopeEffects}
         .onClose=${() => editor.closeInspection()}></bld-scope-plot>` : nothing}

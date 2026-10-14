@@ -3,17 +3,15 @@ import "@awesome.me/webawesome/dist/components/dropdown/dropdown.js";
 import type WaDropdownItem from "@awesome.me/webawesome/dist/components/dropdown-item/dropdown-item.js";
 import { SignalElement } from "../elements/SignalElement.js";
 import type { DiagramRunController } from "../run/diagramRunController.js";
-import type { DiagramEditor } from "../diagram/diagramEditor.js";
 
 /** Page toolbar. Run becomes Stop once the diagram is running. */
 export class WorkspaceToolbar extends SignalElement {
   static override properties = {
-    runner: { attribute: false }, editor: { attribute: false },
+    runner: { attribute: false },
     paletteOpen: { type: Boolean }, onTogglePalette: { attribute: false },
     scopeEffects: { type: Boolean }, onToggleScopeEffects: { attribute: false },
   };
   declare runner: DiagramRunController | undefined;
-  declare editor: DiagramEditor | undefined;
   declare paletteOpen: boolean;
   declare onTogglePalette: (() => void) | undefined;
   declare scopeEffects: boolean;
@@ -25,9 +23,8 @@ export class WorkspaceToolbar extends SignalElement {
   }
 
   protected override render() {
-    if (!this.runner || !this.editor) return nothing;
+    if (!this.runner) return nothing;
     const runner = this.runner;
-    const editor = this.editor;
     const phase = runner.phase();
     const running = phase === "running" || phase === "stopping";
     return html`
@@ -59,11 +56,6 @@ export class WorkspaceToolbar extends SignalElement {
           ${running
             ? svg`<svg viewBox="0 0 24 24" aria-hidden="true"><rect x="5" y="5" width="14" height="14" rx="1"/></svg>`
             : svg`<svg viewBox="0 0 24 24" aria-hidden="true"><path d="m8 4 12 8-12 8Z"/></svg>`}
-        </button>
-        <button type="button" class="toolbar-button toolbar-delete" data-delete-selected ?disabled=${editor.selection().size === 0}
-          title="Delete selected blocks and connections (Delete / Backspace)" aria-label="Delete selected"
-          @click=${() => editor.deleteSelected()}>
-          ${svg`<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 6h18M9 6V3h6v3M5 6l1 15h12l1-15M10 10v7M14 10v7"/></svg>`}
         </button>
         ${runner.status() ? html`<span class="toolbar-status" title=${runner.status()} aria-label=${runner.status()}>
           ${svg`<svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 7v6M12 16v1"/></svg>`}

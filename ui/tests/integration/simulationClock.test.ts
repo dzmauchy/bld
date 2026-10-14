@@ -9,6 +9,7 @@ test("keeps sample time uniform when rendering or worker calls delay a tick", as
   const errors: unknown[] = [];
   let delay = 0;
   const clock = new SimulationClock({
+    emitGpioIn: async () => 0,
     setNow: async time => { times.push(time); return 0; },
     tick: async () => { vi.advanceTimersByTime(delay); return 0; },
     close: async () => 0,

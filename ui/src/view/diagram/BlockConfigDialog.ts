@@ -10,11 +10,13 @@ import { BlockConfiguration, NumberConfigControl, type BlockConfigField } from "
 export class BlockConfigDialog extends SignalElement {
   static override properties = {
     block: { attribute: false }, revision: { attribute: false }, onCommit: { attribute: false }, onClose: { attribute: false },
+    disabled: { type: Boolean },
   };
   declare block: DiagramBlock | undefined;
   declare revision: number;
   declare onCommit: (() => void) | undefined;
   declare onClose: (() => void) | undefined;
+  declare disabled: boolean;
 
   protected override render() {
     if (!this.block) return nothing;
@@ -32,11 +34,13 @@ export class BlockConfigDialog extends SignalElement {
     const bounds = control instanceof NumberConfigControl ? control.bounds : undefined;
     const kind = control.kind;
     const commit = (event: Event) => {
+      if (this.disabled) return;
       if (field.commit((event.currentTarget as HTMLInputElement).value)) this.onCommit?.();
     };
     return html`<label class="block-config-field" data-config-field=${field.id}>
       <span class="block-config-label">${field.label}</span>
       <input type=${kind === "slider" ? "range" : kind === "text" ? "text" : "number"}
+        ?disabled=${this.disabled}
         min=${bounds?.min ?? nothing} max=${bounds?.max ?? nothing} step=${bounds?.step ?? (kind === "slider" ? nothing : "any")}
         .value=${live(field.text)} @input=${kind === "slider" ? commit : nothing} @change=${kind === "slider" ? nothing : commit}>
       <span class="block-config-hint">${field.description}</span>

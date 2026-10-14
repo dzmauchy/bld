@@ -8,7 +8,7 @@ class SelectionDiagram {
 
   constructor(private readonly page: Page) {
     this.canvas = element(page, "[data-diagram-canvas]");
-    this.deleteButton = element(page, "[data-delete-selected]");
+    this.deleteButton = element(page, "[data-context-delete]");
   }
 
   block(ref: string): BrowserElement {
@@ -36,7 +36,14 @@ class SelectionDiagram {
     await this.page.mouse.click(to!.x + to!.width / 2, to!.y + to!.height / 2);
   }
 
-  async selectWire(index = 0): Promise<BrowserElement> {
+  async openBlockMenu(ref: string): Promise<void> {
+    const box = await this.block(ref).boundingBox();
+    expect(box).toBeTruthy();
+    await this.page.mouse.click(box!.x + box!.width / 2, box!.y + box!.height / 2, { button: "right" });
+    await expect.poll(() => this.deleteButton.visible()).toBe(true);
+  }
+
+  async selectWire(index = 0, context = false): Promise<BrowserElement> {
     const wire = this.canvas.within("[data-connection]").nth(index);
     const midpoint = await wire.evaluate((element) => {
       const polyline = element as SVGPolylineElement;
@@ -56,7 +63,7 @@ class SelectionDiagram {
       return { x: screen.x, y: screen.y };
     });
     // The transparent hit stroke extends seven pixels either side of the line.
-    await this.page.mouse.click(midpoint.x, midpoint.y + 4);
+    await this.page.mouse.click(midpoint.x, midpoint.y + 4, { button: context ? "right" : "left" });
     await expect.poll(() => wire.getAttribute("data-selected"), { timeout: 5_000 }).toBe("true");
     return wire;
   }
@@ -87,24 +94,75 @@ async function expectPulse(object: BrowserElement): Promise<void> {
   expect(pulse.maximum).toBeGreaterThan(0.98);
 }
 
-test("selects blocks and connections with a slow 17% fade and deletes a wire from the toolbar", async ({ page }) => {
+test("targets the right-clicked block and dismisses its menu with Escape or an outside click", async ({ page }) => {
   await page.goto(baseURL());
   await expect.poll(() => element(page, "[data-splash]").visible()).toBe(false);
   const diagram = new SelectionDiagram(page);
-  await expect.poll(() => diagram.deleteButton.disabled()).toBe(true);
+  await diagram.pair();
+  await diagram.block("ScopeF32").click();
+  await diagram.openBlockMenu("ConstF32");
+  expect(await diagram.block("ScopeF32").getAttribute("data-selected")).toBe("false");
+  expect(await diagram.block("ConstF32").getAttribute("data-selected")).toBe("true");
+  expect(await diagram.deleteButton.within('wa-icon[name="trash"]').count()).toBe(1);
+  await expect.poll(() => diagram.deleteButton.within("wa-icon").shadow("svg").count()).toBe(1);
+  await page.keyboard.press("Escape");
+  await expect.poll(() => diagram.deleteButton.visible()).toBe(false);
+  expect(await diagram.canvas.within("[data-diagram-block]").count()).toBe(2);
+  await diagram.openBlockMenu("ConstF32");
+  await diagram.canvas.click({ position: { x: 700, y: 70 } });
+  await expect.poll(() => diagram.deleteButton.visible()).toBe(false);
+  await diagram.openBlockMenu("ConstF32");
+  await page.keyboard.press("Enter");
+  await expect.poll(() => diagram.block("ConstF32").count()).toBe(0);
+  expect(await diagram.block("ScopeF32").count()).toBe(1);
+});
+
+test("touch-and-hold opens Delete while touch movement cancels the menu", async ({ page }) => {
+  await page.setViewport({ width: 800, height: 600, hasTouch: true });
+  await page.goto(baseURL());
+  await expect.poll(() => element(page, "[data-splash]").visible()).toBe(false);
+  const diagram = new SelectionDiagram(page);
+  await diagram.pair();
+  const block = diagram.block("ConstF32");
+  const before = await block.boundingBox();
+  const client = await page.createCDPSession();
+  const point = { x: before!.x + before!.width / 2, y: before!.y + before!.height / 2 };
+  await client.send("Input.dispatchTouchEvent", { type: "touchStart", touchPoints: [point] });
+  await expect.poll(() => diagram.deleteButton.visible()).toBe(true);
+  await client.send("Input.dispatchTouchEvent", { type: "touchEnd", touchPoints: [] });
+  await expect.poll(() => diagram.deleteButton.visible()).toBe(true);
+  expect(await block.boundingBox()).toEqual(before);
+  await page.screenshot({ path: artifactPath("touch-context-menu.png") });
+  await page.keyboard.press("Escape");
+  await client.send("Input.dispatchTouchEvent", { type: "touchStart", touchPoints: [point] });
+  await client.send("Input.dispatchTouchEvent", { type: "touchMove", touchPoints: [{ x: point.x, y: point.y + 60 }] });
+  await new Promise(resolve => setTimeout(resolve, 650));
+  expect(await diagram.deleteButton.visible()).toBe(false);
+  await client.send("Input.dispatchTouchEvent", { type: "touchEnd", touchPoints: [] });
+  await diagram.openBlockMenu("ConstF32");
+  await diagram.deleteButton.click();
+  await expect.poll(() => diagram.block("ConstF32").count()).toBe(0);
+});
+
+test("selects blocks and connections with a slow 17% fade and deletes a wire from its context menu", async ({ page }) => {
+  await page.goto(baseURL());
+  await expect.poll(() => element(page, "[data-splash]").visible()).toBe(false);
+  const diagram = new SelectionDiagram(page);
+  expect(await element(page, "[data-toolbar] [data-delete-selected]").count()).toBe(0);
+  expect(await diagram.deleteButton.visible()).toBe(false);
   await diagram.pair();
   const constant = diagram.block("ConstF32");
   await constant.click();
   await expect.poll(() => constant.getAttribute("data-selected")).toBe("true");
   await expectPulse(constant);
-  const wire = await diagram.selectWire();
+  const wire = await diagram.selectWire(0, true);
   await expect.poll(() => constant.getAttribute("data-selected")).toBe("false");
   await expectPulse(wire);
   await page.screenshot({ path: artifactPath("selected-connection.png") });
   await diagram.deleteButton.click();
   await expect.poll(() => diagram.canvas.within("[data-connection]").count()).toBe(0);
   await expect.poll(() => diagram.canvas.within("[data-diagram-block]").count()).toBe(2);
-  await expect.poll(() => diagram.deleteButton.disabled()).toBe(true);
+  await expect.poll(() => diagram.deleteButton.visible()).toBe(false);
   // A later reroute must not resurrect the deleted edge.
   const origin = await constant.boundingBox();
   await page.mouse.move(origin!.x + origin!.width / 2, origin!.y + origin!.height / 2);
@@ -132,9 +190,10 @@ for (const key of ["Delete", "Backspace"] as const) {
     await page.keyboard.press(key);
     await expect.poll(() => diagram.block("ConstF32").count()).toBe(0);
     await expect.poll(() => diagram.canvas.within("[data-connection]").count()).toBe(0);
-    await expect.poll(() => diagram.deleteButton.disabled()).toBe(true);
+    await expect.poll(() => diagram.deleteButton.visible()).toBe(false);
     await diagram.block("ScopeF32").click();
     await expect.poll(() => element(page, "[data-scope-plot]").visible()).toBe(true);
+    await diagram.openBlockMenu("ScopeF32");
     await diagram.deleteButton.click();
     await expect.poll(() => diagram.canvas.within("[data-diagram-block]").count()).toBe(0);
     await expect.poll(() => element(page, "[data-scope-plot]").count()).toBe(0);
@@ -152,7 +211,7 @@ test("supports multiple selections and preserves blocks while editing configurat
   await diagram.block("ScopeF32").click({ modifiers: ["Shift"] });
   await expect.poll(() => diagram.canvas.within("[data-diagram-block][data-selected=true]").count()).toBe(1);
   await diagram.canvas.click({ position: { x: 700, y: 70 } });
-  await expect.poll(() => diagram.deleteButton.disabled()).toBe(true);
+  await expect.poll(() => diagram.deleteButton.visible()).toBe(false);
 
   await diagram.block("ConstF32").click();
   await diagram.block("ConstF32").within("[data-block-config]").click();
@@ -168,6 +227,7 @@ test("supports multiple selections and preserves blocks while editing configurat
   await page.keyboard.press("Escape");
   await expect.poll(() => dialog.visible()).toBe(false);
   await diagram.block("ScopeF32").click({ modifiers: ["Control"] });
+  await diagram.openBlockMenu("ConstF32");
   await diagram.deleteButton.click();
   await expect.poll(() => diagram.canvas.within("[data-diagram-block]").count()).toBe(0);
   await expect.poll(() => diagram.canvas.within("[data-connection]").count()).toBe(0);
@@ -181,8 +241,8 @@ test("deleting a block stops the running diagram", async ({ page }) => {
   const run = element(page, "[data-run-toggle]");
   await run.click();
   await expect.poll(() => run.getAttribute("data-run-state")).toBe("running");
-  await diagram.block("ConstF32").click();
-  await page.keyboard.press("Delete");
+  await diagram.openBlockMenu("ConstF32");
+  await diagram.deleteButton.click();
   await expect.poll(() => run.getAttribute("data-run-state")).toBe("idle");
   await expect.poll(() => diagram.block("ConstF32").count()).toBe(0);
   await expect.poll(() => diagram.canvas.within("[data-connection]").count()).toBe(0);

@@ -175,6 +175,17 @@ export class ScopeCaptureBoard {
     return sampled;
   }
 
+  /** Event-driven sources still need a timer to plot their current values. */
+  samplingPeriod(): number | undefined {
+    let period: number | undefined;
+    for (const monitor of this.monitors.values()) {
+      if (monitor.inputSize === 0) continue;
+      const milliseconds = monitor.sampleSeconds * 1000;
+      period = period === undefined ? milliseconds : Math.min(period, milliseconds);
+    }
+    return period;
+  }
+
   private ensure(diagram: Diagram, block: DiagramBlock, reset: boolean): ScopeMonitor {
     const domainSeconds = ScopeBlock.domainSeconds(block);
     const sampleMilliseconds = ScopeBlock.sampleMilliseconds(block);

@@ -9,11 +9,14 @@ import type { DiagramEditor } from "./diagramEditor.js";
 import type { PlacedBlock } from "./diagramBlockFrame.js";
 import "./PortButton.js";
 import "./ConfigButton.js";
+import "./GpioControls.js";
+import type { DiagramRunController } from "../run/diagramRunController.js";
 
 export class DiagramBlockView extends SignalElement {
-  static override properties = { editor: { attribute: false }, block: { attribute: false } };
+  static override properties = { editor: { attribute: false }, block: { attribute: false }, runner: { attribute: false } };
   declare editor: DiagramEditor | undefined;
   declare block: PlacedBlock | undefined;
+  declare runner: DiagramRunController | undefined;
 
   protected override render() {
     const { editor, block } = this;
@@ -27,8 +30,11 @@ export class DiagramBlockView extends SignalElement {
       <div class="diagram-block-body">
         <span class="diagram-block-icon" aria-hidden="true">${unsafeHTML(BlockGlyphCatalog.shared.markup(block.icon))}</span>
         <span class="diagram-block-title">${block.title}</span>
+        <bld-gpio-controls .block=${editor.model.getBlock(block.id)} .runner=${this.runner}
+          .revision=${editor.configRevision()}></bld-gpio-controls>
       </div>
-      ${block.configurable ? html`<bld-config-button .editor=${editor} .block=${block}></bld-config-button>` : nothing}
+      ${block.configurable ? html`<bld-config-button .editor=${editor} .block=${block}
+        .disabled=${this.runner ? this.runner.phase() !== "idle" : false}></bld-config-button>` : nothing}
       ${repeat(block.frame.ports, (port) => `${port.side}:${port.id}`, (port) => html`
         <bld-port-button .editor=${editor} .block=${block} .port=${port}></bld-port-button>`)}
     </article>`;

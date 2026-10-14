@@ -15,6 +15,7 @@ bld-workspace-toolbar,
 bld-diagram-block,
 bld-port-button,
 bld-config-button,
+bld-diagram-context-menu,
 bld-block-config-dialog,
 bld-run-feedback,
 bld-scope-plot {
@@ -577,6 +578,7 @@ bld-palette-panel[hidden] {
   stroke-width: 14;
   pointer-events: stroke;
   cursor: pointer;
+  touch-action: none;
 }
 
 @keyframes diagram-selection-pulse {
@@ -684,10 +686,101 @@ bld-palette-panel[hidden] {
   cursor: pointer;
 }
 
-.diagram-block-config:hover,
-.diagram-block-config:focus-visible {
+.diagram-block-config:enabled:hover,
+.diagram-block-config:enabled:focus-visible {
   color: #ffffff;
   background: rgba(255, 255, 255, 0.12);
+}
+
+.diagram-block-config:disabled,
+.gpio-switch:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+
+.diagram-context-menu {
+  position: fixed;
+  inset: auto;
+  margin: 0;
+  padding: 4px;
+  min-width: 140px;
+  max-width: calc(100vw - 8px);
+  border: 1px solid #49515a;
+  border-radius: 6px;
+  background: #24282d;
+  color: #f0f2f5;
+  box-shadow: 0 5px 20px #0008;
+}
+
+.diagram-context-menu button {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  min-height: 36px;
+  border: 0;
+  border-radius: 3px;
+  padding: 6px 12px;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  cursor: pointer;
+}
+
+.diagram-context-menu button:hover,
+.diagram-context-menu button:focus-visible {
+  background: #3a424d;
+  outline: none;
+}
+
+bld-gpio-controls:empty {
+  display: none;
+}
+
+.gpio-controls {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  pointer-events: auto;
+}
+
+.gpio-switch {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  min-height: 22px;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: #dee2e6;
+  font-size: 10px;
+  cursor: pointer;
+}
+
+.gpio-switch-track {
+  width: 22px;
+  height: 12px;
+  border-radius: 8px;
+  background: #59616b;
+}
+
+.gpio-switch-track::before {
+  content: "";
+  display: block;
+  width: 8px;
+  height: 8px;
+  margin: 2px;
+  border-radius: 50%;
+  background: #fff;
+}
+
+.gpio-switch[aria-checked="true"] .gpio-switch-track {
+  background: #3973b7;
+}
+
+.gpio-switch[aria-checked="true"] .gpio-switch-track::before {
+  transform: translateX(10px);
 }
 
 .diagram-block-config svg {

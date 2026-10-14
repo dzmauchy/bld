@@ -2,6 +2,7 @@ import type { Diagram } from "core";
 import type { CompilationPhaseEvent, CompilationPhaseListener } from "cpp";
 import type { ScopeCaptureBoard } from "../scope/scopeCapture.js";
 import { PinSample } from "./pinSample.js";
+import { GpioInputBlock } from "./gpioInputBlock.js";
 import { DiagramConnectionValidator } from "./diagramConnectionValidator.js";
 import { CompilationSteps } from "./compilationSteps.js";
 import { IntervalSchedule, SimulationClock, type RunningRuntime, type RunningSession, type SessionClock } from "./sessionClock.js";
@@ -31,6 +32,8 @@ export class DiagramRunSession {
   private revisionValue = 0;
   private errorValue: string | undefined;
   private progressValue = CompilationSteps.initial();
+  private readonly gpioValues = new Map<string, Map<number, boolean>>();
+  private readonly blockIndexes = new Map<string, number>();
 
   constructor(
     private readonly diagram: Diagram,
@@ -70,6 +73,29 @@ export class DiagramRunSession {
     return this.progressValue;
   }
 
+  gpioValue(blockId: string, pinIndex: number): boolean {
+    return this.gpioValues.get(blockId)?.get(pinIndex) ?? false;
+  }
+
+  async setGpio(blockId: string, pinIndex: number, value: boolean): Promise<void> {
+    const session = this.wasmSession;
+    const block = this.diagram.getBlock(blockId);
+    const index = this.blockIndexes.get(blockId);
+    if (this.phaseValue !== "running" || !session || index === undefined || !block) return;
+    const pins = GpioInputBlock.of(block)?.pins;
+    if (!pins || !Number.isInteger(pinIndex) || pinIndex < 0 || pinIndex >= pins.length) return;
+    const token = this.token;
+    const values = this.gpioValues.get(blockId) ?? new Map<number, boolean>();
+    values.set(pinIndex, value);
+    this.gpioValues.set(blockId, values);
+    this.publish();
+    try {
+      await session.emitGpioIn(index, pinIndex, value);
+    } catch (error) {
+      if (token === this.token) await this.fail(error);
+    }
+  }
+
   async toggle(): Promise<void> {
     if (this.phaseValue === "stopping") return;
     if (this.phaseValue === "idle") await this.run();
@@ -82,6 +108,9 @@ export class DiagramRunSession {
     this.setError(undefined);
     this.setProgress(CompilationSteps.initial());
     this.setPhase("starting");
+    this.gpioValues.clear();
+    this.blockIndexes.clear();
+    this.diagram.getBlocks().forEach((block, index) => this.blockIndexes.set(block.id, index));
     this.setStatus("Compiling");
     let runtime: RunningRuntime | undefined;
     try {
@@ -106,7 +135,16 @@ export class DiagramRunSession {
       this.wasmSession = session;
       this.runtime = runtime;
       runtime = undefined;
-      const period = await IntervalSchedule.milliseconds(session);
+      // Give every browser input the Off state displayed by its switch.
+      for (const block of this.diagram.getBlocks()) {
+        const gpio = GpioInputBlock.of(block);
+        if (!gpio) continue;
+        for (let pin = 0; pin < gpio.pins.length; pin++) {
+          if (token !== this.token) return;
+          await session.emitGpioIn(this.blockIndexes.get(block.id)!, pin, false);
+        }
+      }
+      const period = await IntervalSchedule.milliseconds(session) ?? this.board.samplingPeriod();
       if (token !== this.token) return;
       if (period !== undefined) {
         const onTick = () => {
@@ -144,6 +182,8 @@ export class DiagramRunSession {
     this.wasmSession = undefined;
     this.runtime = undefined;
     this.clock = undefined;
+    this.gpioValues.clear();
+    this.blockIndexes.clear();
     this.setPhase("stopping");
     clock?.stop();
     await this.shutdown(session, runtime);

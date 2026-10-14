@@ -13,7 +13,7 @@ test("shows SVG toolbar controls and changes palette visibility only with its to
     tooltip: button.getAttribute("title"),
     label: button.getAttribute("aria-label"),
   })));
-  expect(controls).toHaveLength(4);
+  expect(controls).toHaveLength(3);
   for (const control of controls) {
     expect(control.text).toBe("");
     expect(control.icons).toBe(1);

@@ -1,5 +1,6 @@
 import type { BlockDefinition, Connection, DiagramBlock } from "core";
 import { DiagramGrid, WirePoint } from "./geometry.js";
+import { GpioInputBlock } from "../run/gpioInputBlock.js";
 
 interface PortSpec {
   id: string;
@@ -11,7 +12,7 @@ class BlockContentWidth {
   private static readonly labelWidths = new Map<string, number>();
 
   static forDefinition(definition: BlockDefinition): number {
-    const minimum = definition.config.size > 0 ? 72 : 48;
+    const minimum = GpioInputBlock.matches(definition) ? 100 : definition.config.size > 0 ? 72 : 48;
     return DiagramGrid.ceil(Math.max(minimum, BlockContentWidth.labelWidth(definition.title) + 22));
   }
 
@@ -158,6 +159,7 @@ export class DiagramBlockFrame {
       block.outputPorts.map((port) => ({ id: port.id, vector: port.vector })),
       ChannelLayout.forBlock(block.id, connections),
       BlockContentWidth.forDefinition(block.definition),
+      GpioInputBlock.of(block)?.pins.length ?? 0,
     );
   }
 
@@ -167,6 +169,7 @@ export class DiagramBlockFrame {
       [...definition.outputs.values()].map((port) => ({ id: port.id, vector: port.vector })),
       ChannelLayout.empty(),
       BlockContentWidth.forDefinition(definition),
+      GpioInputBlock.defaultPinCount(definition),
     );
   }
 
@@ -182,13 +185,13 @@ export class DiagramBlockFrame {
     return this.ports.find((port) => port.side === side && port.id === portId);
   }
 
-  private static create(inputs: readonly PortSpec[], outputs: readonly PortSpec[], layout: ChannelLayout, width = DiagramBlockFrame.minWidth): DiagramBlockFrame {
+  private static create(inputs: readonly PortSpec[], outputs: readonly PortSpec[], layout: ChannelLayout, width = DiagramBlockFrame.minWidth, controlRows = 0): DiagramBlockFrame {
     const inputFans = inputs.map((spec) => layout.fan("input", spec));
     const outputFans = outputs.map((spec) => layout.fan("output", spec));
     const tallest = Math.max(0, ...inputFans.map((fan) => fan.span), ...outputFans.map((fan) => fan.span));
     const count = Math.max(inputs.length, outputs.length, 1);
     const height = DiagramGrid.ceil(Math.max(
-      DiagramBlockFrame.minHeight,
+      DiagramBlockFrame.minHeight + controlRows * 26,
       count * DiagramBlockFrame.portPitch,
       tallest + DiagramBlockFrame.lanePadding,
     ), DiagramBlockFrame.heightSpacing);

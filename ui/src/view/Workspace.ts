@@ -53,7 +53,7 @@ export class Workspace extends SignalElement {
           if (event.target instanceof Element && event.target.closest("wa-dropdown")) return;
           this.editor?.keyDown(event);
         }}>
-        <bld-workspace-toolbar .runner=${this.runner} .editor=${this.editor} .paletteOpen=${this.paletteOpen.get()}
+        <bld-workspace-toolbar .runner=${this.runner} .paletteOpen=${this.paletteOpen.get()}
           .onTogglePalette=${() => this.paletteOpen.set(!this.paletteOpen.get())}
           .scopeEffects=${this.scopeEffects.get()}
           .onToggleScopeEffects=${() => this.scopeEffects.set(!this.scopeEffects.get())}></bld-workspace-toolbar>

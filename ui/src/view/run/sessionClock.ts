@@ -1,5 +1,6 @@
 /** Wasm session calls the diagram runner needs while a diagram is running. */
 export interface RunningSession {
+  emitGpioIn(blockId: number, pinIndex: number, value: boolean): Promise<number>;
   setNow(ms: number): Promise<number>;
   tick(): Promise<number>;
   close(): Promise<number>;
