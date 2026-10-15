@@ -251,7 +251,7 @@ test("client bundle uses release metadata and the pinned compiler", () => {
   expect(scripts).not.toContain("TreeSitter");
   expect(scripts).not.toContain("HeaderCommentCatalog");
   expect(scripts).toContain("dump-ast");
-  expect(scripts).toContain("clang-23.1.2");
+  expect(scripts).toContain("clang-23.1.3");
   expect(scripts).toContain("releases/download/");
   expect(scripts).toContain("clang.wasm");
   expect(scripts).toContain("lld.wasm");

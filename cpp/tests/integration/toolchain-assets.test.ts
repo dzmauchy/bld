@@ -13,7 +13,7 @@ describe("clang-wasm toolchain assets", () => {
     const source = readFileSync(serviceWorker, "utf8");
     const proxy = readFileSync(devProxy, "utf8");
     for (const text of [source, proxy]) {
-      expect(text).toContain("https://github.com/dzmauchy/clang-wasm/releases/download/clang-23.1.2/");
+      expect(text).toContain("https://github.com/dzmauchy/clang-wasm/releases/download/clang-23.1.3/");
       for (const name of releaseFiles) expect(text).toContain(name);
     }
     expect(source).toContain("/llvm-toolchain-proxy");

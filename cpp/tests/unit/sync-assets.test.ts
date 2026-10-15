@@ -10,22 +10,22 @@ describe("clang-wasm release assets", () => {
   test("points clang, lld, and the sysroot at the clang-wasm release", () => {
     const release = new LlvmProjectRelease();
     expect(release.releasePageUrl()).toBe(
-      "https://github.com/dzmauchy/clang-wasm/releases/tag/clang-23.1.2",
+      "https://github.com/dzmauchy/clang-wasm/releases/tag/clang-23.1.3",
     );
     expect(release.assetUrl("clang.wasm")).toBe(
-      "https://github.com/dzmauchy/clang-wasm/releases/download/clang-23.1.2/clang.wasm",
+      "https://github.com/dzmauchy/clang-wasm/releases/download/clang-23.1.3/clang.wasm",
     );
     expect(release.assetUrl("clang.js")).toBe(
-      "https://github.com/dzmauchy/clang-wasm/releases/download/clang-23.1.2/clang.js",
+      "https://github.com/dzmauchy/clang-wasm/releases/download/clang-23.1.3/clang.js",
     );
     expect(release.assetUrl("lld.wasm")).toBe(
-      "https://github.com/dzmauchy/clang-wasm/releases/download/clang-23.1.2/lld.wasm",
+      "https://github.com/dzmauchy/clang-wasm/releases/download/clang-23.1.3/lld.wasm",
     );
     expect(release.assetUrl("lld.js")).toBe(
-      "https://github.com/dzmauchy/clang-wasm/releases/download/clang-23.1.2/lld.js",
+      "https://github.com/dzmauchy/clang-wasm/releases/download/clang-23.1.3/lld.js",
     );
     expect(release.assetUrl("sysroot.tgz")).toBe(
-      "https://github.com/dzmauchy/clang-wasm/releases/download/clang-23.1.2/sysroot.tgz",
+      "https://github.com/dzmauchy/clang-wasm/releases/download/clang-23.1.3/sysroot.tgz",
     );
     expect(release.contentType("sysroot.tgz")).toBe("application/gzip");
     expect(release.isToolchainAsset(release.assetUrl("sysroot.tgz"))).toBe(true);

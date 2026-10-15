@@ -1,11 +1,11 @@
 /**
  * In-browser clang/lld binaries published by clang-wasm.
- * https://github.com/dzmauchy/clang-wasm/releases/tag/clang-23.1.2
+ * https://github.com/dzmauchy/clang-wasm/releases/tag/clang-23.1.3
  */
 export class LlvmProjectRelease {
   static readonly owner = "dzmauchy";
   static readonly repo = "clang-wasm";
-  static readonly tag = "clang-23.1.2";
+  static readonly tag = "clang-23.1.3";
   static readonly files = Object.freeze(["clang.js", "clang.wasm", "lld.js", "lld.wasm", "sysroot.tgz"] as const);
 
   releasePageUrl(): string {

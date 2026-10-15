@@ -1,7 +1,7 @@
 import { baseLibraryPath, baseLibraryUrl } from "cpp/llvmToolchainProxy.ts";
 import type { IncomingMessage, ServerResponse } from "node:http";
 
-const releasePrefix = "https://github.com/dzmauchy/clang-wasm/releases/download/clang-23.1.2/";
+const releasePrefix = "https://github.com/dzmauchy/clang-wasm/releases/download/clang-23.1.3/";
 const baseArchive = baseLibraryPath.slice(1);
 const releaseFiles = new Set(["clang.js", "clang.wasm", "lld.js", "lld.wasm", "sysroot.tgz"]);
 
