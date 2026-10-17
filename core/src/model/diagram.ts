@@ -121,7 +121,9 @@ export class Diagram implements IDiagram {
     id?: string,
     conf: Record<string, unknown> = {},
   ): DiagramBlock {
-    const def = typeof refOrDef === "string" ? this.palette.getBlock(refOrDef) : refOrDef;
+    const def = typeof refOrDef === "string"
+      ? this.palette.search(refOrDef).find((block) => block.id === refOrDef)
+      : refOrDef;
     if (!def) throw new Error(`Unknown block definition "${String(refOrDef)}"`);
 
     let blockId = id;

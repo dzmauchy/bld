@@ -1,11 +1,11 @@
-/**
- * In-browser clang/lld binaries published by clang-wasm.
- * https://github.com/dzmauchy/clang-wasm/releases/tag/clang-23.1.3
- */
+/** Shared version for Clang, LLD, and their sysroot. Change it here to upgrade the toolchain. */
+export const LLVM_TOOLCHAIN_VERSION = "23.1.3";
+
+/** In-browser clang/lld binaries published by clang-wasm. */
 export class LlvmProjectRelease {
   static readonly owner = "dzmauchy";
   static readonly repo = "clang-wasm";
-  static readonly tag = "clang-23.1.3";
+  static readonly tag = `clang-${LLVM_TOOLCHAIN_VERSION}`;
   static readonly files = Object.freeze(["clang.js", "clang.wasm", "lld.js", "lld.wasm", "sysroot.tgz"] as const);
 
   releasePageUrl(): string {

@@ -51,16 +51,16 @@ describe("Library and Asset Loader", () => {
 
     // In-memory Palette populated
     expect(lib.palette).toBeInstanceOf(Palette);
-    const scope = lib.palette.getBlock("ScopeF32");
+    const scope = lib.palette.search("ScopeF32").next().value;
     expect(scope).toBeDefined();
     expect(scope?.title).toBe("Scope");
     expect(scope?.category).toBe("sinks");
 
-    const cos = lib.palette.getBlock("CosF32");
+    const cos = lib.palette.search("CosF32").next().value;
     expect(cos).toBeDefined();
     expect(cos?.category).toBe("transformers");
 
-    const gpio = lib.palette.getBlock("GpioInF32");
+    const gpio = lib.palette.search("GpioInF32").next().value;
     expect(gpio).toBeDefined();
     expect(gpio?.category).toBe("sources");
     expect(gpio?.cppFactory).toBe("push::f_32::sources::GpioInF32");
@@ -70,10 +70,10 @@ describe("Library and Asset Loader", () => {
     expect(scope?.getConfig("period")?.description).toContain("seconds");
     expect(scope?.getConfig("period")?.control).toMatchObject({ type: "slider", min: 1, max: 3600, step: 1 });
     expect(scope?.getConfig("precision")?.control).toMatchObject({ type: "number", min: 1, max: 1000, step: 1 });
-    expect(lib.palette.getBlock("ConstF32")?.getConfig("value")?.title).toBe("Value");
-    expect(lib.palette.getBlock("ConstF32")?.getConfig("value")?.control).toMatchObject({ type: "number" });
+    expect(lib.palette.search("ConstF32").next().value?.getConfig("value")?.title).toBe("Value");
+    expect(lib.palette.search("ConstF32").next().value?.getConfig("value")?.control).toMatchObject({ type: "number" });
     expect(cos?.config.size).toBe(0);
-    expect([...lib.palette.getBlock("PulseGenF32")?.config.keys() ?? []]).toEqual(["dutyCycle", "amplitude", "frequency", "phase"]);
+    expect([...lib.palette.search("PulseGenF32").next().value?.config.keys() ?? []]).toEqual(["dutyCycle", "amplitude", "frequency", "phase"]);
     expect(gpio?.getConfig("pins")?.control).toMatchObject({ type: "text" });
     expect(gpio?.getConfig("port")?.control).toMatchObject({ type: "number", min: 0, max: 65535, step: 1 });
 
@@ -123,11 +123,11 @@ describe("Library and Asset Loader", () => {
       expect(lib.name).toBe("Remote Plugin");
       expect(lib.icon).toBe("plugin.svg");
       expect(lib.types).toEqual({});
-      expect(lib.palette.getBlock("CustomBlock")).toBeDefined();
+      expect(lib.palette.search("CustomBlock").next().value).toBeDefined();
 
       expect(fetchMock).toHaveBeenCalledWith("https://my-plugin.org/dsp/library.json");
       expect(fetchMock).toHaveBeenCalledWith("https://my-plugin.org/dsp/plugin.tar.gz");
-      expect(lib.palette.getBlock("CustomBlock")?.cppFactory).toBe("custom_ns::CustomBlock");
+      expect(lib.palette.search("CustomBlock").next().value?.cppFactory).toBe("custom_ns::CustomBlock");
       expect(lib.compilationModel.getFile("plugin.hpp")).toContain("class CustomBlock");
     } finally {
       globalThis.fetch = originalFetch;
@@ -201,8 +201,8 @@ describe("Library and Asset Loader", () => {
   test("Palette.fromCatalog rebuilds blocks from library sources", async () => {
     const lib = await Library.loadBase();
     const palette = Palette.fromCatalog(lib.blocks, lib.types, lib.namespaces);
-    expect(palette.hasBlock("ScopeF32")).toBe(true);
-    expect(palette.getBlock("ScopeF32")?.title).toBe("Scope");
+    expect(palette.search("ScopeF32").next().value).toBeDefined();
+    expect(palette.search("ScopeF32").next().value?.title).toBe("Scope");
   });
 
   test("relative archive locations load from internal resources", async () => {
@@ -227,7 +227,7 @@ describe("Library and Asset Loader", () => {
     try {
       const lib = await Library.load("internal.json");
       expect(fetchMock).not.toHaveBeenCalled();
-      expect(lib.palette.getBlock("Local")?.title).toBe("Local");
+      expect(lib.palette.search("Local").next().value?.title).toBe("Local");
       expect(lib.compilationModel.getFile("block.hpp")).toContain("class Local");
     } finally {
       globalThis.fetch = originalFetch;
@@ -259,7 +259,7 @@ describe("Library and Asset Loader", () => {
   test("header block factories match the C++ catalog", async () => {
     const lib = await Library.loadBase();
     for (const [id, raw] of Object.entries(lib.blocks)) {
-      expect(raw.cpp, id).toBe(lib.palette.getBlock(id)?.cppFactory);
+      expect(raw.cpp, id).toBe(lib.palette.search(id).next().value?.cppFactory);
     }
   });
 });

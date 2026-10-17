@@ -3,6 +3,7 @@ import { readdirSync, readFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { CoreSchemaCatalog } from "core";
+import { LLVM_TOOLCHAIN_VERSION, LlvmProjectRelease } from "cpp/llvmRelease.ts";
 
 const distDir = join(dirname(fileURLToPath(import.meta.url)), "../dist");
 const distSchemas = join(distDir, "schemas");
@@ -251,7 +252,8 @@ test("client bundle uses release metadata and the pinned compiler", () => {
   expect(scripts).not.toContain("TreeSitter");
   expect(scripts).not.toContain("HeaderCommentCatalog");
   expect(scripts).toContain("dump-ast");
-  expect(scripts).toContain("clang-23.1.3");
+  expect(scripts).toContain(LLVM_TOOLCHAIN_VERSION);
+  expect(scripts).toContain(LlvmProjectRelease.tag);
   expect(scripts).toContain("releases/download/");
   expect(scripts).toContain("clang.wasm");
   expect(scripts).toContain("lld.wasm");

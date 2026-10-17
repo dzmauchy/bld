@@ -24,10 +24,10 @@ beforeAll(async () => {
 
 describe("Palette", () => {
   test("loads all blocks from catalog", () => {
-    const blocks = palette.getBlocks();
+    const blocks = palette.getBlocks().toArray();
     expect(blocks.length).toBeGreaterThan(5);
 
-    const scope = palette.getBlock("ScopeF32");
+    const scope = palette.search("ScopeF32").next().value;
     expect(scope).toBeDefined();
     expect(scope?.title).toBe("Scope");
     expect(scope?.category).toBe("sinks");
@@ -35,26 +35,26 @@ describe("Palette", () => {
     expect(scope?.getConfig("period")?.defaultValue).toBe(60);
     expect(scope?.getConfig("precision")?.defaultValue).toBe(10);
     expect(scope?.getConfig("period")?.control).toMatchObject({ type: "slider", min: 1, max: 3600, step: 1 });
-    expect(palette.getBlock("ConstF32")?.getConfig("value")?.defaultValue).toBe(1);
-    expect(palette.getBlock("GpioInF32")?.getConfig("pins")?.defaultValue).toEqual([0]);
-    expect(palette.getBlock("PulseGenF32")?.getConfig("dutyCycle")?.defaultValue).toBe(0.5);
+    expect(palette.search("ConstF32").next().value?.getConfig("value")?.defaultValue).toBe(1);
+    expect(palette.search("GpioInF32").next().value?.getConfig("pins")?.defaultValue).toEqual([0]);
+    expect(palette.search("PulseGenF32").next().value?.getConfig("dutyCycle")?.defaultValue).toBe(0.5);
   });
 
   test("filters by category and namespace", () => {
     const sinks = palette.getBlocksByCategory("sinks");
-    expect(sinks.map((b) => b.id)).toContain("ScopeF32");
+    expect(sinks.map((b) => b.id).toArray()).toContain("ScopeF32");
 
-    const sources = palette.getBlocksByCategory("sources");
+    const sources = palette.getBlocksByCategory("sources").toArray();
     expect(sources.map((b) => b.id)).toContain("CosGenF32");
     expect(sources.map((b) => b.id)).toContain("GpioInF32");
 
-    const pushBlocks = palette.getBlocksByNamespace(["push", "f_32"]);
+    const pushBlocks = palette.getBlocksByNamespace(["push", "f_32"]).toArray();
     expect(pushBlocks.length).toBeGreaterThan(0);
   });
 
   test("searches blocks by name or description", () => {
     const results = palette.search("cosine");
-    expect(results.map((b) => b.id)).toContain("CosF32");
+    expect(results.map((b) => b.id).toArray()).toContain("CosF32");
   });
 });
 

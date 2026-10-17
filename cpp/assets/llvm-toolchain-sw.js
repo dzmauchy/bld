@@ -1,5 +1,4 @@
-const releasePrefix = "https://github.com/dzmauchy/clang-wasm/releases/download/clang-23.1.3/";
-const releaseFiles = new Set(["clang.js", "clang.wasm", "lld.js", "lld.wasm", "sysroot.tgz"]);
+// releasePrefix and releaseFiles are supplied by ToolchainServiceWorkerAsset.
 
 self.addEventListener("install", (event) => {
   event.waitUntil(self.skipWaiting());

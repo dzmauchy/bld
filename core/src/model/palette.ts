@@ -8,12 +8,10 @@ import type { Library } from "./library";
 export interface IPalette {
   readonly typeSystem: TypeSystem;
   registerBlock(def: BlockDefinition): void;
-  getBlock(id: string): BlockDefinition | undefined;
-  hasBlock(id: string): boolean;
-  getBlocks(): BlockDefinition[];
-  getBlocksByCategory(category: string): BlockDefinition[];
-  getBlocksByNamespace(nsPrefix: string[]): BlockDefinition[];
-  search(query: string): BlockDefinition[];
+  getBlocks(): IteratorObject<BlockDefinition>;
+  getBlocksByCategory(category: string): IteratorObject<BlockDefinition>;
+  getBlocksByNamespace(nsPrefix: string[]): IteratorObject<BlockDefinition>;
+  search(query: string): IteratorObject<BlockDefinition, undefined>;
 }
 
 export class Palette implements IPalette {
@@ -28,33 +26,34 @@ export class Palette implements IPalette {
     this.blocks.set(def.id, def);
   }
 
-  getBlock(id: string): BlockDefinition | undefined {
-    return this.blocks.get(id);
+  getBlocks(): IteratorObject<BlockDefinition> {
+    return this.blocks.values();
   }
 
-  hasBlock(id: string): boolean {
-    return this.blocks.has(id);
-  }
-
-  getBlocks(): BlockDefinition[] {
-    return this.blocks.values().toArray();
-  }
-
-  getBlocksByCategory(category: string): BlockDefinition[] {
+  getBlocksByCategory(category: string): IteratorObject<BlockDefinition> {
     const normalized = category.toLowerCase();
     return this.getBlocks().filter((b) => b.category.toLowerCase() === normalized);
   }
 
-  getBlocksByNamespace(nsPrefix: string[]): BlockDefinition[] {
+  getBlocksByNamespace(nsPrefix: string[]): IteratorObject<BlockDefinition> {
     return this.getBlocks().filter((b) => nsPrefix.every((part, i) => b.namespace[i] === part));
   }
 
-  search(query: string): BlockDefinition[] {
-    const q = query.trim().toLowerCase();
-    if (!q) return this.getBlocks();
-    return this.getBlocks().filter(
+  *search(query: string): IteratorObject<BlockDefinition, undefined> {
+    const trimmed = query.trim();
+    const exact = this.blocks.get(trimmed);
+    if (exact) {
+      yield exact;
+      return;
+    }
+
+    const q = trimmed.toLowerCase();
+    if (!q) {
+      yield* this.getBlocks();
+      return;
+    }
+    yield* this.getBlocks().filter(
       (b) =>
-        b.id.toLowerCase().includes(q) ||
         b.title.toLowerCase().includes(q) ||
         b.description.toLowerCase().includes(q),
     );

@@ -13,13 +13,13 @@ test("enumerates every block from each library in the list", async () => {
   const listed = await new LibraryList(["base"]).load();
 
   expect(listed.map((library) => library.id)).toEqual(["base"]);
-  const enumerated = listed[0]?.palette.getBlocks().map((block) => block.id).sort();
-  const expected = clang.palette.getBlocks().map((block) => block.id).sort();
+  const enumerated = listed[0]?.palette.getBlocks().map((block) => block.id).toArray().sort();
+  const expected = clang.palette.getBlocks().map((block) => block.id).toArray().sort();
   expect(enumerated).toEqual(expected);
   expect(expected.length).toBeGreaterThan(0);
   for (const id of expected) {
-    const fromList = listed[0]?.palette.getBlock(id);
-    const fromClang = clang.palette.getBlock(id);
+    const fromList = listed[0]?.palette.search(id).next().value;
+    const fromClang = clang.palette.search(id).next().value;
     expect(fromList?.title).toBe(fromClang?.title);
     expect(fromList?.category).toBe(fromClang?.category);
     expect(fromList?.cppFactory).toBe(fromClang?.cppFactory);

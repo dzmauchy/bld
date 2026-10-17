@@ -1,8 +1,9 @@
 import { createServer, type IncomingMessage, type Server, type ServerResponse } from "node:http";
 import { expect, test } from "vitest";
 import { attachLlvmToolchainProxy, LlvmToolchainAssetCache } from "../../scripts/llvmToolchainProxyMiddleware.ts";
+import { LlvmProjectRelease } from "cpp/llvmRelease.ts";
 
-const prefix = "https://github.com/dzmauchy/clang-wasm/releases/download/clang-23.1.3/";
+const prefix = new LlvmProjectRelease().assetUrl("");
 const noDelay = async () => {};
 
 class ProxyTestServer {
