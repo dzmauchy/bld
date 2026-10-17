@@ -121,11 +121,11 @@ inline auto Same(const u32 blockId, const f32 value = f32{0.5}) {
   });
   test("metadata exposes both precisions without header comment parsing", () => {
     expect(library.palette.getBlocks().toArray()).toHaveLength(22);
-    expect(library.palette.search("ScopeF64").next().value?.getOutput("channels")).toBeDefined();
+    expect(library.palette.search("ScopeF64").find((block) => block.id === "ScopeF64")?.getOutput("channels")).toBeDefined();
     expect(library.compilationModel.getFile("core/types.hpp")).toContain("core::span");
-    expect(library.palette.search("ScopeF32").next().value?.getOutput("channels")?.vector).toBe(true);
-    expect(library.palette.search("ConstF32").next().value?.getInput("downstream")?.vector).toBe(true);
-    expect(library.palette.search("CosF32").next().value?.getOutput("consumer")?.vector).toBe(false);
+    expect(library.palette.search("ScopeF32").find((block) => block.id === "ScopeF32")?.getOutput("channels")?.vector).toBe(true);
+    expect(library.palette.search("ConstF32").find((block) => block.id === "ConstF32")?.getInput("downstream")?.vector).toBe(true);
+    expect(library.palette.search("CosF32").find((block) => block.id === "CosF32")?.getOutput("consumer")?.vector).toBe(false);
   });
   test("all released blocks assemble and infer their actual field types", async () => {
     const d = diagram();
@@ -136,10 +136,10 @@ inline auto Same(const u32 blockId, const f32 value = f32{0.5}) {
     expect(result.types.require("ScopeF32_0", "output", "channels").desugaredQualType).toContain("function<core::span<core::function<void (float)> *const>");
     expect(result.types.require("ScopeF64_0", "output", "channels").desugaredQualType).toContain("function<core::span<core::function<void (double)> *const>");
     for (const precision of ["F32", "F64"]) {
-      expect(library.palette.search(`Scope${precision}`).next().value?.getDefaultConfig()).toEqual({ period: 60, precision: 10 });
-      expect(library.palette.search(`PulseGen${precision}`).next().value?.getDefaultConfig()).toEqual({ dutyCycle: 0.5, amplitude: 1, frequency: 1, phase: 0 });
-      expect(library.palette.search(`GpioIn${precision}`).next().value?.getDefaultConfig()).toEqual({ port: 0, pins: [0] });
-      expect(library.palette.search(`GpioIn${precision}`).next().value?.getConfig("pins")?.type.raw).toBe("auto");
+      expect(library.palette.search(`Scope${precision}`).find((block) => block.id === `Scope${precision}`)?.getDefaultConfig()).toEqual({ period: 60, precision: 10 });
+      expect(library.palette.search(`PulseGen${precision}`).find((block) => block.id === `PulseGen${precision}`)?.getDefaultConfig()).toEqual({ dutyCycle: 0.5, amplitude: 1, frequency: 1, phase: 0 });
+      expect(library.palette.search(`GpioIn${precision}`).find((block) => block.id === `GpioIn${precision}`)?.getDefaultConfig()).toEqual({ port: 0, pins: [0] });
+      expect(library.palette.search(`GpioIn${precision}`).find((block) => block.id === `GpioIn${precision}`)?.getConfig("pins")?.type.raw).toBe("auto");
     }
   });
   test("GPIO vector configuration preserves empty, single and multiple pin lists", async () => {

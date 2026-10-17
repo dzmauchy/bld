@@ -340,9 +340,9 @@ test("metadata defaults remain available after browser port analysis", async ({ 
   const analysis = await builder.analyze(diagram, cpp.astDumper);
   expect(analysis.ok, JSON.stringify(analysis.diagnostics)).toBe(true);
   for (const precision of ["F32", "F64"]) {
-    expect(palette.search(`GpioIn${precision}`).next().value?.getDefaultConfig()).toEqual({ port: 0, pins: [0] });
-    expect(palette.search(`Scope${precision}`).next().value?.getDefaultConfig()).toEqual({ period: 60, precision: 10 });
-    expect(palette.search(`PulseGen${precision}`).next().value?.getDefaultConfig()).toEqual({ dutyCycle: 0.5, amplitude: 1, frequency: 1, phase: 0 });
+    expect(palette.search(`GpioIn${precision}`).find((block) => block.id === `GpioIn${precision}`)?.getDefaultConfig()).toEqual({ port: 0, pins: [0] });
+    expect(palette.search(`Scope${precision}`).find((block) => block.id === `Scope${precision}`)?.getDefaultConfig()).toEqual({ period: 60, precision: 10 });
+    expect(palette.search(`PulseGen${precision}`).find((block) => block.id === `PulseGen${precision}`)?.getDefaultConfig()).toEqual({ dutyCycle: 0.5, amplitude: 1, frequency: 1, phase: 0 });
   }
   const gpio = diagram.getBlocks().find((block) => block.definition.id === "GpioInF32")!;
   gpio.setConf("pins", []);
@@ -638,7 +638,7 @@ test("diagram AST analysis reads main-file declarations with lazy precompiled he
   const ast = dump.ast as { inner?: { kind?: string; name?: string }[] };
   expect(JSON.stringify(dump.ast)).toContain('"name":"mount"');
   expect(ast.inner?.some(node => node.name?.startsWith("bld_factory_"))).toBe(false);
-  expect(palette.search("ScopeF32").next().value?.getDefaultConfig()).toEqual({ period: 60, precision: 10 });
+  expect(palette.search("ScopeF32").find((block) => block.id === "ScopeF32")?.getDefaultConfig()).toEqual({ period: 60, precision: 10 });
   const bytes = new TextEncoder().encode(JSON.stringify(dump.ast)).byteLength;
   expect(bytes).toBeLessThan(2_000_000);
   console.log(`AST bytes: ${bytes}`);

@@ -27,7 +27,7 @@ describe("Palette", () => {
     const blocks = palette.getBlocks().toArray();
     expect(blocks.length).toBeGreaterThan(5);
 
-    const scope = palette.search("ScopeF32").next().value;
+    const scope = palette.search("ScopeF32").find((block) => block.id === "ScopeF32");
     expect(scope).toBeDefined();
     expect(scope?.title).toBe("Scope");
     expect(scope?.category).toBe("sinks");
@@ -35,9 +35,9 @@ describe("Palette", () => {
     expect(scope?.getConfig("period")?.defaultValue).toBe(60);
     expect(scope?.getConfig("precision")?.defaultValue).toBe(10);
     expect(scope?.getConfig("period")?.control).toMatchObject({ type: "slider", min: 1, max: 3600, step: 1 });
-    expect(palette.search("ConstF32").next().value?.getConfig("value")?.defaultValue).toBe(1);
-    expect(palette.search("GpioInF32").next().value?.getConfig("pins")?.defaultValue).toEqual([0]);
-    expect(palette.search("PulseGenF32").next().value?.getConfig("dutyCycle")?.defaultValue).toBe(0.5);
+    expect(palette.search("ConstF32").find((block) => block.id === "ConstF32")?.getConfig("value")?.defaultValue).toBe(1);
+    expect(palette.search("GpioInF32").find((block) => block.id === "GpioInF32")?.getConfig("pins")?.defaultValue).toEqual([0]);
+    expect(palette.search("PulseGenF32").find((block) => block.id === "PulseGenF32")?.getConfig("dutyCycle")?.defaultValue).toBe(0.5);
   });
 
   test("filters by category and namespace", () => {

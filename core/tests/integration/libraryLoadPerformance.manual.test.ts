@@ -32,7 +32,7 @@ test("profiles uncached library loading over local HTTP", async () => {
       const start = performance.now();
       const library = await load(`measured-${i}`);
       durations.push(performance.now() - start);
-      expect(library.palette.search("ConstF32").next().value).toBeDefined();
+      expect(library.palette.search("ConstF32").find((block) => block.id === "ConstF32")).toBeDefined();
     }
     const cpu = process.cpuUsage(cpuStart);
     durations.sort((a, b) => a - b);

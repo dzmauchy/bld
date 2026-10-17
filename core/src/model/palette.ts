@@ -11,7 +11,7 @@ export interface IPalette {
   getBlocks(): IteratorObject<BlockDefinition>;
   getBlocksByCategory(category: string): IteratorObject<BlockDefinition>;
   getBlocksByNamespace(nsPrefix: string[]): IteratorObject<BlockDefinition>;
-  search(query: string): IteratorObject<BlockDefinition, undefined>;
+  search(query: string): IteratorObject<BlockDefinition>;
 }
 
 export class Palette implements IPalette {
@@ -39,7 +39,7 @@ export class Palette implements IPalette {
     return this.getBlocks().filter((b) => nsPrefix.every((part, i) => b.namespace[i] === part));
   }
 
-  *search(query: string): IteratorObject<BlockDefinition, undefined> {
+  *search(query: string): IteratorObject<BlockDefinition> {
     const trimmed = query.trim();
     const exact = this.blocks.get(trimmed);
     if (exact) {

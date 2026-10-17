@@ -49,8 +49,8 @@ test("distributes input and output ports along the block's left and right sides"
 
 test("arms a palette block until the same block is clicked again", () => {
   const library = demoLibrary();
-  const scope = library.palette.search("ScopeF32").next().value;
-  const constant = library.palette.search("ConstF32").next().value;
+  const scope = library.palette.search("ScopeF32").find((block) => block.id === "ScopeF32");
+  const constant = library.palette.search("ConstF32").find((block) => block.id === "ConstF32");
   expect(scope).toBeDefined();
   expect(constant).toBeDefined();
   const arm = new PaletteArm();
